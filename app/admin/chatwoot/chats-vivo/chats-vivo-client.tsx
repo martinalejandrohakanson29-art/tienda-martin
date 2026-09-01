@@ -1944,6 +1944,38 @@ export function ChatsVivoClient({
                                                         m.saliente ? "bg-[#d9fdd3] rounded-tr-none" : "bg-white rounded-tl-none"
                                                     }`}
                                                 >
+                                                    {m.referral && (
+                                                        <div className="mb-1.5 rounded-md border border-[#25d366]/40 bg-[#f0f9f1] overflow-hidden">
+                                                            {m.referral.imagenUrl && (
+                                                                <img
+                                                                    src={m.referral.imagenUrl}
+                                                                    alt=""
+                                                                    className="w-full max-h-32 object-cover cursor-pointer"
+                                                                    onClick={() =>
+                                                                        setLightboxImg({
+                                                                            url: m.referral!.imagenUrl!,
+                                                                            nombre: m.referral!.titulo || "Anuncio",
+                                                                        })
+                                                                    }
+                                                                />
+                                                            )}
+                                                            <div className="px-2 py-1.5">
+                                                                <span className="block text-[9px] font-semibold uppercase tracking-wide text-[#128c7e]">
+                                                                    📣 Entró por publicidad
+                                                                </span>
+                                                                {m.referral.titulo && (
+                                                                    <span className="block text-[11px] font-semibold text-[#111b25] mt-0.5">
+                                                                        {m.referral.titulo}
+                                                                    </span>
+                                                                )}
+                                                                {m.referral.cuerpo && (
+                                                                    <span className="block text-[10px] text-[#54656f] leading-snug mt-0.5">
+                                                                        {m.referral.cuerpo}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                     <MensajeAdjuntos
                                                         adjuntos={m.adjuntos}
                                                         saliente={m.saliente}

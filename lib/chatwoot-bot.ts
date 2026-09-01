@@ -500,6 +500,19 @@ export type AdjuntoConversacion = {
 
 export type EstadoMensaje = "sent" | "delivered" | "read" | "failed" | "progress" | string
 
+/**
+ * Dato del anuncio por el que entró el cliente (click-to-WhatsApp de Meta).
+ * Chatwoot lo guarda en `content_attributes.referral` del primer mensaje
+ * entrante y lo muestra como una tarjeta arriba del texto. Nuestro panel lo
+ * ignoraba: se veía el "Cunto" suelto sin el contexto del kit del anuncio.
+ */
+export type ReferralAnuncio = {
+    titulo: string | null
+    cuerpo: string | null
+    imagenUrl: string | null
+    sourceUrl: string | null
+}
+
 export type MensajeConversacion = {
     id: number
     contenido: string
@@ -509,6 +522,7 @@ export type MensajeConversacion = {
     creadoEn: string
     status?: EstadoMensaje
     adjuntos?: AdjuntoConversacion[]
+    referral?: ReferralAnuncio
 }
 
 /**
@@ -567,6 +581,16 @@ export async function getMensajesConversacion(
                 })
                 .filter((att) => Boolean(att.url))
 
+            const ref = m?.content_attributes?.referral
+            const referral: ReferralAnuncio | undefined = ref
+                ? {
+                      titulo: (ref.headline || "").toString().trim() || null,
+                      cuerpo: (ref.body || "").toString().trim() || null,
+                      imagenUrl: (ref.image_url || "").toString().trim() || null,
+                      sourceUrl: (ref.source_url || "").toString().trim() || null,
+                  }
+                : undefined
+
             return {
                 id: Number(m?.id),
                 contenido: (m?.content || "").toString(),
@@ -576,9 +600,10 @@ export async function getMensajesConversacion(
                 creadoEn: new Date(Number.isFinite(creado) ? creado : Date.now()).toISOString(),
                 status: (m?.status || (saliente ? "sent" : undefined)) as EstadoMensaje,
                 adjuntos: adjuntos.length > 0 ? adjuntos : undefined,
+                referral,
             }
         })
-        .filter((m) => m.contenido.trim().length > 0 || (m.adjuntos && m.adjuntos.length > 0))
+        .filter((m) => m.contenido.trim().length > 0 || (m.adjuntos && m.adjuntos.length > 0) || Boolean(m.referral))
         .sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
 }
 

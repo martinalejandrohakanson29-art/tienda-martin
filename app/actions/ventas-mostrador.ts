@@ -1402,15 +1402,18 @@ export async function obtenerPedidosVenta(fechaDesde?: string, fechaHasta?: stri
       tipoVenta: "PEDIDO",
     };
 
-    if (fechaDesde && fechaHasta) {
-      where.createdAt = {
-        gte: new Date(`${fechaDesde}T00:00:00-03:00`),
-        lte: new Date(`${fechaHasta}T23:59:59.999-03:00`),
-      };
+    if (fechaDesde || fechaHasta) {
+      where.createdAt = {};
+      if (fechaDesde) {
+        where.createdAt.gte = new Date(`${fechaDesde}T00:00:00-03:00`);
+      }
+      if (fechaHasta) {
+        where.createdAt.lte = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+      }
     }
 
     // Agregar filtro por estado si se proporciona
-    if (estadoPedido) {
+    if (estadoPedido && estadoPedido !== "TODOS") {
       where.estadoPedido = estadoPedido;
     }
 

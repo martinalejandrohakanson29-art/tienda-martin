@@ -477,6 +477,31 @@ Orden real del procesamiento de un mensaje entrante:
   contestarle a mano a este cliente (conv 3131) — quedó con el "no" equivocado; probable que su
   Blitz 110 sí sea compatible. Ver [[fix-bot-compat-wave-parser-y-pieza-periferica]] y
   [[project-chatwoot-grupo-vs-kit-simple-drift]].
+- **Precio de kit simple: formato $, redacción fija, y no responder por otro kit (2026-09-01).**
+  Caso real conv 3151 (+5493584203201, Marcos Morales). Kit 170 pineado por plantilla; el cliente
+  preguntó "Y un 190 para una fz16 cuánto me saldria" y el bot respondió *"Te saldría 99990.00."*
+  Tres cosas: (1) el precio salía crudo de la base ("99990.00") — el camino de grupos ya formatea
+  `$99.990` pero el de kit simple no; (2) la redacción la improvisaba el LLM `Redactar Respuesta
+  desde Dato` ("Te saldría…") en vez del molde determinístico que usan los grupos; (3) el
+  clasificador marcó "precio" del kit pineado para una consulta sobre **otro** kit y **otra** moto
+  → le tiró el precio del 170. Fix (script `apply-precio-kit-simple-formato-y-redaccion.mjs`, 3
+  nodos, 0 nuevos): (A) `Buscar Precio Kit Pineado` trae también `k.envio`; `Consolidar Dato
+  Resuelto` (rama `precio`) arma el texto final determinístico —
+  `"$99.990. Envío gratis a todo el país. Avisame si te interesa y coordinamos."` (la línea de
+  envío solo si `k.envio` dice "gratis"), con `Math.round(precio).toLocaleString('es-AR')`. (B)
+  `Marcar Resuelto o No Resuelto`: `precio` pasa a `passthrough` (como `reenvio_bienvenida` /
+  `repregunta_moto`) → el texto va tal cual, sin reescritura del LLM. (C) `Dividir y Etiquetar
+  Sub-preguntas`: la regla de `"precio"` ahora aclara que es SOLO por el mismo kit de la charla;
+  otro kit / otra cilindrada / otro producto / algo para otra moto → `"otro"` (si no hay dato,
+  escala en silencio), con el ejemplo real. Rollback n8n: versión
+  `2af3055f-4223-4ea6-ab52-3944eb440a66`. **Validado en vivo** (conv de prueba 2411, webhook
+  sintético): plantilla Kit 170 → "cuanto sale?" → exec 93699 mandó *"$99.990. Envío gratis a
+  todo el país. Avisame si te interesa y coordinamos."* (`Consolidar` y `Marcar Resuelto`
+  entregaron el texto idéntico, sin pasar por el LLM); "y un 190 para una fz16 cuanto sale?" →
+  clasificado `otro`, sin respuesta al cliente, nota privada "preguntó algo que todavía no
+  supimos ubicar". **Pendiente:** contestarle a mano a Marcos (conv 3151) — el equipo ya le
+  respondió lo del carburador, pero el precio del "190 para fz16" quedó sin confirmar. Ver
+  [[feedback-bot-preguntas-sin-apertura]].
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

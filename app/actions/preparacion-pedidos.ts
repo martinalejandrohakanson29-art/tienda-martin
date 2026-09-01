@@ -82,16 +82,24 @@ export async function obtenerPedidosConFoto(ventaIds: string[]) {
 
 // Lista los pedidos de venta del rango con su estado de auditoría adjunto.
 // Alimenta las pestañas "Preparación" y "Auditoría".
-export async function obtenerPedidosParaPreparar(fechaDesde: string, fechaHasta: string) {
+export async function obtenerPedidosParaPreparar(fechaDesde?: string, fechaHasta?: string) {
     try {
-        const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`)
-        const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`)
+        const where: any = {
+            tipoVenta: "PEDIDO",
+        };
+
+        if (fechaDesde || fechaHasta) {
+            where.createdAt = {};
+            if (fechaDesde) {
+                where.createdAt.gte = new Date(`${fechaDesde}T00:00:00-03:00`);
+            }
+            if (fechaHasta) {
+                where.createdAt.lte = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+            }
+        }
 
         const ventas = await prisma.venta.findMany({
-            where: {
-                tipoVenta: "PEDIDO",
-                createdAt: { gte: inicioRango, lte: finRango },
-            },
+            where,
             include: { items: true },
             orderBy: { createdAt: 'desc' },
         })

@@ -155,10 +155,8 @@ export default function PedidosVentaClient() {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fechaDesde, setFechaDesde] = useState(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split("T")[0]
-  );
-  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split("T")[0]);
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
@@ -184,7 +182,10 @@ export default function PedidosVentaClient() {
     try {
       setCargando(true);
       setError(null);
-      const data = await obtenerPedidosVenta(fechaDesde, fechaHasta);
+      const data = await obtenerPedidosVenta(
+        fechaDesde || undefined,
+        fechaHasta || undefined
+      );
       setVentas(data);
       // Consultamos en lote qué pedidos tienen foto de preparación cargada.
       const ids = data.map((v) => v.id);
@@ -590,6 +591,18 @@ export default function PedidosVentaClient() {
                   </>
                 )}
               </Button>
+              {(fechaDesde || fechaHasta) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFechaDesde("");
+                    setFechaHasta("");
+                  }}
+                  disabled={cargando}
+                >
+                  Limpiar fechas
+                </Button>
+              )}
               {selectedVentaIds.size > 0 && (
                 <Button
                   onClick={handleDescargarLote}

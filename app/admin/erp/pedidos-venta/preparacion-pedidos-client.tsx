@@ -127,10 +127,8 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
   const [search, setSearch] = useState("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const [fechaDesde, setFechaDesde] = useState(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split("T")[0]
-  );
-  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split("T")[0]);
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -145,7 +143,10 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
   const cargar = async () => {
     setCargando(true);
     try {
-      const data = await obtenerPedidosParaPreparar(fechaDesde, fechaHasta);
+      const data = await obtenerPedidosParaPreparar(
+        fechaDesde || undefined,
+        fechaHasta || undefined
+      );
       setPedidos(data as Pedido[]);
     } catch (e) {
       toast.error("No se pudieron cargar los pedidos");
@@ -239,7 +240,10 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
   // actualizamos el panel de detalle abierto para que muestre el estado real en vez
   // de dejar los botones de Aprobar/Rechazar habilitados sobre datos viejos.
   const sincronizarTrasConflicto = async (ventaId: string) => {
-    const data = await obtenerPedidosParaPreparar(fechaDesde, fechaHasta);
+    const data = await obtenerPedidosParaPreparar(
+      fechaDesde || undefined,
+      fechaHasta || undefined
+    );
     const frescos = data as Pedido[];
     setPedidos(frescos);
     const actualizado = frescos.find((x) => x.id === ventaId);
@@ -448,7 +452,7 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
     <div className="space-y-4 w-full max-w-5xl mx-auto">
       {/* Filtros de fecha + buscador */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-3 items-end">
-        <div className="flex gap-3 w-full md:w-auto">
+        <div className="flex gap-3 w-full md:w-auto items-end">
           <div className="flex-1">
             <label className="text-xs font-medium text-slate-500 mb-1 block">Desde</label>
             <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="h-11" />
@@ -457,6 +461,18 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
             <label className="text-xs font-medium text-slate-500 mb-1 block">Hasta</label>
             <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="h-11" />
           </div>
+          {(fechaDesde || fechaHasta) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFechaDesde("");
+                setFechaHasta("");
+              }}
+              className="h-11"
+            >
+              Limpiar
+            </Button>
+          )}
         </div>
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />

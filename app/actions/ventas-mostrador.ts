@@ -38,6 +38,8 @@ const VentaItemSchema = z.object({
 
 const VentaBaseUpdateSchema = z.object({
   cliente: z.string().min(1),
+  vendedor: z.string().nullish(),
+  sujetoId: z.string().nullish(),
   total: z.number().min(0),
   interes: z.number().min(0),
   totalFinal: z.number().min(0),
@@ -59,10 +61,10 @@ const VentaBaseUpdateSchema = z.object({
   mlPackId: z.string().nullish(),
   mlMla: z.string().nullish(),
   mlDni: z.string().nullish(),
-  tipoComprobante: z.number().optional(),
-  docTipo: z.number().optional(),
-  docNro: z.string().optional(),
-  condicionIva: z.number().optional(),
+  tipoComprobante: z.number().nullish(),
+  docTipo: z.number().nullish(),
+  docNro: z.string().nullish(),
+  condicionIva: z.number().nullish(),
 })
 
 const ActualizarVentaSchema = VentaBaseUpdateSchema.extend({
@@ -1148,7 +1150,7 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
         await revertirImpactoProveedorTx(tx, oldVenta.para, montoRevertirVal, ventaId);
       }
 
-      await ajustarStockItemsTx(tx, oldItems.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
+      await ajustarStockItemsTx(tx, oldItems.filter(i => i.productoId && !i.esNota).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
       await tx.ventaItem.deleteMany({ where: { ventaId } });
 
@@ -1156,6 +1158,8 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
         where: { id: ventaId },
         data: {
           cliente: data.cliente,
+          vendedor: data.vendedor ?? undefined,
+          sujetoId: data.sujetoId || null,
           total: data.total,
           interes: data.interes,
           totalFinal: data.totalFinal,
@@ -1189,11 +1193,12 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
           ...(data.alicuotaIva !== undefined && { alicuotaIva: data.alicuotaIva }),
           items: {
             create: data.items.map((item) => ({
-              productoId: item.productoId || item.id,
+              productoId: item.esNota ? null : (item.productoId || item.id),
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
+              esNota: item.esNota || false,
             }))
           }
         }
@@ -1204,7 +1209,7 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
         await aplicarImpactoProveedorTx(tx, data.para, montoImpactoNewVal, desc, ventaId);
       }
 
-      await ajustarStockItemsTx(tx, data.items, "decrement");
+      await ajustarStockItemsTx(tx, data.items.filter(i => (i.productoId || i.id) && !i.esNota), "decrement");
 
       await tx.ventaAuditoria.create({
         data: {

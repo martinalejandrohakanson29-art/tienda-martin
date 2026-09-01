@@ -502,12 +502,34 @@ Orden real del procesamiento de un mensaje entrante:
   supimos ubicar". **Pendiente:** contestarle a mano a Marcos (conv 3151) — el equipo ya le
   respondió lo del carburador, pero el precio del "190 para fz16" quedó sin confirmar. Ver
   [[feedback-bot-preguntas-sin-apertura]].
+- **Cilindrada "pegada" + fila positiva genérica: falso "sí es compatible" (2026-09-01).** Caso
+  real conv 3032 (+5493491582103, Elias Nieva): dijo "Corven energy 125" y el bot respondió *"le
+  va bien a tu moto"* — la Corven Energy es 110, no existe en 125. Dos causas: (1) `rm_tokens_modelo`
+  no reconocía la cilindrada cuando venía pegada a la unidad (`110cc`, `125cc`) → el token quedaba
+  `110cc`, no pasaba el filtro `^[0-9]+$` que usan `rm_numeros_conflictivos` /
+  `rm_numero_guardado_no_mencionado` → no detectaba el choque `110≠125` (fila `Corven energy 110cc
+  Modelo 2016`, o el cliente escribiendo `125cc`); (2) 5 filas positivas cargadas como `corven
+  energy` **sin cilindrada** (24/08) → matcheaban cualquier número. **Fix (solo base de datos, 0
+  nodos):** (1) `fix-rm-tokens-modelo-cilindrada-pegada.sql` — `rm_tokens_modelo` separa la
+  cilindrada de la unidad (`([0-9]+)\s*(cc|cm3|c.c) → \1`) antes de tokenizar; (2)
+  `fix-compat-corven-energy-cilindrada.sql` — `UPDATE ... SET modelo_moto = 'corven energy 110'
+  WHERE modelo_moto = 'corven energy'` (5 filas). **NO** se tocaron las ~120 filas positivas
+  genéricas sin cilindrada de otros modelos (keller, motomel, zanella zb…) — ahí la compat depende
+  del modelo a propósito; esos casos siguen manejándose con una fila negativa puntual por incidente
+  (Blitz 125 / ZB 125). **Descartado** un guard simétrico al de conv 3131 para filas positivas:
+  rompería esas ~120. Regresión: 1540 comparaciones (cada modelo real × sí mismo + 13 consultas),
+  3 flips, los 3 correctos (`corven energy 125/125cc` → sin match → escala), 0 self-matches rotos.
+  Verificado post-deploy: `corven energy 125` → escala en los 3 grupos; `corven energy` / `corven
+  energy 110` / corven mirage / keller / zanella zb intactos. Ver
+  [[fix-bot-compat-negativa-cilindrada]] y [[fix-bot-compat-wave-parser-y-pieza-periferica]].
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja
   (conv 3109) — quedó con la respuesta equivocada como último mensaje. Ídem Esteban (conv 3166,
   +5492224553988, "leva de calle 6.5", equipo ya le pasó el precio 01/09, `/bot off`), Joaco
-  (conv 3153, +5492625419260) y Gabriel (conv 3078). `rutas-bot-chatwoot.html` sigue desactualizado.
+  (conv 3153, +5492625419260), Gabriel (conv 3078) y Elias Nieva (conv 3032, +5493491582103 — el
+bot le dijo que su "Corven energy 125" era compatible; hay que aclararle que no).
+`rutas-bot-chatwoot.html` sigue desactualizado.
 
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 

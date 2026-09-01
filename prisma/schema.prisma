@@ -1115,6 +1115,7 @@ model Proveedor {
 
   observaciones  String?
   esMayorista    Boolean               @default(false)
+  esPrioritario  Boolean               @default(false)
 
   compras        Compra[]
   movimientos    MovimientoProveedor[]

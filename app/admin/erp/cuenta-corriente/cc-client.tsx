@@ -3,7 +3,7 @@
 import React, { useState, useTransition, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { actualizarProveedor, eliminarProveedor } from "@/app/actions/listas";
+import { actualizarProveedor, eliminarProveedor, togglePrioritarioProveedor } from "@/app/actions/listas";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -28,6 +28,7 @@ interface Proveedor {
   total: number;
   aliasCbu?: string | null;
   esMayorista: boolean;
+  esPrioritario: boolean;
   ultimaCompra: string | null;
 }
 
@@ -66,6 +67,7 @@ export default function CuentaCorrienteClient({
 }: CuentaCorrienteClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [proveedoresList, setProveedoresList] = useState<Proveedor[]>(proveedoresIniciales);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<FilterType>("todos");
   const [sortBy, setSortBy] = useState<SortType>("nombre-asc");
@@ -73,40 +75,39 @@ export default function CuentaCorrienteClient({
   const [isSaldosMenuOpen, setIsSaldosMenuOpen] = useState(false);
   const saldosMenuRef = useRef<HTMLDivElement>(null);
 
-  // Proveedores prioritarios (persistido en localStorage)
-  const [prioritarios, setPrioritarios] = useState<string[]>([]);
-
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("cc_proveedores_prioritarios");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setPrioritarios(parsed);
-        }
-      }
-    } catch (e) {
-      console.error("Error al cargar proveedores prioritarios de localStorage", e);
-    }
-  }, []);
+    setProveedoresList(proveedoresIniciales);
+  }, [proveedoresIniciales]);
 
   const togglePrioritario = (id: string) => {
-    setPrioritarios((prev) => {
-      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
-      try {
-        localStorage.setItem("cc_proveedores_prioritarios", JSON.stringify(next));
-      } catch (e) {
-        console.error("Error al guardar proveedores prioritarios en localStorage", e);
+    const prov = proveedoresList.find((p) => p.id === id);
+    if (!prov) return;
+    const nextStatus = !prov.esPrioritario;
+
+    // Actualización optimista
+    setProveedoresList((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, esPrioritario: nextStatus } : p))
+    );
+
+    startTransition(async () => {
+      const res = await togglePrioritarioProveedor(id, nextStatus);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo actualizar la prioridad");
+        // Revertir en caso de error
+        setProveedoresList((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, esPrioritario: !nextStatus } : p))
+        );
+      } else {
+        router.refresh();
       }
-      return next;
     });
   };
 
   const prioritariosProveedores = useMemo(() => {
-    return proveedoresIniciales
-      .filter((p) => prioritarios.includes(p.id))
+    return proveedoresList
+      .filter((p) => p.esPrioritario)
       .sort((a, b) => (a.razonSocial || "").localeCompare(b.razonSocial || "", "es", { sensitivity: "base" }));
-  }, [proveedoresIniciales, prioritarios]);
+  }, [proveedoresList]);
 
   useEffect(() => {
     if (!isSaldosMenuOpen) return;
@@ -134,7 +135,7 @@ export default function CuentaCorrienteClient({
   });
 
   const processedProveedores = useMemo(() => {
-    let result = proveedoresIniciales.filter((p) => {
+    let result = proveedoresList.filter((p) => {
       const matchesSearch =
         p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.cuit && p.cuit.includes(searchTerm)) ||
@@ -159,7 +160,7 @@ export default function CuentaCorrienteClient({
     });
 
     return result;
-  }, [proveedoresIniciales, searchTerm, filterBy, sortBy]);
+  }, [proveedoresList, searchTerm, filterBy, sortBy]);
 
   const formatCurrency = (amount: any) => {
     const value = typeof amount === "number" ? amount : parseFloat(amount);
@@ -273,7 +274,7 @@ export default function CuentaCorrienteClient({
   };
 
   const getDeudasConsolidadas = () => {
-    const deudas = proveedoresIniciales
+    const deudas = proveedoresList
       .filter((p) => p.total < -1)
       .sort((a, b) => a.total - b.total);
 
@@ -578,7 +579,7 @@ export default function CuentaCorrienteClient({
         viewMode === "card" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {processedProveedores.map((proveedor) => {
-              const isPrioritario = prioritarios.includes(proveedor.id);
+              const isPrioritario = Boolean(proveedor.esPrioritario);
               return (
                 <div
                   key={proveedor.id}
@@ -700,7 +701,7 @@ export default function CuentaCorrienteClient({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {processedProveedores.map((proveedor) => {
-                    const isPrioritario = prioritarios.includes(proveedor.id);
+                    const isPrioritario = Boolean(proveedor.esPrioritario);
                     return (
                       <tr
                         key={proveedor.id}

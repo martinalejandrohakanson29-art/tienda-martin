@@ -824,6 +824,7 @@ export async function obtenerProveedores() {
           total: toNum(p.total),
           aliasCbu: p.aliasCbu || "",
           esMayorista: p.esMayorista,
+          esPrioritario: Boolean((p as any).esPrioritario),
           ultimaCompra: (() => {
             const fechaVenta = p.ventasMostrador[0]?.createdAt ?? null;
             const fechaMovimiento = p.movimientos[0]?.fecha ?? null;
@@ -838,6 +839,18 @@ export async function obtenerProveedores() {
   } catch (error) {
     console.error("Error al obtener proveedores:", error);
     return { success: false, error: "No se pudieron cargar los proveedores." };
+  }
+}
+
+export async function togglePrioritarioProveedor(id: string, esPrioritario: boolean) {
+  const session = await getServerSession(authOptions);
+  if (!session) return { success: false, error: "No autorizado" };
+  try {
+    await (prisma.proveedor.update as any)({ where: { id }, data: { esPrioritario } });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar proveedor prioritario:", error);
+    return { success: false, error: "No se pudo actualizar la prioridad." };
   }
 }
 

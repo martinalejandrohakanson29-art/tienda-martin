@@ -593,11 +593,26 @@ Orden real del procesamiento de un mensaje entrante:
   `¿Hay Resto…? (Variante)`, intacto). S3 ("Recorrido corto es" + "tienen la leva varillera 7.8
   suelta?"): bienvenida OK + la leva se contesta desde el catálogo ($25.000), sin nota — no hay
   sobre-supresión (exec 94523). S4 (orden invertido): bienvenida OK, sin nota espuria. **Dos
-  observaciones aparte (no regresiones de este fix):** (a) "De que parte son ?" a veces escala
-  porque `Extraer Tema Negocio` lo clasifica "otro" en vez de "ubicacion" (frase ambigua; en el bug
-  original había caído bien) — posible retoque de prompt separado; (b) en orden invertido, el
-  re-loop de `¿Hay Resto…? (Variante)` puede mandar un "Qué marca y modelo es tu moto?" de más
-  (segundo `Identificar Necesidad` que se equivoca) — quirk viejo del re-loop, raro por el orden.
+  observaciones aparte (no regresiones de este fix):** (a) — RESUELTO abajo. (b) el re-loop de
+  `¿Hay Resto…? (Variante)` [true] → `Leer Kit Pineado` re-procesa el TEXTO COMPLETO de la ráfaga
+  (no solo el resto) por `Parsear Pregunta Compatibilidad` / `Identificar Necesidad`, y con "Recorrido
+  corto es" pegado a veces lo toma como modelo de moto → manda mensajes espurios al cliente ("Sí, el
+  kit es compatible con tu Recorrido corto.", "Qué marca y modelo es tu moto?", "Dale, entonces sería
+  el Kit 120...") — apareció en 3 de 4 ráfagas de prueba. **Es la misma familia de bug** (re-procesar
+  texto ya consumido) pero en las ramas de compat/identificación, no en el splitter. Mi fix solo tapó
+  el splitter. **Falta arreglar:** que la rama true de `¿Hay Resto…? (Variante)` alimente solo el
+  resto, o no re-corra compat/identificación.
+- **"De que parte son ?" / "de donde son?" ahora es `ubicacion` (2026-09-02).** Observación (a) de
+  arriba. `Extraer Tema Negocio (Sub-pregunta)` clasificaba esas frases como "otro" → no encontraba
+  la dirección → escalaba algo que el bot sí sabe. Fix (script
+  `apply-fix-tema-negocio-de-que-parte-son-es-ubicacion.mjs`, 1 nodo, 1 edición de texto): línea
+  explícita en el systemMessage — "ubicacion" cubre cualquier forma de preguntar dónde queda el local
+  o de qué ciudad/zona/parte es el negocio, aunque no diga "ubicacion"/"direccion". Rollback n8n
+  `f636fbde-2b40-4022-8dd1-6b9526b11342`. Validado en vivo (conv 2411): S5 (burst "Recorrido corto
+  es" + "De que parte son ?") → `tema:"ubicacion"` → manda la dirección, sin nota (exec 94586); S6
+  (regresión, "cuanto tardan en mandar a corrientes?") → sigue `envios` → "Demora de 4 a 6 días
+  hábiles…". (En ambas apareció el mensaje espurio del re-loop descrito arriba, sin relación con este
+  fix.)
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

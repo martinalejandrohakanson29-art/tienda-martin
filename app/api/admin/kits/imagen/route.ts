@@ -3,6 +3,8 @@ import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "@/lib/s3";
 import { requireAdmin } from "@/lib/auth-guard";
 
+export const dynamic = "force-dynamic";
+
 const PREFIX = "kits-fotos/";
 const TAMANO_MAXIMO = 5 * 1024 * 1024; // 5MB, límite típico de imagen en WhatsApp/Chatwoot
 

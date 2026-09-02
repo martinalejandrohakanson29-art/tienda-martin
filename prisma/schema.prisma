@@ -1238,6 +1238,47 @@ model StockEnCaminoFull {
   @@map("stock_en_camino_full")
 }
 
+model MlMensajePostVenta {
+  id             String   @id @default(cuid())
+  titulo         String
+  idArticulo     String   @map("id_articulo")
+  nombreArticulo String   @map("nombre_articulo")
+  mensaje        String
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([idArticulo])
+  @@index([activo])
+  @@map("ml_mensajes_post_venta")
+}
+
+model MlMensajePostVentaLog {
+  id             String   @id @default(cuid())
+  orderId        String   @map("order_id")
+  packId         String?  @map("pack_id")
+  shipmentId     String?  @map("shipment_id")
+  buyerId        String?  @map("buyer_id")
+  sellerId       String?  @map("seller_id")
+  idArticulo     String?  @map("id_articulo")
+  mla            String?  @map("mla")
+  tipoLogistica  String?  @map("tipo_logistica")
+  esFull         Boolean  @default(false) @map("es_full")
+  mensajeEnviado String   @map("mensaje_enviado")
+  reglaId        String?  @map("regla_id")
+  estado         String   @default("enviado") // "enviado", "pendiente_entrega_full", "error", "ignorado"
+  errorDetalle   String?  @map("error_detalle")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([packId])
+  @@index([shipmentId])
+  @@index([reglaId])
+  @@index([estado])
+  @@index([createdAt])
+  @@map("ml_mensajes_post_venta_logs")
+}
+
 enum Role {
   SUPER_ADMIN
   ADMIN

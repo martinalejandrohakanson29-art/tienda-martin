@@ -31,9 +31,9 @@ export default function ActualizarSheetButton() {
     <Button
       onClick={handleUpdate}
       disabled={loading}
-      className="w-full bg-lime-600 hover:bg-lime-700 text-white gap-2 shadow-sm h-12 text-lg"
+      className="w-full bg-lime-600 hover:bg-lime-700 text-white gap-1.5 shadow-sm h-9 text-sm font-semibold"
     >
-      <RefreshCw className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
+      <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
       {loading ? "Actualizando..." : "Actualizar Sheet"}
     </Button>
   );

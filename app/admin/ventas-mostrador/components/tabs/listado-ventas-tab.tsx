@@ -509,7 +509,7 @@ export function ListadoVentasTab({
                                   className="h-7 w-7 text-indigo-600 hover:bg-indigo-50"
                                   title="Fotos de Preparación Pedido"
                                 >
-                                  <Package className="h-3.5 w-3.5" />
+                                  <Camera className="h-3.5 w-3.5" />
                                 </Button>
                               )}
 

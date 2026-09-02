@@ -811,6 +811,7 @@ export default function VentasMostradorClient({
             <PedidosVentasTab
               pedidosRefreshKey={pedidosRefreshKey}
               onEditarPedido={handleCargarPedidoParaEdicion}
+              onImprimirTicket={handleImprimirTicket}
             />
           </TabsContent>
 

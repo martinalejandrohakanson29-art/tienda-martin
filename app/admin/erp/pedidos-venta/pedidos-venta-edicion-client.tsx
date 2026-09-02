@@ -48,6 +48,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  Camera,
+  FileText,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -67,6 +69,12 @@ import {
 } from "@/app/actions/ventas-mostrador";
 import { obtenerPuntosVenta } from "@/app/actions/puntos-venta";
 import { generarPedidoVentaPdf } from "@/app/admin/ventas-mostrador/components/print/generar-pedido-pdf";
+import { TicketImpresion } from "@/app/admin/ventas-mostrador/components/print/ticket-impresion";
+import { FotosAuditoriaModal } from "@/app/admin/ventas-mostrador/components/modals/fotos-auditoria-modal";
+import {
+  obtenerPedidosConFoto,
+  obtenerFotosPedido,
+} from "@/app/actions/preparacion-pedidos";
 
 type ItemVenta = {
   productoId?: string | null;
@@ -115,11 +123,15 @@ export type Venta = {
 
 interface Props {
   onEditarPedido?: (venta: Venta) => void;
+  onImprimirTicket?: (venta: Venta) => void;
 }
 
 const ITEMS_PER_PAGE = 50;
 
-export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}) {
+export default function PedidosVentaEdicionClient({
+  onEditarPedido,
+  onImprimirTicket,
+}: Props = {}) {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +159,12 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
   const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Impresión y Fotos
+  const [ventaParaTicket, setVentaParaTicket] = useState<Venta | null>(null);
+  const [pedidosConFoto, setPedidosConFoto] = useState<Record<string, string>>({});
+  const [fotosPedido, setFotosPedido] = useState<{ venta: any; fotos: any[] } | null>(null);
+  const [loadingFotoId, setLoadingFotoId] = useState<string | null>(null);
+
   // Exportación Excel
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportDesde, setExportDesde] = useState(
@@ -173,6 +191,13 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
         filtroEstado && filtroEstado !== "TODOS" ? filtroEstado : undefined
       );
       setVentas(data);
+
+      const ids = data.map((v: any) => v.id);
+      if (ids.length > 0) {
+        obtenerPedidosConFoto(ids).then((res) => {
+          if (res.success) setPedidosConFoto(res.estados);
+        });
+      }
     } catch (err) {
       console.error("Error al cargar pedidos:", err);
       setError("No se pudieron cargar los pedidos de venta");
@@ -583,6 +608,34 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
       if (newWindow) newWindow.close();
       console.error("Error al generar PDF del pedido:", err);
       alert("Error al generar el PDF del pedido");
+    }
+  };
+
+  // Imprimir Ticket Térmico
+  const handleImprimirTicket = (venta: Venta) => {
+    if (onImprimirTicket) {
+      onImprimirTicket(venta);
+    } else {
+      setVentaParaTicket(venta);
+      setTimeout(() => window.print(), 300);
+    }
+  };
+
+  // Ver fotos de preparación del pedido
+  const handleVerFotosPedido = async (venta: Venta) => {
+    setLoadingFotoId(venta.id);
+    try {
+      const res = await obtenerFotosPedido(venta.id);
+      if (res.success) {
+        setFotosPedido({ venta, fotos: res.fotos });
+      } else {
+        alert("No se pudieron cargar las fotos del pedido.");
+      }
+    } catch (e) {
+      console.error("Error al cargar fotos:", e);
+      alert("Error de conexión al cargar fotos.");
+    } finally {
+      setLoadingFotoId(null);
     }
   };
 
@@ -1107,6 +1160,46 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
                         {/* Acciones */}
                         <TableCell className="py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            {/* Imprimir Ticket */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleImprimirTicket(venta)}
+                              className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
+                              title="Imprimir Ticket"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+
+                            {/* Ver / Imprimir Presupuesto A4 */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleAbrirPdfEnNuevaPestana(venta)}
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="Ver / Descargar Presupuesto (A4)"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+
+                            {/* Fotos de Preparación */}
+                            {pedidosConFoto[venta.id] && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleVerFotosPedido(venta)}
+                                disabled={loadingFotoId === venta.id}
+                                className="h-8 w-8 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                title={`Fotos de Preparación Pedido (${pedidosConFoto[venta.id]})`}
+                              >
+                                {loadingFotoId === venta.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Camera className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+
                             {/* Editar Pedido */}
                             <Button
                               variant="ghost"
@@ -1116,17 +1209,6 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
                               title="Editar Pedido en Carrito POS"
                             >
                               <Edit className="h-4 w-4" />
-                            </Button>
-
-                            {/* Ver / Imprimir Presupuesto A4 */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleAbrirPdfEnNuevaPestana(venta)}
-                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 rounded-lg"
-                              title="Abrir / Descargar PDF"
-                            >
-                              <Printer className="h-4 w-4" />
                             </Button>
 
                             {/* Confirmar / Registrar Venta */}
@@ -1608,6 +1690,27 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Impresión de Ticket Térmico POS */}
+      {ventaParaTicket && (
+        <TicketImpresion
+          ventaId={ventaParaTicket.id}
+          numeroVenta={ventaParaTicket.numeroVenta}
+          items={ventaParaTicket.items}
+          total={Number(ventaParaTicket.totalFinal || ventaParaTicket.total)}
+          cliente={ventaParaTicket.cliente}
+          metodoPago={ventaParaTicket.metodo_pago || "Efectivo"}
+        />
+      )}
+
+      {/* Modal Fotos de Preparación */}
+      <FotosAuditoriaModal
+        open={!!fotosPedido}
+        onOpenChange={(open) => {
+          if (!open) setFotosPedido(null);
+        }}
+        fotosVenta={fotosPedido}
+      />
     </div>
   );
 }

@@ -1,13 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ItemVenta } from "../../types";
 import { numeroALetras } from "./numero-a-letras";
+
+type ItemTicket = {
+  nombre: string;
+  cantidad: number;
+  subtotal: number;
+  esNota?: boolean;
+  [key: string]: any;
+};
 
 interface Props {
   ventaId: string;
   numeroVenta?: number;
-  items: ItemVenta[];
+  items: ItemTicket[];
   total: number;
   cliente: string;
   metodoPago: string;
@@ -104,7 +111,7 @@ export function TicketImpresion({
           </tr>
         </thead>
         <tbody>
-          {items.map((item: ItemVenta, idx: number) =>
+          {items.map((item: ItemTicket, idx: number) =>
             item.esNota ? (
               <tr key={idx} className="align-top">
                 <td className="pt-0.5" colSpan={3}>

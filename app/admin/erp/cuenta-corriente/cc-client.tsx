@@ -3,7 +3,7 @@
 import React, { useState, useTransition, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { actualizarProveedor, eliminarProveedor, togglePrioritarioProveedor } from "@/app/actions/listas";
+import { actualizarProveedor, eliminarProveedor, togglePrioritarioProveedor, actualizarSaldoParcialProveedor } from "@/app/actions/listas";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -26,6 +26,7 @@ interface Proveedor {
   dias60: number;
   mas60: number;
   total: number;
+  saldoParcial?: number | null;
   aliasCbu?: string | null;
   esMayorista: boolean;
   esPrioritario: boolean;
@@ -133,6 +134,106 @@ export default function CuentaCorrienteClient({
     celular: "",
     aliasCbu: ""
   });
+
+  // Helper functions for currency input formatting
+  const formatearMiles = (valor: string): string => {
+    if (!valor) return "";
+    const caracteresValidos = valor.replace(/[^\d,\.]/g, "");
+    if (!caracteresValidos) return "";
+
+    if (caracteresValidos.includes(",")) {
+      const partes = caracteresValidos.split(",");
+      const parteEntera = partes[0].replace(/\D/g, "");
+      const parteDecimal = partes.slice(1).join("").replace(/\D/g, "").slice(0, 2);
+      const enterosFormateados = parteEntera
+        ? parseInt(parteEntera, 10).toLocaleString("es-AR")
+        : "0";
+      return `${enterosFormateados},${parteDecimal}`;
+    }
+
+    const soloDigitos = caracteresValidos.replace(/\D/g, "");
+    if (!soloDigitos) return "";
+    const num = parseInt(soloDigitos, 10);
+    if (isNaN(num)) return "";
+    return num.toLocaleString("es-AR");
+  };
+
+  const parsearMonto = (valor: string): number => {
+    if (!valor) return 0;
+    const limpio = valor.replace(/\./g, "").replace(",", ".");
+    const num = parseFloat(limpio);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // State for Saldo Parcial Modal
+  const [saldoParcialModal, setSaldoParcialModal] = useState<{
+    isOpen: boolean;
+    proveedor: Proveedor | null;
+    monto: string;
+  }>({
+    isOpen: false,
+    proveedor: null,
+    monto: "",
+  });
+
+  const handleOpenSaldoParcialModal = (p: Proveedor) => {
+    setSaldoParcialModal({
+      isOpen: true,
+      proveedor: p,
+      monto: p.saldoParcial && p.saldoParcial > 0 ? formatearMiles(p.saldoParcial.toString()) : "",
+    });
+  };
+
+  const handleSaveSaldoParcial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!saldoParcialModal.proveedor) return;
+
+    const provId = saldoParcialModal.proveedor.id;
+    const numVal = parsearMonto(saldoParcialModal.monto);
+    const nuevoMonto = isNaN(numVal) || numVal <= 0 ? 0 : numVal;
+
+    // Actualización optimista
+    setProveedoresList((prev) =>
+      prev.map((p) => (p.id === provId ? { ...p, saldoParcial: nuevoMonto } : p))
+    );
+    setSaldoParcialModal({ isOpen: false, proveedor: null, monto: "" });
+
+    startTransition(async () => {
+      const res = await actualizarSaldoParcialProveedor(provId, nuevoMonto);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo actualizar el saldo parcial");
+        router.refresh();
+      } else {
+        toast.success(
+          nuevoMonto > 0
+            ? `Saldo parcial fijado en ${formatCurrency(nuevoMonto)}`
+            : "Saldo parcial eliminado"
+        );
+        router.refresh();
+      }
+    });
+  };
+
+  const handleClearSaldoParcial = async () => {
+    if (!saldoParcialModal.proveedor) return;
+    const provId = saldoParcialModal.proveedor.id;
+
+    setProveedoresList((prev) =>
+      prev.map((p) => (p.id === provId ? { ...p, saldoParcial: 0 } : p))
+    );
+    setSaldoParcialModal({ isOpen: false, proveedor: null, monto: "" });
+
+    startTransition(async () => {
+      const res = await actualizarSaldoParcialProveedor(provId, 0);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo eliminar el saldo parcial");
+        router.refresh();
+      } else {
+        toast.success("Saldo parcial eliminado");
+        router.refresh();
+      }
+    });
+  };
 
   const processedProveedores = useMemo(() => {
     let result = proveedoresList.filter((p) => {
@@ -514,61 +615,100 @@ export default function CuentaCorrienteClient({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {prioritariosProveedores.map((p) => (
-                <div
-                  key={p.id}
-                  className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-400/80 dark:hover:border-amber-500/60 transition-all shadow-xs hover:shadow-md flex items-center justify-between gap-3 group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <Link
-                      href={`/admin/erp/movimientos?proveedor=${p.id}`}
-                      className="block font-bold text-sm text-slate-900 dark:text-white truncate hover:text-[#2b8cee] transition-colors"
-                      title={p.razonSocial}
-                    >
-                      {p.razonSocial}
-                    </Link>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Saldo:
-                      </span>
-                      <span
-                        className={`text-xs font-black ${
-                          p.total < 0
-                            ? "text-red-500"
-                            : p.total > 0
-                            ? "text-emerald-500"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        {formatCurrency(p.total)}
-                      </span>
+              {prioritariosProveedores.map((p) => {
+                const tieneSaldoParcial = typeof p.saldoParcial === "number" && p.saldoParcial > 0;
+                return (
+                  <div
+                    key={p.id}
+                    className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-400/80 dark:hover:border-amber-500/60 transition-all shadow-xs hover:shadow-md flex flex-col justify-between gap-2.5 group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/admin/erp/movimientos?proveedor=${p.id}`}
+                          className="block font-bold text-sm text-slate-900 dark:text-white truncate hover:text-[#2b8cee] transition-colors"
+                          title={p.razonSocial}
+                        >
+                          {p.razonSocial}
+                        </Link>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Link
+                          href={`/admin/erp/movimientos?proveedor=${p.id}`}
+                          className="p-1 rounded-lg text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                          title="Ver movimientos"
+                        >
+                          <span className="material-symbols-outlined text-sm">chevron_right</span>
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => togglePrioritario(p.id)}
+                          className="p-1 rounded-lg text-amber-500 hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                          title="Quitar de prioritarios"
+                        >
+                          <span
+                            className="material-symbols-outlined text-lg"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            star
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                      {/* Saldo Total */}
+                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Saldo Total:
+                        </span>
+                        <span
+                          className={`text-xs font-black ${
+                            p.total < 0
+                              ? "text-red-500"
+                              : p.total > 0
+                              ? "text-emerald-500"
+                              : "text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          {formatCurrency(p.total)}
+                        </span>
+                      </div>
+
+                      {/* Saldo Parcial */}
+                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Saldo Parcial:
+                        </span>
+                        {tieneSaldoParcial ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSaldoParcialModal(p)}
+                            className="group/parcial inline-flex items-center gap-1 text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 bg-indigo-50/80 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/60 transition-all cursor-pointer"
+                            title="Modificar saldo parcial"
+                          >
+                            <span>{formatCurrency(p.saldoParcial)}</span>
+                            <span className="material-symbols-outlined text-[11px] text-indigo-400 group-hover/parcial:text-indigo-600">
+                              edit
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSaldoParcialModal(p)}
+                            className="inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 px-1.5 py-0.5 rounded transition-all cursor-pointer"
+                            title="Cargar saldo parcial"
+                          >
+                            <span className="material-symbols-outlined text-[12px]">add</span>
+                            <span>Cargar</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Link
-                      href={`/admin/erp/movimientos?proveedor=${p.id}`}
-                      className="p-1 rounded-lg text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                      title="Ver movimientos"
-                    >
-                      <span className="material-symbols-outlined text-sm">chevron_right</span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => togglePrioritario(p.id)}
-                      className="p-1 rounded-lg text-amber-500 hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                      title="Quitar de prioritarios"
-                    >
-                      <span
-                        className="material-symbols-outlined text-lg"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        star
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -902,6 +1042,111 @@ export default function CuentaCorrienteClient({
                 >
                   {isPending && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                   Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Saldo Parcial */}
+      {saldoParcialModal.isOpen && saldoParcialModal.proveedor && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <span className="material-symbols-outlined text-xl">payments</span>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    Saldo Parcial
+                  </h2>
+                  <p className="text-xs text-slate-400 truncate max-w-[220px]">
+                    {saldoParcialModal.proveedor.razonSocial}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaldoParcialModal({ isOpen: false, proveedor: null, monto: "" })}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all text-slate-400 hover:text-slate-600"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSaldoParcial} className="p-6 space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium">Saldo Total Actual:</span>
+                  <span className={`font-black ${
+                    saldoParcialModal.proveedor.total < 0
+                      ? "text-red-500"
+                      : saldoParcialModal.proveedor.total > 0
+                      ? "text-emerald-500"
+                      : "text-slate-600"
+                  }`}>
+                    {formatCurrency(saldoParcialModal.proveedor.total)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  El saldo parcial cargado se irá descontando automáticamente a medida que ingresen pagos a este proveedor.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase ml-1">
+                  Monto de Saldo Parcial ($)
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-sm font-bold text-slate-400">
+                    $
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    autoFocus
+                    required
+                    placeholder="0"
+                    value={saldoParcialModal.monto}
+                    onChange={(e) =>
+                      setSaldoParcialModal({
+                        ...saldoParcialModal,
+                        monto: formatearMiles(e.target.value),
+                      })
+                    }
+                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-lg font-mono font-bold focus:ring-2 focus:ring-[#2b8cee] focus:border-[#2b8cee] transition-all outline-none tracking-wide text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 flex gap-2">
+                {typeof saldoParcialModal.proveedor.saldoParcial === "number" && saldoParcialModal.proveedor.saldoParcial > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleClearSaldoParcial}
+                    disabled={isPending}
+                    className="px-3.5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-900/40 font-bold text-xs rounded-xl transition-all"
+                    title="Eliminar saldo parcial"
+                  >
+                    Quitar
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSaldoParcialModal({ isOpen: false, proveedor: null, monto: "" })}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="flex-[2] px-4 py-2.5 bg-[#2b8cee] text-white font-bold text-xs rounded-xl hover:bg-[#2b8cee]/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {isPending && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  Guardar
                 </button>
               </div>
             </form>

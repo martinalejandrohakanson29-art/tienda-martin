@@ -138,7 +138,12 @@ async function aplicarImpactoProveedorTx(
     const monto = new Prisma.Decimal(imp.monto || montoTotal);
     if (monto.isZero()) continue;
     const nuevoSaldo = proveedor.total.plus(monto);
-    await tx.proveedor.update({ where: { id: proveedor.id }, data: { total: nuevoSaldo } });
+    const updateData: any = { total: nuevoSaldo };
+    if (proveedor.saldoParcial && proveedor.saldoParcial.greaterThan(0)) {
+      const nuevoSaldoParcial = proveedor.saldoParcial.minus(monto);
+      updateData.saldoParcial = nuevoSaldoParcial.greaterThan(0) ? nuevoSaldoParcial : new Prisma.Decimal(0);
+    }
+    await tx.proveedor.update({ where: { id: proveedor.id }, data: updateData });
     await tx.movimientoProveedor.create({
       data: { proveedorId: proveedor.id, tipo: "HABER", monto, descripcion, referencia, saldo: nuevoSaldo },
     });

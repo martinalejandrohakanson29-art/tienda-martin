@@ -522,6 +522,37 @@ Orden real del procesamiento de un mensaje entrante:
   Verificado post-deploy: `corven energy 125` → escala en los 3 grupos; `corven energy` / `corven
   energy 110` / corven mirage / keller / zanella zb intactos. Ver
   [[fix-bot-compat-negativa-cilindrada]] y [[fix-bot-compat-wave-parser-y-pieza-periferica]].
+- **Grupo esperando la moto: la plantilla del anuncio ya no se re-lee como consulta de pieza suelta
+  (2026-09-02).** Caso real conv 3144 (+5492226443553). Ráfaga: plantilla "COMBO TAPA CDI 125 +
+  CILINDRO 120" + "A un motomel 110". PUT 1 clasificó bien (única parte = `moto`), pero el bot mandó
+  3 mensajes: bienvenida OK, "compatible + corto/largo?" OK, y **"La tapa viene completa y lista para
+  colocar…"** que sobraba. Causa: `Extraer Modelo Grupo` recibía `Unir Mensajes.texto_completo` (toda
+  la ráfaga, con la línea de la plantilla) en vez del resto ya aislado → devolvía como `resto_mensaje`
+  la propia plantilla → `Responder Articulo Suelto (Grupo - Con Modelo)` la leía como pedido de la
+  tapa y `Parsear Articulo Suelto` sólo validaba cuando había `articulo_ids` (texto libre pasaba sin
+  control). Fix (script `apply-fix-articulo-suelto-grupo-plantilla-fantasma.mjs`, 3 ediciones de
+  texto, 0 nodos): (A) `Extraer Modelo Grupo` usa `Preparar Contexto Sub-preguntas.texto_para_dividir`
+  (fallback `texto_completo`); (B) `Responder Articulo Suelto (Grupo - Con Modelo)` sin el fallback
+  `|| texto_completo`; (C) `Parsear Articulo Suelto` corta con `resuelto:false` si el resto del cliente
+  quedó vacío. Rollback n8n `bf74fe73-21ab-4966-8b67-47a6a184b1d2`.
+  - **Fix D (mismo día), destapado al probar:** al dejar de "resolver" el artículo fantasma se activó
+    un SEGUNDO clasificador en paralelo — `Extraer Tema Negocio (Esperando Variante)` — que **también**
+    corría sobre `Unir Mensajes.texto_completo` y clasificaba la plantilla como `otro` → nota espuria
+    al equipo (el gate `¿Ya Resuelto Como Articulo Suelto (Con Modelo)?` era lo único que la tapaba, y
+    dependía del "resuelto" falso). Fix (script `apply-fix-tema-negocio-espera-variante-sin-plantilla.mjs`,
+    0 nodos): ese nodo, su nota (`Preparar Nota Escalado Negocio (Esperando Variante)`) y su INSERT
+    (`Registrar Pendiente Negocio (Esperando Variante)`) usan `Parsear Modelo Grupo.resto_mensaje`
+    (fallback `texto_completo`); si el resto quedó vacío → `clasificacion='nada'` (no escala). Rollback
+    n8n `394b47a5-7478-4a8b-bca7-61c203f4568c`.
+  - **Validado en vivo** (conv 2411, webhook sintético): C1 (repro exacto) → sólo bienvenida +
+    "corto/largo?", **sin** el mensaje de la tapa y **sin** nota; C2 (plantilla + "cuánto sale el
+    cilindro solo?") → escala, pero la nota ahora cita "cuanto sale el cilindro solo?" (no la
+    plantilla) — el precio de la pieza suelta sigue sin contestarse porque la variante no está resuelta
+    (comportamiento previo, posible mejora aparte); C3 ("qué incluye la tapa?") → sigue contestando
+    desde la ficha; C4 (2º turno sin plantilla) → limpio; C5 ("mandan a misiones?") → contesta el
+    envío (Fix D no rompió la rama de negocio legítima). **Gotcha menor:** el `resto_mensaje` que deja
+    el extractor de modelo puede traer fragmentos sucios ("para una , cuanto sale…") — molesta poco,
+    es del extractor, no de este fix. Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

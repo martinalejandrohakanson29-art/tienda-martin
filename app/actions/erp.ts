@@ -63,9 +63,15 @@ export async function registrarMovimientoManualProveedor(data: {
         ? proveedorPrincipal.total.plus(montoDecimal)
         : proveedorPrincipal.total.minus(montoDecimal)
 
+      const updateDataPrincipal: any = { total: nuevoSaldoPrincipal }
+      if (esPago && proveedorPrincipal.saldoParcial && proveedorPrincipal.saldoParcial.greaterThan(0)) {
+        const nuevoSaldoParcial = proveedorPrincipal.saldoParcial.minus(montoDecimal)
+        updateDataPrincipal.saldoParcial = nuevoSaldoParcial.greaterThan(0) ? nuevoSaldoParcial : new Prisma.Decimal(0)
+      }
+
       await tx.proveedor.update({
         where: { id: proveedorPrincipal.id },
-        data: { total: nuevoSaldoPrincipal },
+        data: updateDataPrincipal,
       })
 
       // Capturamos el movimiento creado para poder linkearlo si hay gemelo
@@ -93,9 +99,15 @@ export async function registrarMovimientoManualProveedor(data: {
             ? proveedorEmisor.total.minus(montoDecimal)
             : proveedorEmisor.total.plus(montoDecimal)
 
+          const updateDataEmisor: any = { total: nuevoSaldoEmisor }
+          if (!esPago && proveedorEmisor.saldoParcial && proveedorEmisor.saldoParcial.greaterThan(0)) {
+            const nuevoSaldoParcialEmisor = proveedorEmisor.saldoParcial.minus(montoDecimal)
+            updateDataEmisor.saldoParcial = nuevoSaldoParcialEmisor.greaterThan(0) ? nuevoSaldoParcialEmisor : new Prisma.Decimal(0)
+          }
+
           await tx.proveedor.update({
             where: { id: proveedorEmisor.id },
-            data: { total: nuevoSaldoEmisor },
+            data: updateDataEmisor,
           })
 
           const movGemelo = await tx.movimientoProveedor.create({

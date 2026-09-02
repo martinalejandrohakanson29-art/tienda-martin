@@ -1,6 +1,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
+import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import * as XLSX from "xlsx"
@@ -822,6 +824,7 @@ export async function obtenerProveedores() {
           dias60: toNum(p.dias60),
           mas60: toNum(p.mas60),
           total: toNum(p.total),
+          saldoParcial: p.saldoParcial !== null && p.saldoParcial !== undefined ? toNum(p.saldoParcial) : 0,
           aliasCbu: p.aliasCbu || "",
           esMayorista: p.esMayorista,
           esPrioritario: Boolean((p as any).esPrioritario),
@@ -839,6 +842,27 @@ export async function obtenerProveedores() {
   } catch (error) {
     console.error("Error al obtener proveedores:", error);
     return { success: false, error: "No se pudieron cargar los proveedores." };
+  }
+}
+
+export async function actualizarSaldoParcialProveedor(id: string, saldoParcial: number | null) {
+  const session = await getServerSession(authOptions);
+  if (!session) return { success: false, error: "No autorizado" };
+  try {
+    const valor = saldoParcial !== null && saldoParcial !== undefined && !isNaN(saldoParcial) && saldoParcial > 0
+      ? new Prisma.Decimal(saldoParcial)
+      : new Prisma.Decimal(0);
+
+    await prisma.proveedor.update({
+      where: { id },
+      data: { saldoParcial: valor },
+    });
+
+    revalidatePath("/admin/erp/cuenta-corriente");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al actualizar saldo parcial de proveedor:", error);
+    return { success: false, error: error.message || "No se pudo actualizar el saldo parcial." };
   }
 }
 

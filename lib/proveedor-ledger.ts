@@ -84,9 +84,16 @@ export async function revertirMovimientoEnLedger(tx: TxClient, movimientoId: str
 
     // Resta exactamente lo que este movimiento sumó — sin recalcular desde cero.
     // Esto preserva el saldo base importado (que no tiene movimientos que lo respalden).
+    const updateData: any = {
+        total: proveedor.total.minus(mov.monto)
+    }
+    if (mov.tipo === "HABER" && mov.monto.greaterThan(0) && proveedor.saldoParcial !== null && proveedor.saldoParcial !== undefined) {
+        updateData.saldoParcial = proveedor.saldoParcial.plus(mov.monto)
+    }
+
     await tx.proveedor.update({
         where: { id: mov.proveedorId },
-        data: { total: proveedor.total.minus(mov.monto) },
+        data: updateData,
     })
 
     // Ajusta el campo saldo de movimientos posteriores al anulado (quedaron desfasados en mov.monto).

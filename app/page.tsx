@@ -60,8 +60,16 @@ export default async function Home() {
         </div>
       )}
 
-      {/* BUSCADOR */}
+      {/* BUSCADOR Y ENCABEZADO H1 SEO */}
       <div className={`container mx-auto px-4 relative z-10 ${hasCarousel ? "mt-8" : "mt-10 md:mt-14"}`}>
+        <div className="text-center mb-6 max-w-3xl mx-auto">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tight text-white">
+            Repuestos y Accesorios para Motos
+          </h1>
+          <p className="text-gray-400 text-sm sm:text-base mt-2 font-medium">
+            Kits de potenciación, cilindros, levas y repuestos exclusivos con envíos a todo el país
+          </p>
+        </div>
         <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>
 

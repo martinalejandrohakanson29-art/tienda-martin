@@ -34,11 +34,21 @@ export async function generateMetadata(
 
   return {
     title: `${product.title} | Revolución Motos`,
-    description: `Comprá ${product.title} a ${formatPrice(Number(product.price))}. ${product.description?.slice(0, 100)}...`,
+    description: `Comprá ${product.title} a ${formatPrice(Number(product.price))}. ${product.description?.slice(0, 120)}...`,
+    alternates: {
+      canonical: `https://www.revolucionmotos.com.ar/products/${product.id}`,
+    },
     openGraph: {
       images: productImage,
-      title: product.title,
-      description: `¡Mirá este repuesto! Precio: ${formatPrice(Number(product.price))}`,
+      title: `${product.title} | Revolución Motos`,
+      description: `Comprá este repuesto al mejor precio: ${formatPrice(Number(product.price))}`,
+      url: `https://www.revolucionmotos.com.ar/products/${product.id}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${product.title} | Revolución Motos`,
+      description: `Comprá ${product.title} a ${formatPrice(Number(product.price))}`,
+      images: productImage,
     },
   }
 }
@@ -66,8 +76,34 @@ export default async function ProductPage({ params }: { params: { id: string } }
     const images = [product.imageUrl, product.imageUrl2, product.imageUrl3].filter(img => img && img.trim() !== "")
     const videoEmbedUrl = getVideoEmbedUrl(product.videoUrl || "")
 
+    const productJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": product.title,
+        "image": images.length > 0 ? images : undefined,
+        "description": product.description || product.title,
+        "sku": product.id,
+        "category": product.category || undefined,
+        "offers": {
+            "@type": "Offer",
+            "url": `https://www.revolucionmotos.com.ar/products/${product.id}`,
+            "priceCurrency": "ARS",
+            "price": finalPrice.toFixed(2),
+            "availability": (product.stock ?? 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            "itemCondition": "https://schema.org/NewCondition",
+            "seller": {
+                "@type": "Organization",
+                "name": "Revolución Motos",
+            },
+        },
+    }
+
     return (
         <div className="container mx-auto px-4 py-8 md:py-12">
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+            />
             <PixelProductView product={product} />
 
             {/* Navegación */}

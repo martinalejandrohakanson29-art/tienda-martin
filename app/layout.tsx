@@ -23,8 +23,43 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Revolucion motos",
-  description: "Tu tienda de confianza para repuestos y accesorios",
+  metadataBase: new URL("https://www.revolucionmotos.com.ar"),
+  title: {
+    default: "Revolución Motos | Repuestos, Accesorios y Kits de Potenciación",
+    template: "%s | Revolución Motos",
+  },
+  description: "Tienda online de repuestos, kits de potenciación, cilindros, levas y accesorios para motos. Venta minorista con envíos a todo el país y atención mayorista.",
+  keywords: [
+    "revolucion motos",
+    "revolucionmotos",
+    "revolucion motos cordoba",
+    "repuestos para motos",
+    "repuestos motos argentina",
+    "kits de potenciacion",
+    "accesorios para motos",
+    "repuestos de motos mayorista",
+    "cilindros potenciados",
+    "arbol de levas motos",
+  ],
+  authors: [{ name: "Revolución Motos" }],
+  creator: "Revolución Motos",
+  publisher: "Revolución Motos",
+  openGraph: {
+    type: "website",
+    locale: "es_AR",
+    url: "https://www.revolucionmotos.com.ar",
+    siteName: "Revolución Motos",
+    title: "Revolución Motos | Repuestos y Accesorios para Motos",
+    description: "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos. Envíos a toda Argentina.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Revolución Motos",
+    description: "Tienda de repuestos, accesorios y kits de potenciación para motos.",
+  },
+  verification: {
+    google: "Gn_aY20nKi-dwdSKqZtRTTSTpDLM7QDs_deowOl_IbA",
+  },
   icons: {
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"
   }
@@ -59,6 +94,46 @@ export default async function RootLayout({
         <noscript>
           <img height="1" width="1" style={{ display: 'none' }} src={`https://www.facebook.com/tr?id=${process.env.NEXT_PUBLIC_FB_PIXEL_ID}&ev=PageView&noscript=1`} alt="" />
         </noscript>
+
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "AutoPartsStore",
+              "name": "Revolución Motos",
+              "alternateName": ["Revolucion Motos", "Revolucionmotos", "revolucionmotos.com.ar"],
+              "url": "https://www.revolucionmotos.com.ar",
+              "description": "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos en Argentina.",
+              "telephone": config?.whatsappNumber ? `+${config.whatsappNumber}` : undefined,
+              "address": {
+                "@type": "PostalAddress",
+                "addressCountry": "AR"
+              },
+              "sameAs": [
+                config?.instagramUrl,
+                config?.tiktokUrl
+              ].filter(Boolean)
+            })
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "Revolución Motos",
+              "alternateName": ["Revolucion Motos", "revolucionmotos"],
+              "url": "https://www.revolucionmotos.com.ar",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://www.revolucionmotos.com.ar/shop?search={search_term_string}",
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
 
         <PixelPageView />
         <ConditionalHeader>

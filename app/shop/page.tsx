@@ -1,10 +1,20 @@
 import { getProducts } from "@/app/actions/products"
 import ShopClient from "./shop-client"
 import Link from "next/link"
+import { Metadata } from "next"
 import { Home } from "lucide-react"
 
 // Forzamos dinamismo para asegurar que el stock siempre esté actualizado
 export const dynamic = "force-dynamic"
+
+export const metadata: Metadata = {
+    title: "Catálogo de Repuestos y Accesorios para Motos",
+    description: "Explorá nuestro catálogo completo de repuestos, cilindros, levas, embragues y kits de potenciación para motos. Envíos a todo el país.",
+    openGraph: {
+        title: "Catálogo de Repuestos para Motos | Revolución Motos",
+        description: "Comprá repuestos y kits de competición para motos con stock en tiempo real y envíos a toda Argentina.",
+    },
+}
 
 export default async function ShopPage() {
     // 1. Obtenemos los productos desde la base de datos

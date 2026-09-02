@@ -599,9 +599,28 @@ Orden real del procesamiento de un mensaje entrante:
   corto es" pegado a veces lo toma como modelo de moto → manda mensajes espurios al cliente ("Sí, el
   kit es compatible con tu Recorrido corto.", "Qué marca y modelo es tu moto?", "Dale, entonces sería
   el Kit 120...") — apareció en 3 de 4 ráfagas de prueba. **Es la misma familia de bug** (re-procesar
-  texto ya consumido) pero en las ramas de compat/identificación, no en el splitter. Mi fix solo tapó
-  el splitter. **Falta arreglar:** que la rama true de `¿Hay Resto…? (Variante)` alimente solo el
-  resto, o no re-corra compat/identificación.
+  texto ya consumido) pero en las ramas de compat/identificación, no en el splitter. — **RESUELTO
+  abajo (saltea-reloop).**
+- **El resto tras resolver la variante va directo a la máquina de sub-preguntas — ya no re-corre
+  compat/identificación (2026-09-02).** Observación (b) de arriba. Fix (script
+  `apply-fix-resto-variante-saltea-reloop.mjs`, 0 nodos nuevos, 2 ediciones): (1) rewire — la salida
+  `[true]` de `¿Hay Resto Para Resolver? (Variante)` va de `Leer Kit Pineado` a `Traer Ultimo Mensaje
+  Nuestro` (la "puerta de entrada" a la máquina de sub-preguntas, ya con 5 ramas entrando); se saltea
+  todo el bloque `Leer Kit Pineado → Detectar Interés → Identificar Necesidad → Extraer Pregunta
+  Compatibilidad → …` que no aplica (el kit ya está resuelto y pineado). (2) `Preparar Contexto
+  Sub-preguntas` — como ya no corre el 2º `Parsear Kit Pineado`, el `kit_id` sale ahora de
+  `Parsear Resolver Variante` (`pack_id`/`pack_nombre`) como fallback. **Tradeoff aceptado:** el
+  pedazo pegado ya no pasa por `Detectar Interés de Compra` (pausa por "lo quiero"); el prompt de
+  `Dividir y Etiquetar` igual manda pago/reserva → `otro` → escala. Rollback n8n
+  `74360118-cf68-451a-a21c-3a2251c20555`. **Validado en vivo (conv 2411, S1–S6, 02/09):** en las 6
+  el bloque compat/identificación NO corre y no hay ni un mensaje espurio. S1/S5 ("Recorrido corto
+  es" + "De que parte son ?"): bienvenida + foto + dirección. S2 (solo "Recorrido corto es"):
+  bienvenida + foto (camino sin-resto intacto). S3 (+ "leva varillera 7.8 suelta?"): bienvenida +
+  foto + "$25.000" del catálogo. S6 (+ "cuanto tardan a corrientes?"): bienvenida + foto + "A
+  Corrientes 4 a 6 días". S4 (orden invertido "De que parte son ?" luego "Recorrido corto es"):
+  bienvenida + foto, sin espurios, sin nota — **menor:** "De que parte son ?" cae en la posición del
+  primer mensaje (que solo alimenta `Resolver Variante`) y no se contesta; orden poco común, no manda
+  nada incorrecto.
 - **"De que parte son ?" / "de donde son?" ahora es `ubicacion` (2026-09-02).** Observación (a) de
   arriba. `Extraer Tema Negocio (Sub-pregunta)` clasificaba esas frases como "otro" → no encontraba
   la dirección → escalaba algo que el bot sí sabe. Fix (script
@@ -611,8 +630,8 @@ Orden real del procesamiento de un mensaje entrante:
   `f636fbde-2b40-4022-8dd1-6b9526b11342`. Validado en vivo (conv 2411): S5 (burst "Recorrido corto
   es" + "De que parte son ?") → `tema:"ubicacion"` → manda la dirección, sin nota (exec 94586); S6
   (regresión, "cuanto tardan en mandar a corrientes?") → sigue `envios` → "Demora de 4 a 6 días
-  hábiles…". (En ambas apareció el mensaje espurio del re-loop descrito arriba, sin relación con este
-  fix.)
+  hábiles…". (En esa primera corrida apareció el mensaje espurio del re-loop, ya resuelto por el fix
+  saltea-reloop de arriba; re-validado limpio en S5/S6 del 02/09.)
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

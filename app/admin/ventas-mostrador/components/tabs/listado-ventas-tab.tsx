@@ -123,6 +123,7 @@ export function ListadoVentasTab({
     setPaginaActual,
     totalPaginas,
     totalItems,
+    ventasParaTabla,
     ventasPaginadas,
     mostrandoGlobal,
     esBusquedaGlobal,
@@ -132,6 +133,13 @@ export function ListadoVentasTab({
 
   const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
   const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
+
+  const montoTotalListado = React.useMemo(() => {
+    return ventasParaTabla.reduce(
+      (acc, v) => acc + Number(v.totalFinal || v.total || 0),
+      0
+    );
+  }, [ventasParaTabla]);
 
   const toggleExpand = (id: string) => {
     setExpandedVentas((prev) => {
@@ -329,7 +337,27 @@ export function ListadoVentasTab({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-2xs">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                  Ventas Listadas
+                </span>
+                <span className="text-xs font-black text-slate-800">
+                  {totalItems}
+                </span>
+              </div>
+              <div className="w-px h-6 bg-slate-200" />
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider">
+                  Monto Total
+                </span>
+                <span className="text-xs font-black text-emerald-600">
+                  $ {montoTotalListado.toLocaleString("es-AR")}
+                </span>
+              </div>
+            </div>
+
             <Button
               onClick={onAbrirExportModal}
               className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-10 px-4 text-xs font-bold gap-2 shadow-sm"
@@ -607,10 +635,20 @@ export function ListadoVentasTab({
           </div>
 
           {/* Footer de Paginación */}
-          <div className="bg-white border-t border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs text-slate-500 shrink-0">
-            <span>
-              Mostrando {ventasPaginadas.length} de {totalItems} ventas
-            </span>
+          <div className="bg-white border-t border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2 shrink-0">
+            <div className="flex items-center gap-3">
+              <span>
+                Mostrando <span className="font-bold text-slate-700">{ventasPaginadas.length}</span> de{" "}
+                <span className="font-bold text-slate-700">{totalItems}</span> ventas
+              </span>
+              <span className="text-slate-300">|</span>
+              <span>
+                Total acumulado:{" "}
+                <span className="font-black text-emerald-600 text-sm">
+                  $ {montoTotalListado.toLocaleString("es-AR")}
+                </span>
+              </span>
+            </div>
 
             <div className="flex items-center gap-2">
               <Button

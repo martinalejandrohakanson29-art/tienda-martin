@@ -51,18 +51,33 @@ export const metadata: Metadata = {
     siteName: "Revolución Motos",
     title: "Revolución Motos | Repuestos y Accesorios para Motos",
     description: "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos. Envíos a toda Argentina.",
+    images: [
+      {
+        url: "/icon.png",
+        width: 1024,
+        height: 1024,
+        alt: "Revolución Motos",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Revolución Motos",
     description: "Tienda de repuestos, accesorios y kits de potenciación para motos.",
+    images: ["/icon.png"],
   },
   verification: {
     google: "Gn_aY20nKi-dwdSKqZtRTTSTpDLM7QDs_deowOl_IbA",
   },
   icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"
-  }
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png" },
+    ],
+  },
 };
 
 export default async function RootLayout({
@@ -104,6 +119,8 @@ export default async function RootLayout({
               "name": "Revolución Motos",
               "alternateName": ["Revolucion Motos", "Revolucionmotos", "revolucionmotos.com.ar"],
               "url": "https://www.revolucionmotos.com.ar",
+              "logo": "https://www.revolucionmotos.com.ar/icon.png",
+              "image": "https://www.revolucionmotos.com.ar/icon.png",
               "description": "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos en Argentina.",
               "telephone": config?.whatsappNumber ? `+${config.whatsappNumber}` : undefined,
               "address": {

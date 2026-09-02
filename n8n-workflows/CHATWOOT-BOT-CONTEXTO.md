@@ -584,9 +584,20 @@ Orden real del procesamiento de un mensaje entrante:
   Final Pineado` existe), usa `Unir Mensajes.resto_mensaje` (lo que realmente sobró); (2) `Parsear
   Sub-preguntas` (rama no-grupo) — red de seguridad: si el pack se acaba de confirmar y queda un
   pedazo corto (≤4 palabras) que solo nombra corto/largo y no es pregunta, se descarta (caso raro:
-  variante como 2º mensaje). Rollback n8n `2a8cb98c-f44f-4f91-b010-63901705cf89`. **Falta validar
-  en vivo** (repetir la ráfaga en conv 2411). Contestarle a mano al cliente de conv 3223 no hace
-  falta — ya recibió la bienvenida correcta; la nota al equipo fue ruido.
+  variante como 2º mensaje). Rollback n8n `2a8cb98c-f44f-4f91-b010-63901705cf89`. Contestarle a mano al cliente de conv 3223 no
+  hace falta — ya recibió la bienvenida correcta; la nota al equipo fue ruido.
+  **Validado en vivo (conv 2411, webhook sintético, 02/09):** en las 4 ráfagas de prueba "Recorrido
+  corto es" ya NO se escala nunca. S1 ("Recorrido corto es" + "De que parte son ?"): bienvenida del
+  pack OK, sin nota sobre la variante — `texto_para_dividir` quedó solo en "De que parte son ?"
+  (exec 94472). S2 ("Recorrido corto es" sola, sin resto): bienvenida OK, sin nota (camino false de
+  `¿Hay Resto…? (Variante)`, intacto). S3 ("Recorrido corto es" + "tienen la leva varillera 7.8
+  suelta?"): bienvenida OK + la leva se contesta desde el catálogo ($25.000), sin nota — no hay
+  sobre-supresión (exec 94523). S4 (orden invertido): bienvenida OK, sin nota espuria. **Dos
+  observaciones aparte (no regresiones de este fix):** (a) "De que parte son ?" a veces escala
+  porque `Extraer Tema Negocio` lo clasifica "otro" en vez de "ubicacion" (frase ambigua; en el bug
+  original había caído bien) — posible retoque de prompt separado; (b) en orden invertido, el
+  re-loop de `¿Hay Resto…? (Variante)` puede mandar un "Qué marca y modelo es tu moto?" de más
+  (segundo `Identificar Necesidad` que se equivoca) — quirk viejo del re-loop, raro por el orden.
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

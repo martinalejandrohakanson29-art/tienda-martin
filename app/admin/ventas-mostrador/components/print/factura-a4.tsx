@@ -76,11 +76,19 @@ export function FacturaA4({ venta, config }: Props) {
   const qrUrl = generateQR();
 
   return (
-    <div className="w-[210mm] h-[297mm] bg-white text-black p-10 font-sans text-[11px] leading-normal flex flex-col">
+    <div className="w-[210mm] h-[297mm] bg-white text-black p-10 font-sans text-[11px] leading-normal flex flex-col box-border print:w-full print:min-h-0 print:h-[296mm] print:max-h-[296mm] print:m-0 print:p-8 print:border-none print:shadow-none print:overflow-hidden print:box-border">
       <style type="text/css" media="print">
         {`
-          @page { size: A4; margin: 0; }
-          body { background: white !important; }
+          @page { size: A4 portrait; margin: 0; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            height: 100% !important;
+            overflow: hidden !important;
+          }
           .border-black { border: 1px solid black !important; }
         `}
       </style>

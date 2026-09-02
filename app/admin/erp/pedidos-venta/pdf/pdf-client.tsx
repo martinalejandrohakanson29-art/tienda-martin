@@ -13,15 +13,15 @@ interface PedidoPDFClientProps {
 export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center py-6 print:p-0 print:bg-white">
+    <div className="min-h-screen bg-slate-100 flex flex-col items-center py-6 print:p-0 print:m-0 print:bg-white print:min-h-0 print:h-auto print:block">
       {/* Barra superior de control (oculta en impresión) */}
       <div className="w-[210mm] max-w-full flex items-center justify-between mb-4 px-2 print:hidden">
         <Link
-          href="/admin/ventas-mostrador"
+          href="/admin/erp/pedidos-venta"
           className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          Volver a Ventas Mostrador
+          Volver a Pedidos de Venta
         </Link>
         <Button
           onClick={() => window.print()}
@@ -33,7 +33,7 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
       </div>
 
       {/* Contenedor A4 */}
-      <div className="bg-white shadow-xl print:shadow-none">
+      <div className="bg-white shadow-xl print:shadow-none print:m-0 print:p-0 print:w-full print:h-full">
         <PedidoVentaA4 venta={pedido} />
       </div>
     </div>

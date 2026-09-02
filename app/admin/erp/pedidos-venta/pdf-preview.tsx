@@ -60,7 +60,7 @@ export default function PDFPreview({ venta }: PDFPreviewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:m-0 print:min-h-0 print:h-auto print:bg-white">
       <div className="hidden print:block">
         <button
           onClick={handlePrint}

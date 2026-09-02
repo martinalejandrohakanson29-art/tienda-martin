@@ -569,6 +569,24 @@ Orden real del procesamiento de un mensaje entrante:
   nf" → "Lamentablemente este kit no es compatible."; kit 170 + "honda fan 125" → ídem; regresión
   Tapa CDI + "zanella zb 110" → "Genial, le va bien a tu moto bro… corto o largo?" (compatible,
   intacto).
+- **El resto de la ráfaga tras resolver la variante ya no re-escala la propia respuesta de variante
+  (2026-09-02).** Caso real conv 3223 (+5493516884434). Grupo esperando corto/largo; el cliente
+  mandó pegados "Recorrido corto es" + "De que parte son ?". El bot resolvió la variante (mandó la
+  bienvenida del pack + $99.000) y contestó la dirección, pero **además** escaló al equipo la nota
+  *"El cliente preguntó algo que todavía no supimos ubicar: 'Recorrido corto es'"* — la misma frase
+  que acababa de usar para resolver. Ejecución n8n #94390. Causa: al entrar a la máquina de
+  sub-preguntas por el camino "resto tras variante", `Preparar Contexto Sub-preguntas` armaba
+  `texto_para_dividir` con `Clasificar Mensaje.resto_mensaje || Unir Mensajes.texto_completo`; el
+  primero viene vacío en ese camino → agarraba el **texto completo**, re-incluyendo "Recorrido corto
+  es", que caía en `otro`, no se resolvía y se escalaba. Fix (script
+  `apply-fix-resto-variante-no-reescala-la-variante.mjs`, 0 nodos, 2 ediciones de jsCode):
+  (1) `Preparar Contexto Sub-preguntas` — si la variante se resolvió en esta corrida (`Marcar Pack
+  Final Pineado` existe), usa `Unir Mensajes.resto_mensaje` (lo que realmente sobró); (2) `Parsear
+  Sub-preguntas` (rama no-grupo) — red de seguridad: si el pack se acaba de confirmar y queda un
+  pedazo corto (≤4 palabras) que solo nombra corto/largo y no es pregunta, se descarta (caso raro:
+  variante como 2º mensaje). Rollback n8n `2a8cb98c-f44f-4f91-b010-63901705cf89`. **Falta validar
+  en vivo** (repetir la ráfaga en conv 2411). Contestarle a mano al cliente de conv 3223 no hace
+  falta — ya recibió la bienvenida correcta; la nota al equipo fue ruido.
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

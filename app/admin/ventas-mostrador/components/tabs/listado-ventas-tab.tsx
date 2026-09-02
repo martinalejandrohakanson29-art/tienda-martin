@@ -339,7 +339,7 @@ export function ListadoVentasTab({
 
           <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-2xs">
-              <div className="flex flex-col">
+              <div className="flex flex-col items-center text-center">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                   Ventas Listadas
                 </span>
@@ -348,7 +348,7 @@ export function ListadoVentasTab({
                 </span>
               </div>
               <div className="w-px h-6 bg-slate-200" />
-              <div className="flex flex-col">
+              <div className="flex flex-col items-center text-center">
                 <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider">
                   Monto Total
                 </span>

@@ -4,12 +4,14 @@ import { Boxes } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import type { ChatArticulo, ChatPack, ChatArticuloCompatibilidad, ChatPackGrupo, ChatComboCompatibilidad } from "@/app/actions/chat-catalogo"
+import type { ChatConfig } from "@/app/actions/chat-config"
 import type { Kit } from "@/app/actions/kits-publicidad"
 import type { Compatibilidad } from "@/app/actions/compatibilidades"
 
 import { ArticulosTab } from "./articulos-tab"
 import { PacksTab } from "./packs-tab"
 import { GruposTab } from "./grupos-tab"
+import { MensajesTab } from "./mensajes-tab"
 
 type Props = {
     articulosIniciales: ChatArticulo[]
@@ -22,6 +24,8 @@ type Props = {
     gruposIniciales: ChatPackGrupo[]
     gruposError: string | null
     compatibilidadesComboIniciales: ChatComboCompatibilidad[]
+    configInicial: ChatConfig
+    configError: string | null
 }
 
 export function CatalogoClient({
@@ -35,6 +39,8 @@ export function CatalogoClient({
     gruposIniciales,
     gruposError,
     compatibilidadesComboIniciales,
+    configInicial,
+    configError,
 }: Props) {
     return (
         <div className="space-y-6 pb-12">
@@ -56,6 +62,7 @@ export function CatalogoClient({
                     <TabsTrigger value="articulos">Artículos</TabsTrigger>
                     <TabsTrigger value="packs">Packs</TabsTrigger>
                     <TabsTrigger value="grupos">Grupos</TabsTrigger>
+                    <TabsTrigger value="mensajes">Mensajes del bot</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="articulos">
@@ -83,6 +90,9 @@ export function CatalogoClient({
                         packsIniciales={packsIniciales}
                         compatibilidadesComboIniciales={compatibilidadesComboIniciales}
                     />
+                </TabsContent>
+                <TabsContent value="mensajes">
+                    <MensajesTab configInicial={configInicial} errorInicial={configError} />
                 </TabsContent>
             </Tabs>
         </div>

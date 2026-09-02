@@ -8,6 +8,8 @@ import {
 } from "@/app/actions/chat-catalogo"
 import { getKits } from "@/app/actions/kits-publicidad"
 import { getCompatibilidades } from "@/app/actions/compatibilidades"
+import { getChatConfig } from "@/app/actions/chat-config"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
 
 export const dynamic = "force-dynamic"
 
@@ -20,7 +22,7 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<{ data: T; er
 }
 
 export default async function CatalogoPage() {
-    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits, grupos, compatibilidadesCombo] = await Promise.all([
+    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits, grupos, compatibilidadesCombo, config] = await Promise.all([
         safe(getChatArticulos, []),
         safe(getChatPacks, []),
         safe(getChatArticuloCompatibilidades, []),
@@ -28,6 +30,7 @@ export default async function CatalogoPage() {
         safe(getCompatibilidades, []),
         safe(getChatPackGrupos, []),
         safe(getChatComboCompatibilidades, []),
+        safe(getChatConfig, { mensajeIncompatibilidad: MENSAJE_INCOMPATIBILIDAD_DEFAULT }),
     ])
 
     return (
@@ -42,6 +45,8 @@ export default async function CatalogoPage() {
             gruposIniciales={grupos.data}
             gruposError={grupos.error}
             compatibilidadesComboIniciales={compatibilidadesCombo.data}
+            configInicial={config.data}
+            configError={config.error}
         />
     )
 }

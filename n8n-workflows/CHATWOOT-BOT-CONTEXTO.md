@@ -553,6 +553,22 @@ Orden real del procesamiento de un mensaje entrante:
     envío (Fix D no rompió la rama de negocio legítima). **Gotcha menor:** el `resto_mensaje` que deja
     el extractor de modelo puede traer fragmentos sucios ("para una , cuanto sale…") — molesta poco,
     es del extractor, no de este fix. Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
+- **Mensaje de incompatibilidad editable desde la app (2026-09-02).** El texto de "no es compatible"
+  estaba escrito a mano en 4 nodos. Decisión (Martín): un solo texto **fijo**, sin la moto ni el
+  motivo técnico, igual para todos los casos. Cambios (script `apply-mensaje-incompat-editable.mjs`,
+  0 nodos): tabla nueva `chat_config` (clave/valor, `chat-config.sql`) con fila
+  `mensaje_incompatibilidad`; `Buscar Kits Activos` (corre siempre) trae ese valor en una columna
+  nueva; los 4 nodos `Preparar Respuesta Compatibilidad` / `… (Grupo)` / `Preparar Respuesta No
+  Compatible (Kit Confiado)` / `Preparar Respuesta Nada Compatible (Candidatos)` leen
+  `$('Buscar Kits Activos').first().json.mensaje_incompatibilidad` (fallback hardcodeado
+  "Lamentablemente este kit no es compatible."). La rama **compatible** ("Sí, … es compatible con tu
+  {moto}") no se tocó. App: pestaña "Mensajes del bot" en `/admin/chatwoot/catalogo` (`chat-config.ts`
+  + `mensajes-tab.tsx` + `lib/chat-config-constants.ts`). Nota: la nota privada del equipo que dice
+  "no compatible" sigue redactándola la IA, no usa este texto. Rollback n8n
+  `2f88bb90-d4f7-47d8-8017-d2ec0f7869f3`. Validado en vivo (conv 2411): grupo Tapa CDI + "honda wave
+  nf" → "Lamentablemente este kit no es compatible."; kit 170 + "honda fan 125" → ídem; regresión
+  Tapa CDI + "zanella zb 110" → "Genial, le va bien a tu moto bro… corto o largo?" (compatible,
+  intacto).
 - **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
   o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
   cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja

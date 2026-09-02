@@ -183,10 +183,9 @@ export default function VentasMostradorClient({
   const [enviosConFoto, setEnviosConFoto] = useState<Set<string>>(new Set());
   const [pedidosConFoto, setPedidosConFoto] = useState<Record<string, string>>({});
 
-  // Impresión
-  const [ventaParaImprimir, setVentaParaImprimir] = useState<any>(null);
-  const [ventaParaFactura, setVentaParaFactura] = useState<any>(null);
-  const [ventaParaPedido, setVentaParaPedido] = useState<any>(null);
+  // Impresión exclusiva
+  const [modoImpresion, setModoImpresion] = useState<"ticket" | "factura_a4" | "pedido_a4" | null>(null);
+  const [datosImpresion, setDatosImpresion] = useState<any>(null);
 
   // Actualizar catálogo al recibir props
   useEffect(() => {
@@ -561,29 +560,28 @@ export default function VentasMostradorClient({
   // Acciones de Impresión
   const handleImprimirPresupuesto = () => {
     if (cart.items.length === 0) return;
-    setVentaParaPedido({
+    setModoImpresion("ticket");
+    setDatosImpresion({
       id: "PRESUP-" + Date.now().toString().slice(-6),
-      numeroVenta: null,
-      createdAt: new Date().toISOString(),
-      cliente,
-      dni: docNro || cuitBusqueda,
-      docNro,
-      vendedor: vendedorNombre,
-      info,
+      numeroVenta: numeroPedidoEnEdicion || null,
       items: cart.items,
-      total: cart.totalBase,
+      total: cart.totalACobrar,
       totalFinal: cart.totalACobrar,
+      cliente: cliente || "Consumidor Final",
+      metodoPago: isPagoMixto ? "MIXTO" : metodoPago,
     });
     setTimeout(() => window.print(), 300);
   };
 
   const handleImprimirTicket = (venta: any) => {
-    setVentaParaImprimir(venta);
+    setModoImpresion("ticket");
+    setDatosImpresion(venta);
     setTimeout(() => window.print(), 300);
   };
 
   const handleImprimirFactura = (venta: any) => {
-    setVentaParaFactura(venta);
+    setModoImpresion("factura_a4");
+    setDatosImpresion(venta);
     setTimeout(() => window.print(), 300);
   };
 
@@ -665,18 +663,24 @@ export default function VentasMostradorClient({
 
   return (
     <>
-      {/* 1. Componentes ocultos para impresión física / térmica */}
+      {/* 1. Componentes exclusivos para impresión física / térmica */}
       <div className="hidden print:block">
-        <TicketImpresion
-          ventaId={ventaParaImprimir?.id || ""}
-          numeroVenta={ventaParaImprimir?.numeroVenta}
-          items={ventaParaImprimir?.items || cart.items}
-          total={Number(ventaParaImprimir?.totalFinal || ventaParaImprimir?.total || cart.totalACobrar)}
-          cliente={ventaParaImprimir?.cliente || cliente}
-          metodoPago={ventaParaImprimir?.metodo_pago || (isPagoMixto ? "MIXTO" : metodoPago)}
-        />
-        <FacturaA4 venta={ventaParaFactura} config={config} />
-        <PedidoVentaA4 venta={ventaParaPedido} />
+        {modoImpresion === "ticket" && datosImpresion && (
+          <TicketImpresion
+            ventaId={datosImpresion.id || "TEMP"}
+            numeroVenta={datosImpresion.numeroVenta}
+            items={datosImpresion.items || []}
+            total={Number(datosImpresion.totalFinal ?? datosImpresion.total ?? 0)}
+            cliente={datosImpresion.cliente || "Consumidor Final"}
+            metodoPago={datosImpresion.metodo_pago || (isPagoMixto ? "MIXTO" : metodoPago)}
+          />
+        )}
+        {modoImpresion === "factura_a4" && datosImpresion && (
+          <FacturaA4 venta={datosImpresion} config={config} />
+        )}
+        {modoImpresion === "pedido_a4" && datosImpresion && (
+          <PedidoVentaA4 venta={datosImpresion} />
+        )}
       </div>
 
       {/* 2. Interfaz interactiva normal */}

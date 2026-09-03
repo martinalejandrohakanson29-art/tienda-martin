@@ -142,12 +142,14 @@ export default async function RootLayout({
               "priceRange": "$$",
               "currenciesAccepted": "ARS",
               "paymentAccepted": "Cash, Credit Card, Debit Card, Transfer, Mercado Pago",
-              "telephone": config?.whatsappNumber ? `+${config.whatsappNumber}` : undefined,
+              "telephone": config?.whatsappNumber ? `+54${config.whatsappNumber.replace(/^(\+?54|0)/, "")}` : "+543512404003",
               "hasMap": config?.locationUrl || "https://maps.app.goo.gl/Xk1TKtYBPEAao9LQ6",
               "address": {
                 "@type": "PostalAddress",
+                "streetAddress": "Av. Revolución de Mayo 1605, B° Crisol",
                 "addressLocality": "Córdoba",
                 "addressRegion": "Córdoba",
+                "postalCode": "X5014",
                 "addressCountry": "AR"
               },
               "geo": {

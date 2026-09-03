@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
   if (!matchedCategory) {
     return {
-      title: "Categoría no encontrada | Revolución Motos",
+      title: "Categoría no encontrada",
       description: "Explorá nuestro catálogo de repuestos para motos en Revolución Motos.",
     }
   }
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: seoData.title,
+      title: `${seoData.title} | Revolución Motos`,
       description: seoData.description,
       url: canonicalUrl,
       type: "website",

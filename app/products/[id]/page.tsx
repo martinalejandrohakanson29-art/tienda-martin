@@ -26,7 +26,7 @@ export async function generateMetadata(
   const product = await getProduct(params.id)
 
   if (!product) {
-    return { title: "Producto no encontrado | Revolución Motos" }
+    return { title: "Producto no encontrado" }
   }
 
   const slug = slugify(product.title)
@@ -37,7 +37,7 @@ export async function generateMetadata(
   const productImage = product.imageUrl ? [product.imageUrl] : previousImages
 
   return {
-    title: `${product.title} | Revolución Motos`,
+    title: product.title,
     description: `Comprá ${product.title} a ${formatPrice(Number(product.price))}. ${product.description?.slice(0, 120)}...`,
     alternates: {
       canonical: canonicalUrl,

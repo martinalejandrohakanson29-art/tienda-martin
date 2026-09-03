@@ -9,6 +9,8 @@ import { useCart } from "@/hooks/use-cart"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 
+import { slugify } from "@/lib/seo-utils"
+
 interface ProductCardProps {
     product: Product
 }
@@ -42,9 +44,13 @@ export default function ProductCard({ product }: ProductCardProps) {
         setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)
     }
 
+    const productSlug = slugify(product.title)
+    const productHref = `/products/${product.id}${productSlug ? `/${productSlug}` : ""}`
+
     const goToProduct = () => {
-        router.push(`/products/${product.id}`)
+        router.push(productHref)
     }
+
 
     const onAddToCart = (e: React.MouseEvent) => {
         e.stopPropagation()

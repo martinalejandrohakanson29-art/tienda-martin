@@ -135,13 +135,17 @@ export default async function RootLayout({
               "url": "https://www.revolucionmotos.com.ar",
               "logo": "https://www.revolucionmotos.com.ar/icon.png",
               "image": "https://www.revolucionmotos.com.ar/icon.png",
-              "description": "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos en Argentina.",
+              "description": "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos en Córdoba y Argentina.",
               "telephone": config?.whatsappNumber ? `+${config.whatsappNumber}` : undefined,
+              "hasMap": config?.locationUrl || "https://maps.app.goo.gl/Xk1TKtYBPEAao9LQ6",
               "address": {
                 "@type": "PostalAddress",
+                "addressLocality": "Córdoba",
+                "addressRegion": "Córdoba",
                 "addressCountry": "AR"
               },
               "sameAs": [
+                config?.locationUrl || "https://maps.app.goo.gl/Xk1TKtYBPEAao9LQ6",
                 config?.instagramUrl,
                 config?.tiktokUrl
               ].filter(Boolean)

@@ -5,6 +5,7 @@ import { ChevronDown, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useOnClickOutside } from "@/hooks/use-on-click-outside" // 👈 2. Importamos el hook
+import { slugify } from "@/lib/seo-utils"
 
 export default function CategoryMenu({ categories }: { categories: string[] }) {
     const [open, setOpen] = useState(false)
@@ -20,7 +21,7 @@ export default function CategoryMenu({ categories }: { categories: string[] }) {
 
     const handleSelect = (category: string) => {
         setOpen(false) // Esto ya estaba bien, cierra al elegir categoría
-        router.push(`/shop?category=${encodeURIComponent(category)}`)
+        router.push(`/categoria/${slugify(category)}`)
     }
 
     const handleViewAll = () => {

@@ -1,31 +1,79 @@
 import { getCarouselItems } from "@/app/actions/carousel"
 import { getFeaturedProducts, getProducts, getHomeShowcaseProducts, getComboProducts } from "@/app/actions/products"
-import { getConfig } from "@/app/actions/config"
+import { getConfig, getLandingFaqs } from "@/app/actions/config"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import HomeSearch from "@/components/home-search"
 import HomeCarousel from "@/components/home-carousel"
 import ProductCard from "@/components/ui/product-card"
+import LandingTrustBar from "@/components/landing-trust-bar"
+import LandingSeoSection from "@/components/landing-seo-section"
+import LandingFaq from "@/components/landing-faq"
+import { slugify } from "@/lib/seo-utils"
 import { Zap } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
+const DEFAULT_FAQS = [
+  {
+    question: "¿Hacen envíos a todo el país y cuánto demora la entrega?",
+    answer: "Sí, despachamos todos los días a toda la Argentina a través de Correo Argentino, Andreani y encomiendas a terminal de ómnibus. Una vez despachado tu pedido, te enviamos el código de seguimiento para que puedas rastrearlo en tiempo real. Los envíos suelen demorar entre 2 a 5 días hábiles según la localidad.",
+    order: 1,
+    isActive: true,
+  },
+  {
+    question: "¿Qué medios de pago aceptan?",
+    answer: "Aceptamos todas las tarjetas de crédito y débito a través de pasarelas seguras (con opciones de cuotas), dinero en cuenta de Mercado Pago y transferencias bancarias directas con descuentos especiales.",
+    order: 2,
+    isActive: true,
+  },
+  {
+    question: "¿Cómo sé si un repuesto o kit de potenciación es compatible con mi moto?",
+    answer: "En cada ficha de producto detallamos los modelos, años y medidas de compatibilidad. Si te queda alguna duda sobre preparación, cruce de levas, relaciones o medidas de cilindro, escribinos por WhatsApp y nuestro equipo técnico te asesora al instante.",
+    order: 3,
+    isActive: true,
+  },
+  {
+    question: "¿Hacen ventas mayoristas para talleres mecánicos y casas de repuestos?",
+    answer: "¡Sí! Contamos con precios mayoristas directos para talleres mecánicos, preparadores de competición y casas de repuestos de todo el país. Podés consultar nuestro catálogo mayorista en la sección Mayoristas de la web.",
+    order: 4,
+    isActive: true,
+  },
+  {
+    question: "¿Tienen local comercial para retirar personalmente?",
+    answer: "Sí, podés retirar tus compras por nuestro punto de atención en Córdoba Capital o comprar directamente en el mostrador. Consultanos por WhatsApp para coordinar tu retiro.",
+    order: 5,
+    isActive: true,
+  },
+]
+
 export default async function Home() {
-  const carouselItems = await getCarouselItems()
-  const featuredProducts = await getFeaturedProducts()
-  const showcaseProducts = await getHomeShowcaseProducts()
-  const comboProducts = await getComboProducts()
-  const allProducts = await getProducts()
-  const config = await getConfig()
+  const [carouselItems, featuredProducts, showcaseProducts, comboProducts, allProducts, config, dbFaqs] =
+    await Promise.all([
+      getCarouselItems(),
+      getFeaturedProducts(),
+      getHomeShowcaseProducts(),
+      getComboProducts(),
+      getProducts(),
+      getConfig(),
+      getLandingFaqs(),
+    ])
 
   const carouselItemsJson = JSON.parse(JSON.stringify(carouselItems))
   const configJson = JSON.parse(JSON.stringify(config))
+  const featuredProductsJson = JSON.parse(JSON.stringify(featuredProducts))
+  const showcaseProductsJson = JSON.parse(JSON.stringify(showcaseProducts))
+  const comboProductsJson = JSON.parse(JSON.stringify(comboProducts))
+  const allProductsJson = JSON.parse(JSON.stringify(allProducts))
+
+  const faqs = dbFaqs && dbFaqs.length > 0 ? JSON.parse(JSON.stringify(dbFaqs)) : DEFAULT_FAQS
 
   const hasCarousel = carouselItems.length > 0
 
   const categories = Array.from(
-    new Set((allProducts as any[]).map((p) => p.category).filter(Boolean))
+    new Set((allProductsJson as any[]).map((p) => p.category).filter(Boolean))
   ) as string[]
+
 
   return (
     <div className="bg-[#0D0D0D] min-h-screen pb-16">
@@ -49,7 +97,7 @@ export default async function Home() {
               {categories.map((cat) => (
                 <Link
                   key={cat}
-                  href={`/shop?category=${encodeURIComponent(cat)}`}
+                  href={`/categoria/${slugify(cat)}`}
                   className="flex-shrink-0 px-4 py-1.5 rounded-full bg-[#1A1A1A] hover:bg-red-600/20 hover:text-red-400 border border-white/10 hover:border-red-800/60 text-gray-400 text-xs font-semibold uppercase tracking-wide transition-all whitespace-nowrap"
                 >
                   {cat}
@@ -70,11 +118,14 @@ export default async function Home() {
             Kits de potenciación, cilindros, levas y repuestos exclusivos con envíos a todo el país
           </p>
         </div>
-        <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
+        <HomeSearch products={allProductsJson} />
       </div>
 
+      {/* BARRA DE BENEFICIOS Y CONFIANZA */}
+      <LandingTrustBar config={configJson} />
+
       {/* COMBOS EN OFERTA */}
-      {comboProducts.length > 0 && (
+      {comboProductsJson.length > 0 && (
         <div className="container mx-auto px-4 mt-14">
           <div className="relative overflow-hidden rounded-lg border border-red-900/40 bg-gradient-to-br from-[#1C0404] via-[#0D0D0D] to-[#0D0D0D] p-6 mb-8">
             <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.07]">
@@ -95,7 +146,7 @@ export default async function Home() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {(comboProducts as any[]).map((product) => (
+            {comboProductsJson.map((product: any) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
@@ -111,11 +162,11 @@ export default async function Home() {
           </h2>
         </div>
 
-        {featuredProducts.length === 0 ? (
+        {featuredProductsJson.length === 0 ? (
           <p className="text-center text-gray-600 my-8 italic">Aún no hay productos destacados.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {(featuredProducts as any[]).map((product) => (
+            {featuredProductsJson.map((product: any) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
@@ -123,7 +174,7 @@ export default async function Home() {
       </div>
 
       {/* TAMBIÉN TE PUEDE INTERESAR */}
-      {showcaseProducts.length > 0 && (
+      {showcaseProductsJson.length > 0 && (
         <div className="mt-14 py-12 bg-[#080808] border-y border-white/5">
           <div className="container mx-auto px-4">
             <div className="flex items-center gap-4 mb-8">
@@ -137,7 +188,7 @@ export default async function Home() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-              {(showcaseProducts as any[]).map((product) => (
+              {showcaseProductsJson.map((product: any) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
@@ -160,6 +211,17 @@ export default async function Home() {
         </p>
       </div>
 
+      {/* BLOQUE SEMÁNTICO DE AUTORIDAD SEO */}
+      <LandingSeoSection config={configJson} />
+
+      {/* PREGUNTAS FRECUENTES (FAQ) CON SCHEMA JSON-LD */}
+      <LandingFaq
+        faqs={faqs}
+        whatsappNumber={config?.whatsappNumber}
+        showFaqSection={config?.showFaqSection ?? true}
+      />
+
     </div>
   )
 }
+

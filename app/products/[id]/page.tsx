@@ -2,6 +2,7 @@ import { getProduct, incrementProductView } from "@/app/actions/products"
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
 import { formatPrice } from "@/lib/utils"
+import { slugify } from "@/lib/seo-utils"
 import { Metadata, ResolvingMetadata } from "next"
 import PixelProductView from "@/components/pixel-product-view" // 👈 1. IMPORTANTE: Importamos el componente del Píxel
 import Link from "next/link"
@@ -28,6 +29,9 @@ export async function generateMetadata(
     return { title: "Producto no encontrado | Revolución Motos" }
   }
 
+  const slug = slugify(product.title)
+  const canonicalUrl = `https://www.revolucionmotos.com.ar/products/${product.id}${slug ? `/${slug}` : ""}`
+
   // Si hay fotos, usamos la primera, si no, una por defecto
   const previousImages = (await parent).openGraph?.images || []
   const productImage = product.imageUrl ? [product.imageUrl] : previousImages
@@ -36,13 +40,13 @@ export async function generateMetadata(
     title: `${product.title} | Revolución Motos`,
     description: `Comprá ${product.title} a ${formatPrice(Number(product.price))}. ${product.description?.slice(0, 120)}...`,
     alternates: {
-      canonical: `https://www.revolucionmotos.com.ar/products/${product.id}`,
+      canonical: canonicalUrl,
     },
     openGraph: {
       images: productImage,
       title: `${product.title} | Revolución Motos`,
       description: `Comprá este repuesto al mejor precio: ${formatPrice(Number(product.price))}`,
-      url: `https://www.revolucionmotos.com.ar/products/${product.id}`,
+      url: canonicalUrl,
     },
     twitter: {
       card: "summary_large_image",
@@ -76,6 +80,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
     const images = [product.imageUrl, product.imageUrl2, product.imageUrl3].filter(img => img && img.trim() !== "")
     const videoEmbedUrl = getVideoEmbedUrl(product.videoUrl || "")
 
+    const slug = slugify(product.title)
+    const productUrl = `https://www.revolucionmotos.com.ar/products/${product.id}${slug ? `/${slug}` : ""}`
+
     const productJsonLd = {
         "@context": "https://schema.org",
         "@type": "Product",
@@ -86,7 +93,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
         "category": product.category || undefined,
         "offers": {
             "@type": "Offer",
-            "url": `https://www.revolucionmotos.com.ar/products/${product.id}`,
+            "url": productUrl,
             "priceCurrency": "ARS",
             "price": finalPrice.toFixed(2),
             "availability": (product.stock ?? 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",

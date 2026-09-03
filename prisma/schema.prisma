@@ -130,7 +130,44 @@ model Config {
   dolarCotizacion       Decimal  @default(1000) @db.Decimal(10, 2)
   factorFob             Decimal  @default(1.00) @db.Decimal(10, 2)
   recargoFinanciacion   Decimal  @default(0) @db.Decimal(10, 2)
+
+  // Barra de beneficios y confianza (Landing)
+  showTrustBar          Boolean  @default(true)
+  trust1Title           String?  @default("Envíos a Todo el País")
+  trust1Desc            String?  @default("Por Correo Argentino, Andreani y Encomiendas")
+  trust2Title           String?  @default("Medios de Pago")
+  trust2Desc            String?  @default("Tarjetas de crédito, débito y transferencias con descuento")
+  trust3Title           String?  @default("Asesoramiento Técnico")
+  trust3Desc            String?  @default("Consultanos por WhatsApp y te guiamos en tu compra")
+  trust4Title           String?  @default("Local en Córdoba")
+  trust4Desc            String?  @default("Retiro en sucursal y atención personalizada")
+
+  // Bloque semántico de autoridad SEO (Landing)
+  showSeoSection        Boolean  @default(true)
+  seoTitle              String?  @default("Especialistas en Potenciación y Repuestos para Motos")
+  seoSubtitle           String?  @default("Repuestos, cilindros, levas y kits de competición para talleres y particulares con envíos a toda Argentina.")
+  seoText1              String?  @db.Text
+  seoText2              String?  @db.Text
+  seoTags               String?  @default("Honda, Yamaha, Motomel, Corven, Gilera, Bajaj, Kits de Potenciación, Cilindros, Levas, Carburadores, Escapes")
+
+  // Control de sección FAQs
+  showFaqSection        Boolean  @default(true)
 }
+
+model LandingFaq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+  @@index([isActive])
+  @@map("landing_faqs")
+}
+
 
 model CarouselItem {
   id             String   @id @default(cuid())

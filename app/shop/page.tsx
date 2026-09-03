@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 
 export default async function ShopPage() {
     // 1. Obtenemos los productos desde la base de datos
-    const products = await getProducts()
+    const rawProducts = await getProducts()
+    const products = JSON.parse(JSON.stringify(rawProducts))
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -34,9 +35,8 @@ export default async function ShopPage() {
 
             <h1 className="text-3xl font-black uppercase tracking-tight text-white mb-8">Tienda</h1>
             
-            {/* 👇 CORRECCIÓN: Usamos 'initialProducts' en lugar de 'products' 
-                 y quitamos 'categories' porque ShopClient ya no lo necesita */}
             <ShopClient initialProducts={products} />
         </div>
     )
 }
+

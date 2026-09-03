@@ -14,5 +14,6 @@ This file provides guidance to agents when working with code in this repository.
 - **Stock Atomicity:** Stock updates MUST be wrapped in `prisma.$transaction()` to prevent race conditions and ensure data integrity.
 - **S3 Configuration:** Storage uses `forcePathStyle: true` and requires `rejectUnauthorized: false` due to self-signed certificates.
 - **Cart Synchronization:** The cart state relies on `localStorage` and cross-tab synchronization via a custom `cart-updated` event, managed by `hooks/use-cart.ts`.
-- **Legacy Data:** Several models use `_old` suffixes in their `@map` (e.g., `costos_articulos_old`), indicating potential legacy data structures that must be handled during migrations or data access.
 - **ML Integration:** Complex models exist for `MLFees` and `MLDescuentos` which define specific pricing logic that must be respected.
+- **Business Focus & SEO:** Revolución Motos is strictly a motorcycle parts, performance kits and accessories retail and wholesale store/distributor based in Córdoba. Do NOT refer to it as a repair shop or offering mechanical repair services. See `ROADMAP-SEO.md` for current SEO roadmap, category landings, and pending Point 4 (Guides/Blog).
+

@@ -81,6 +81,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
     const videoEmbedUrl = getVideoEmbedUrl(product.videoUrl || "")
 
     const slug = slugify(product.title)
+    const categorySlug = product.category ? slugify(product.category) : null
     const productUrl = `https://www.revolucionmotos.com.ar/products/${product.id}${slug ? `/${slug}` : ""}`
 
     const productJsonLd = {
@@ -105,11 +106,46 @@ export default async function ProductPage({ params }: { params: { id: string } }
         },
     }
 
+    const breadcrumbJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Inicio",
+                "item": "https://www.revolucionmotos.com.ar",
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Tienda",
+                "item": "https://www.revolucionmotos.com.ar/shop",
+            },
+            ...(product.category && categorySlug ? [{
+                "@type": "ListItem",
+                "position": 3,
+                "name": product.category,
+                "item": `https://www.revolucionmotos.com.ar/categoria/${categorySlug}`,
+            }] : []),
+            {
+                "@type": "ListItem",
+                "position": product.category && categorySlug ? 4 : 3,
+                "name": product.title,
+                "item": productUrl,
+            },
+        ],
+    }
+
     return (
         <div className="container mx-auto px-4 py-8 md:py-12">
             <script
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
             />
             <PixelProductView product={product} />
 
@@ -122,10 +158,18 @@ export default async function ProductPage({ params }: { params: { id: string } }
                     </Link>
                     <span>/</span>
                     <Link href="/shop" className="hover:text-gray-200 transition-colors">Tienda</Link>
+                    {product.category && categorySlug && (
+                        <>
+                            <span>/</span>
+                            <Link href={`/categoria/${categorySlug}`} className="hover:text-red-400 transition-colors">
+                                {product.category}
+                            </Link>
+                        </>
+                    )}
                     <span>/</span>
                     <span className="text-gray-300 font-medium truncate max-w-[160px] md:max-w-[280px]">{product.title}</span>
                 </div>
-                <Link href="/shop">
+                <Link href={product.category && categorySlug ? `/categoria/${categorySlug}` : "/shop"}>
                     <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-400 hover:text-white hover:bg-white/10 h-9">
                         <ArrowLeft className="h-4 w-4" />
                         Volver
@@ -169,9 +213,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 <div className="space-y-5">
                     <div>
                         <div className="flex flex-wrap gap-2 mb-3">
-                            <span className="text-[10px] uppercase font-black text-red-400 bg-red-950 border border-red-900/60 px-2.5 py-1 rounded-full tracking-widest">
-                                {product.category}
-                            </span>
+                            {product.category && (
+                                <Link
+                                    href={`/categoria/${categorySlug || slugify(product.category)}`}
+                                    className="text-[10px] uppercase font-black text-red-400 hover:text-red-300 bg-red-950 hover:bg-red-900/60 border border-red-900/60 px-2.5 py-1 rounded-full tracking-widest transition-colors"
+                                >
+                                    {product.category}
+                                </Link>
+                            )}
                             {product.freeShipping && (
                                 <span className="text-[10px] uppercase font-black text-green-400 bg-green-950 border border-green-900/60 px-2.5 py-1 rounded-full tracking-widest">
                                     ✓ Envío Gratis

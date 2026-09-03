@@ -47,9 +47,23 @@ Este documento registra el estado de las optimizaciones de posicionamiento web (
   * Se eliminaron los warnings de `Decimal objects are not supported` serializando los productos antes de pasar a componentes cliente.
   * Se eliminó el error `GET /icon.png 500` removiendo archivos conflictivos en `app/` para que Next.js sirva limpiamente los iconos estáticos desde `public/icon.png`.
 
-### Punto 3: SEO Local & Google Maps
-* Datos estructurados en `app/layout.tsx` configurados con `@type: "AutoPartsStore"` (Tienda de Repuestos, NO taller).
-* Vinculación formal de ubicación en Córdoba y enlace a la ficha de Google Maps (`hasMap` y `sameAs`).
+### Punto 3: SEO Local, Enlaces Nativos & Arquitectura Web (Completado)
+* **Enlaces HTML Nativos (`<a>` / `<Link>`):**
+  * `ProductCard`: Se reemplazó la navegación JavaScript por enlaces `<Link>` reales envolviendo imagen y título para que Googlebot rastree el 100% de productos y traspase PageRank con anchor texts descriptivos.
+  * `CategoryMenu`: Los botones interactivos se convirtieron a `<Link>` nativos con tema visual rojo competición.
+  * `Header`: Enlace directo permanente a `/mayoristas` tanto en desktop como en móvil.
+* **Footer de Alto Impacto SEO (`components/footer.tsx`):**
+  * Columna de categorías dinámicas obtenidas directamente de la base de datos (`getUniqueCategories()`), asegurando link juice continuo hacia todas las categorías.
+  * Columna de navegación y servicios (Tienda completa, Venta mayorista B2B, medios de pago).
+  * Columna de ubicación local en Córdoba y enlace directo verificado a Google Maps.
+  * Iconos SVG locales optimizados (WhatsApp, Instagram, TikTok) eliminando llamadas externas a Wikimedia.
+* **Canonical Root & Reglas de Rastreo (`robots.ts` & `layout.tsx`):**
+  * `app/layout.tsx`: Canonical estricto configurado en `alternates.canonical` hacia `https://www.revolucionmotos.com.ar`.
+  * `app/robots.ts`: Regla `allow` ampliada para incluir `/categoria/` y `/guias/`.
+* **Datos Estructurados Enriquecidos (Google Search Console & Maps):**
+  * `app/layout.tsx`: Schema `AutoPartsStore` enriquecido con geocoordenadas (`GeoCoordinates`), rango de precios (`$$`), horarios de atención comercial (`openingHoursSpecification`) y `areaServed: "AR"`.
+  * `app/products/[id]/page.tsx`: Inyección de Schema `BreadcrumbList` (Inicio > Tienda > Categoría > Producto) para que Google muestre rutas navegables en los resultados de búsqueda.
+  * `HomeCarousel`: Textos `alt` optimizados con palabras clave locales y de potenciación + carga prioritaria (`loading="eager"`) en el primer slide.
 
 ---
 

@@ -34,7 +34,7 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
         opts={{ loop: true }}
       >
         <CarouselContent>
-          {items.map((item) => (
+          {items.map((item, index) => (
             <CarouselItem key={item.id} className="pl-0">
               <div className="relative w-full dynamic-carousel-height bg-black">
                 {item.mediaType === "video" ? (
@@ -44,7 +44,7 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
                         src={`${item.mediaUrl}`}
                         className="w-full h-full object-cover"
                         allow="autoplay; encrypted-media"
-                        title="Video PC"
+                        title="Video Promocional Revolución Motos"
                         style={{ border: 0 }}
                       />
                     </div>
@@ -53,7 +53,7 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
                         src={`${item.mediaUrlMobile || item.mediaUrl}`}
                         className="w-full h-full object-cover"
                         allow="autoplay; encrypted-media"
-                        title="Video Móvil"
+                        title="Video Móvil Revolución Motos"
                         style={{ border: 0 }}
                       />
                     </div>
@@ -63,14 +63,16 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
                   <>
                     <img
                       src={item.mediaUrl}
-                      alt="Banner PC"
+                      alt="Revolución Motos - Repuestos, Accesorios y Kits de Potenciación en Córdoba"
                       className="hidden md:block w-full h-full object-cover"
+                      loading={index === 0 ? "eager" : "lazy"}
                       referrerPolicy="no-referrer"
                     />
                     <img
                       src={item.mediaUrlMobile || item.mediaUrl}
-                      alt="Banner Móvil"
+                      alt="Revolución Motos - Tienda Online de Repuestos para Motos"
                       className="block md:hidden w-full h-full object-cover"
+                      loading={index === 0 ? "eager" : "lazy"}
                       referrerPolicy="no-referrer"
                     />
                   </>

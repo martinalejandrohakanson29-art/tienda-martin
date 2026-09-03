@@ -29,6 +29,7 @@ export default async function Header({ config, categories }: { config: any, cate
           <Link href="/" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Inicio</Link>
           <Link href="/shop" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Tienda</Link>
           <CategoryMenu categories={categories} />
+          <Link href="/mayoristas" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Mayoristas</Link>
 
           {session && (
             <Link
@@ -55,6 +56,7 @@ export default async function Header({ config, categories }: { config: any, cate
               <div className="flex flex-col gap-4 mt-8">
                 <Link href="/" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Inicio</Link>
                 <Link href="/shop" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Tienda Completa</Link>
+                <Link href="/mayoristas" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Venta Mayorista</Link>
 
                 {session && (
                   <>

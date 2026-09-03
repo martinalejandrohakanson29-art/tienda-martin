@@ -24,6 +24,9 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.revolucionmotos.com.ar"),
+  alternates: {
+    canonical: "https://www.revolucionmotos.com.ar",
+  },
   title: {
     default: "Revolución Motos | Repuestos, Accesorios y Kits de Potenciación",
     template: "%s | Revolución Motos",
@@ -136,6 +139,9 @@ export default async function RootLayout({
               "logo": "https://www.revolucionmotos.com.ar/icon.png",
               "image": "https://www.revolucionmotos.com.ar/icon.png",
               "description": "Venta minorista y mayorista de repuestos, kits de potenciación y accesorios para motos en Córdoba y Argentina.",
+              "priceRange": "$$",
+              "currenciesAccepted": "ARS",
+              "paymentAccepted": "Cash, Credit Card, Debit Card, Transfer, Mercado Pago",
               "telephone": config?.whatsappNumber ? `+${config.whatsappNumber}` : undefined,
               "hasMap": config?.locationUrl || "https://maps.app.goo.gl/Xk1TKtYBPEAao9LQ6",
               "address": {
@@ -144,6 +150,29 @@ export default async function RootLayout({
                 "addressRegion": "Córdoba",
                 "addressCountry": "AR"
               },
+              "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -31.4201,
+                "longitude": -64.1888
+              },
+              "areaServed": {
+                "@type": "Country",
+                "name": "Argentina"
+              },
+              "openingHoursSpecification": [
+                {
+                  "@type": "OpeningHoursSpecification",
+                  "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                  "opens": "09:00",
+                  "closes": "18:30"
+                },
+                {
+                  "@type": "OpeningHoursSpecification",
+                  "dayOfWeek": ["Saturday"],
+                  "opens": "09:00",
+                  "closes": "13:30"
+                }
+              ],
               "sameAs": [
                 config?.locationUrl || "https://maps.app.goo.gl/Xk1TKtYBPEAao9LQ6",
                 config?.instagramUrl,

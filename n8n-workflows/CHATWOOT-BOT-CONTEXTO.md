@@ -2082,6 +2082,30 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   modelo repetida); (3) "Es una Zanella ZB 110" (dato real cargado) → confirmó compatible, preguntó
   corto/largo, y `Cerrar Pendiente Tecnica (Grupo)` marcó `respondida` la pendiente que había
   quedado de la prueba (1) — confirmado contra la base, sin tocarla a mano.
+- **Grupo esperando la moto: un saludo pelado disparaba la re-pregunta de la moto (2026-09-03).**
+  Caso real: conv 2991 (+5492964505229, "Jonny"). Bienvenida del combo mandada (ya pide la moto),
+  grupo pineado `esperando_moto`. 14 min después el cliente escribió solo **"Buen día"**.
+  `Extraer Tema Negocio (Grupo)` lo clasificó `nada` — correcto según su prompt, que metía "saluda"
+  dentro de `nada` — y el destino de `nada` es `¿Es Cierre? (Grupo)`[1] → `Preparar Repregunta
+  Modelo (Grupo)` → "Que marca y modelo es tu moto?". Además incrementó el contador
+  `repregunta_modelo_grupo_intentos` (3 nudges sin la moto = escala), o sea un saludo quemaba un
+  intento. Ejecución real 95179.
+  **Fix** (`apply-grupo-espera-moto-saludo-no-repregunta.mjs`, 1 prompt + 1 code + 3 nodos,
+  461→464): categoría nueva `saludo` en `Extraer Tema Negocio (Grupo)` (el cliente SOLO saluda,
+  sin nombrar la moto ni pedir nada — "buen día" está literal en los ejemplos); se sacó "saluda"
+  de `nada`. `Parsear Tema Negocio (Grupo)` suma `saludo` a la whitelist y expone `es_saludo`.
+  Nodo `¿Es Solo Saludo? (Grupo)` (If `es_saludo`) intercalado en `¿Es Cierre? (Grupo)`[1]:
+  saludo → `Enviar Saludo Corto (Grupo)` ("Hola bro! Acá andamos.", `origen: saludo_corto_grupo_2_0`)
+  → `Fin - Saludo Corto Grupo` (no re-pregunta, no toca el contador, el pin sigue esperando la
+  moto); resto → `Preparar Repregunta Modelo (Grupo)` sin cambios. Decisión de comportamiento
+  confirmada con Martín: "saluda de vuelta, sin re-pedir la moto".
+  **Sin validar end-to-end**: los nodos LLM (`Dividir y Etiquetar Sub-preguntas` y los demás,
+  todos `lmChatOpenAi` con la credencial `openAiApi` "OpenAi account" `XjYyT7i3oP95CavU`) estaban
+  devolviendo `"OpenAI: Rate limit reached / You have no credits remaining"` de forma intermitente
+  el 03/09 ~13:00-13:30 (ejecuciones reales 95263, 95277, 95286 fallando en `Dividir y Etiquetar
+  Sub-preguntas`) — problema de saldo/billing del proveedor, aparte de este fix. El cableado sí se
+  verificó contra el GET post-PUT; peor caso si el LLM clasifica `nada` en vez de `saludo` = no hay
+  regresión. Rollback: restore versionId `69232233-03b6-441c-8944-38dd2843b8e5`.
 - **Fix real: el bot seguía pidiendo la moto aunque el cliente ya hubiera contestado el recorrido
   (2026-08-25).** Caso real: conv 2720 (+5493435311660, emi🥷), Tapa CDI. Contestó "Recorrido corto"
   directo, sin dar la moto -- el bot respondió "El cilindro que incluye este combo es la versión

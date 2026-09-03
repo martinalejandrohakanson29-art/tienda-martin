@@ -16,20 +16,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Chequeo de duplicados: ¿Ya enviamos un mensaje con éxito para esta orden?
-    const yaEnviado = await prisma.mlMensajePostVentaLog.findFirst({
+    // Omitir órdenes canceladas o inválidas
+    const orderStatus = String(orderData.status || body.status || "").trim().toLowerCase();
+    if (orderStatus === "cancelled" || orderStatus === "invalid") {
+      return NextResponse.json({
+        should_send: false,
+        reason: `La orden está en estado '${orderStatus}'. No se envía mensaje post-venta.`,
+        order_id: orderId,
+      });
+    }
+
+    // 1. Chequeo de duplicados y condición de carrera: ¿Ya enviamos o estamos procesando esta orden?
+    const yaProcesado = await prisma.mlMensajePostVentaLog.findFirst({
       where: {
         orderId: orderId,
-        estado: "enviado",
+        estado: { in: ["enviado", "procesando"] },
       },
     });
 
-    if (yaEnviado) {
+    if (yaProcesado) {
       return NextResponse.json({
         should_send: false,
-        reason: `Mensaje post-venta ya fue enviado previamente para la orden ${orderId}`,
+        reason: `Mensaje post-venta ya fue enviado o está en proceso para la orden ${orderId} (estado actual: ${yaProcesado.estado})`,
         order_id: orderId,
-        log_id: yaEnviado.id,
+        log_id: yaProcesado.id,
       });
     }
 
@@ -42,19 +52,22 @@ export async function POST(req: NextRequest) {
     const isFull = logisticType === "fulfillment" || body.is_full === true;
     const isDelivered = shippingStatus === "delivered" || orderData.status === "delivered";
 
-    // 3. Extraer MLAs de la orden
+    // 3. Extraer MLAs y SKUs directos de la orden
     const orderItems = Array.isArray(orderData.order_items) ? orderData.order_items : [];
     const mlas: string[] = [];
+    const directSkus: string[] = [];
     for (const item of orderItems) {
       const mlaId = item?.item?.id || item?.id;
       if (mlaId) mlas.push(String(mlaId).trim().toUpperCase());
+      const sellerSku = item?.item?.seller_sku || item?.item?.seller_custom_field || item?.seller_sku;
+      if (sellerSku) directSkus.push(String(sellerSku).trim());
     }
 
     if (mlas.length === 0 && body.mla) {
       mlas.push(String(body.mla).trim().toUpperCase());
     }
 
-    if (mlas.length === 0) {
+    if (mlas.length === 0 && directSkus.length === 0) {
       return NextResponse.json({
         should_send: false,
         reason: "La orden no contiene items/MLAs válidos para evaluar.",
@@ -118,6 +131,12 @@ export async function POST(req: NextRequest) {
       const idArt = (k.id_articulo || "").trim();
       if (idArt) {
         const exploded = explodeArticles(idArt);
+        for (const a of exploded) articulosEnOrden.add(a);
+      }
+    }
+    for (const sku of directSkus) {
+      if (sku) {
+        const exploded = explodeArticles(sku);
         for (const a of exploded) articulosEnOrden.add(a);
       }
     }
@@ -219,10 +238,56 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Si NO es Full o SI YA fue entregada: listo para enviar
+    // 9. MANEJO PARA NO FULL O YA ENTREGADAS:
+    // Registrar log previo en estado "procesando" para evitar que notificaciones
+    // casi simultáneas de la misma orden disparen envíos duplicados.
+    let logId: string;
+    const existingLog = await prisma.mlMensajePostVentaLog.findFirst({
+      where: { orderId: orderId },
+    });
+
+    if (existingLog) {
+      const updated = await prisma.mlMensajePostVentaLog.update({
+        where: { id: existingLog.id },
+        data: {
+          packId,
+          shipmentId,
+          buyerId,
+          sellerId,
+          idArticulo: matchedRule.idArticulo,
+          mla: matchedMla,
+          tipoLogistica: logisticType || (isFull ? "fulfillment" : "standard"),
+          esFull: isFull,
+          mensajeEnviado: mensajeFinal,
+          reglaId: matchedRule.id,
+          estado: "procesando",
+        },
+      });
+      logId = updated.id;
+    } else {
+      const created = await prisma.mlMensajePostVentaLog.create({
+        data: {
+          orderId,
+          packId,
+          shipmentId,
+          buyerId,
+          sellerId,
+          idArticulo: matchedRule.idArticulo,
+          mla: matchedMla,
+          tipoLogistica: logisticType || (isFull ? "fulfillment" : "standard"),
+          esFull: isFull,
+          mensajeEnviado: mensajeFinal,
+          reglaId: matchedRule.id,
+          estado: "procesando",
+        },
+      });
+      logId = created.id;
+    }
+
     return NextResponse.json({
       should_send: true,
       status: "listo_para_enviar",
+      log_id: logId,
       is_full: isFull,
       order_id: orderId,
       pack_id: packId,

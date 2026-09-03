@@ -46,6 +46,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Bloqueo atómico contra disparos duplicados concurrentes:
+    // Marcamos inmediatamente como 'procesando' para que cualquier webhook
+    // o ejecución paralela no vuelva a tomar este mismo registro.
+    await prisma.mlMensajePostVentaLog.update({
+      where: { id: pendingLog.id },
+      data: { estado: "procesando" },
+    });
+
     return NextResponse.json({
       should_send: true,
       log_id: pendingLog.id,

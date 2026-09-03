@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02T15:18:32.879Z",
+  "updatedAt": "2026-09-03T21:48:03.786Z",
   "createdAt": "2026-09-02T15:01:34.297Z",
   "id": "9Rdq6Tk7icFrkdl9",
   "name": "ML - Mensajes Post-Venta Automáticos",
@@ -25,7 +25,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extraer order_id o shipment_id de la notificación de Mercado Libre\nconst body = $json.body || $json;\nlet resource = String(body.resource || '');\nlet topic = String(body.topic || '');\nlet orderId = '';\nlet shipmentId = '';\nlet type = 'unknown';\n\nif (resource.includes('/orders/')) {\n  type = 'order';\n  const parts = resource.split('/orders/');\n  orderId = parts[1] ? parts[1].replace(/[^0-9]/g, '') : '';\n} else if (resource.includes('/shipments/')) {\n  type = 'shipment';\n  const parts = resource.split('/shipments/');\n  shipmentId = parts[1] ? parts[1].replace(/[^0-9]/g, '') : '';\n} else if (topic.includes('orders') || body.order_id || body.id) {\n  type = 'order';\n  orderId = String(body.order_id || body.id).replace(/[^0-9]/g, '');\n} else if (topic.includes('shipments') || body.shipment_id) {\n  type = 'shipment';\n  shipmentId = String(body.shipment_id).replace(/[^0-9]/g, '');\n}\n\nreturn [{\n  json: {\n    type,\n    order_id: orderId,\n    shipment_id: shipmentId,\n    topic,\n    resource,\n    user_id: body.user_id || null,\n    received_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Extraer y clasificar notificación entrante de Mercado Libre\nconst body = $json.body || $json;\nlet resource = String(body.resource || '').trim();\nlet topic = String(body.topic || '').trim().toLowerCase();\nlet orderId = '';\nlet shipmentId = '';\nlet eventType = 'ignore';\n\n// 1. Identificar VENTAS / ÓRDENES:\nif (topic === 'orders_v2' || topic === 'orders' || resource.startsWith('/orders/')) {\n  eventType = 'order';\n  if (resource.startsWith('/orders/')) {\n    orderId = resource.replace('/orders/', '').replace(/[^0-9]/g, '');\n  } else if (body.order_id || body.id) {\n    orderId = String(body.order_id || body.id).replace(/[^0-9]/g, '');\n  }\n} \n// 2. Identificar ENVÍOS / SHIPMENTS (para entregas Full):\nelse if (topic === 'shipments' || resource.startsWith('/shipments/')) {\n  eventType = 'shipment';\n  if (resource.startsWith('/shipments/')) {\n    shipmentId = resource.replace('/shipments/', '').replace(/[^0-9]/g, '');\n  } else if (body.shipment_id) {\n    shipmentId = String(body.shipment_id).replace(/[^0-9]/g, '');\n  }\n}\n\n// Validar que realmente tengamos un identificador numérico\nif (eventType === 'order' && !orderId) {\n  eventType = 'ignore';\n}\nif (eventType === 'shipment' && !shipmentId) {\n  eventType = 'ignore';\n}\n\nreturn [{\n  json: {\n    type: eventType,\n    order_id: orderId,\n    shipment_id: shipmentId,\n    topic,\n    resource,\n    user_id: body.user_id || null,\n    received_at: new Date().toISOString()\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -71,6 +71,39 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-es-shipment",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "shipment",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        200
+      ],
+      "id": "node-if-es-envio",
+      "name": "¿Es Envío?"
+    },
+    {
+      "parameters": {
         "workflowId": {
           "__rl": true,
           "value": "MUsInFnHGy2zWvn0",
@@ -92,7 +125,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://api.mercadolibre.com/orders/{{ $('Clasificar Notificación ML').item.json.order_id }}",
+        "url": "=https://api.mercadolibre.com/orders/{{ $('Clasificar Notificación ML').first().json.order_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -134,7 +167,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ order_id: $('Clasificar Notificación ML').item.json.order_id, order_data: $json }) }}",
+        "jsonBody": "={{ JSON.stringify({ order_id: $('Clasificar Notificación ML').first().json.order_id, order_data: $json }) }}",
         "options": {
           "ignoreHttpStatusErrors": true
         }
@@ -191,7 +224,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $('Obtener Token ML (Orden)').item.json[\"Access Token\"] }}"
+              "value": "=Bearer {{ $('Obtener Token ML (Orden)').first().json[\"Access Token\"] }}"
             },
             {
               "name": "Content-Type",
@@ -201,7 +234,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ from: { user_id: $json.seller_id }, to: { user_id: $json.buyer_id }, text: $json.mensaje }) }}",
+        "jsonBody": "={{ JSON.stringify({ from: { user_id: Number($json.seller_id) || $json.seller_id }, to: { user_id: Number($json.buyer_id) || $json.buyer_id }, text: $json.mensaje }) }}",
         "options": {
           "ignoreHttpStatusErrors": true
         }
@@ -230,7 +263,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  order_id: $('Evaluar Reglas Post-Venta en App').item.json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').item.json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').item.json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').item.json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').item.json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').item.json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').item.json.mla,\n  tipo_logistica: $('Evaluar Reglas Post-Venta en App').item.json.tipo_logistica,\n  es_full: $('Evaluar Reglas Post-Venta en App').item.json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').item.json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').item.json.regla_id,\n  estado: ($json.status === 400 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Evaluar Reglas Post-Venta en App').first().json.log_id,\n  order_id: $('Evaluar Reglas Post-Venta en App').first().json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').first().json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').first().json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').first().json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,\n  tipo_logistica: $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,\n  es_full: $('Evaluar Reglas Post-Venta en App').first().json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -265,7 +298,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://api.mercadolibre.com/shipments/{{ $('Clasificar Notificación ML').item.json.shipment_id }}",
+        "url": "=https://api.mercadolibre.com/shipments/{{ $('Clasificar Notificación ML').first().json.shipment_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -340,7 +373,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ shipment_id: $('Clasificar Notificación ML').item.json.shipment_id, shipment_data: $json }) }}",
+        "jsonBody": "={{ JSON.stringify({ shipment_id: $('Clasificar Notificación ML').first().json.shipment_id, shipment_data: $json }) }}",
         "options": {
           "ignoreHttpStatusErrors": true
         }
@@ -397,7 +430,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $('Obtener Token ML (Shipment)').item.json[\"Access Token\"] }}"
+              "value": "=Bearer {{ $('Obtener Token ML (Shipment)').first().json[\"Access Token\"] }}"
             },
             {
               "name": "Content-Type",
@@ -407,7 +440,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ from: { user_id: $json.seller_id }, to: { user_id: $json.buyer_id }, text: $json.mensaje }) }}",
+        "jsonBody": "={{ JSON.stringify({ from: { user_id: Number($json.seller_id) || $json.seller_id }, to: { user_id: Number($json.buyer_id) || $json.buyer_id }, text: $json.mensaje }) }}",
         "options": {
           "ignoreHttpStatusErrors": true
         }
@@ -436,7 +469,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Procesar Entrega Full en App').item.json.log_id,\n  order_id: $('Procesar Entrega Full en App').item.json.order_id,\n  estado: ($json.status === 400 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Procesar Entrega Full en App').first().json.log_id,\n  order_id: $('Procesar Entrega Full en App').first().json.order_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -621,7 +654,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $('Obtener Token ML (Cron)').item.json[\"Access Token\"] }}"
+              "value": "=Bearer {{ $('Obtener Token ML (Cron)').first().json[\"Access Token\"] }}"
             },
             {
               "name": "Content-Type",
@@ -631,7 +664,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ from: { user_id: $('Desglosar Pendientes Full').item.json.seller_id }, to: { user_id: $('Desglosar Pendientes Full').item.json.buyer_id }, text: $('Desglosar Pendientes Full').item.json.mensaje }) }}",
+        "jsonBody": "={{ JSON.stringify({ from: { user_id: Number($('Desglosar Pendientes Full').item.json.seller_id) || $('Desglosar Pendientes Full').item.json.seller_id }, to: { user_id: Number($('Desglosar Pendientes Full').item.json.buyer_id) || $('Desglosar Pendientes Full').item.json.buyer_id }, text: $('Desglosar Pendientes Full').item.json.mensaje }) }}",
         "options": {
           "ignoreHttpStatusErrors": true
         }
@@ -660,7 +693,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Desglosar Pendientes Full').item.json.log_id,\n  order_id: $('Desglosar Pendientes Full').item.json.order_id,\n  estado: ($json.status === 400 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Desglosar Pendientes Full').item.json.log_id,\n  order_id: $('Desglosar Pendientes Full').item.json.order_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -707,11 +740,23 @@
         ],
         [
           {
-            "node": "Obtener Token ML (Shipment)",
+            "node": "¿Es Envío?",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "¿Es Envío?": {
+      "main": [
+        [
+          {
+            "node": "Obtener Token ML (Shipment)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Obtener Token ML (Orden)": {
@@ -940,20 +985,29 @@
     "saveManualExecutions": true,
     "availableInMCP": false
   },
-  "staticData": null,
+  "staticData": {
+    "node:Cron Cada 1 Hora (Revisar Full)": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
   "meta": null,
   "nodeGroups": [],
-  "pinData": null,
-  "versionId": "46935508-8355-4215-adf7-734ca110bc73",
-  "activeVersionId": "46935508-8355-4215-adf7-734ca110bc73",
-  "versionCounter": 3,
-  "triggerCount": 1,
+  "pinData": {},
+  "versionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
+  "activeVersionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
+  "versionCounter": 5,
+  "triggerCount": 2,
   "sourceWorkflowId": null,
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-09-02T15:18:32.884Z",
-    "createdAt": "2026-09-02T15:18:32.884Z",
-    "versionId": "46935508-8355-4215-adf7-734ca110bc73",
+    "updatedAt": "2026-09-03T21:48:03.793Z",
+    "createdAt": "2026-09-03T21:48:03.793Z",
+    "versionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
     "workflowId": "9Rdq6Tk7icFrkdl9",
     "nodes": [
       {
@@ -974,7 +1028,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Extraer order_id o shipment_id de la notificación de Mercado Libre\nconst body = $json.body || $json;\nlet resource = String(body.resource || '');\nlet topic = String(body.topic || '');\nlet orderId = '';\nlet shipmentId = '';\nlet type = 'unknown';\n\nif (resource.includes('/orders/')) {\n  type = 'order';\n  const parts = resource.split('/orders/');\n  orderId = parts[1] ? parts[1].replace(/[^0-9]/g, '') : '';\n} else if (resource.includes('/shipments/')) {\n  type = 'shipment';\n  const parts = resource.split('/shipments/');\n  shipmentId = parts[1] ? parts[1].replace(/[^0-9]/g, '') : '';\n} else if (topic.includes('orders') || body.order_id || body.id) {\n  type = 'order';\n  orderId = String(body.order_id || body.id).replace(/[^0-9]/g, '');\n} else if (topic.includes('shipments') || body.shipment_id) {\n  type = 'shipment';\n  shipmentId = String(body.shipment_id).replace(/[^0-9]/g, '');\n}\n\nreturn [{\n  json: {\n    type,\n    order_id: orderId,\n    shipment_id: shipmentId,\n    topic,\n    resource,\n    user_id: body.user_id || null,\n    received_at: new Date().toISOString()\n  }\n}];"
+          "jsCode": "// Extraer y clasificar notificación entrante de Mercado Libre\nconst body = $json.body || $json;\nlet resource = String(body.resource || '').trim();\nlet topic = String(body.topic || '').trim().toLowerCase();\nlet orderId = '';\nlet shipmentId = '';\nlet eventType = 'ignore';\n\n// 1. Identificar VENTAS / ÓRDENES:\nif (topic === 'orders_v2' || topic === 'orders' || resource.startsWith('/orders/')) {\n  eventType = 'order';\n  if (resource.startsWith('/orders/')) {\n    orderId = resource.replace('/orders/', '').replace(/[^0-9]/g, '');\n  } else if (body.order_id || body.id) {\n    orderId = String(body.order_id || body.id).replace(/[^0-9]/g, '');\n  }\n} \n// 2. Identificar ENVÍOS / SHIPMENTS (para entregas Full):\nelse if (topic === 'shipments' || resource.startsWith('/shipments/')) {\n  eventType = 'shipment';\n  if (resource.startsWith('/shipments/')) {\n    shipmentId = resource.replace('/shipments/', '').replace(/[^0-9]/g, '');\n  } else if (body.shipment_id) {\n    shipmentId = String(body.shipment_id).replace(/[^0-9]/g, '');\n  }\n}\n\n// Validar que realmente tengamos un identificador numérico\nif (eventType === 'order' && !orderId) {\n  eventType = 'ignore';\n}\nif (eventType === 'shipment' && !shipmentId) {\n  eventType = 'ignore';\n}\n\nreturn [{\n  json: {\n    type: eventType,\n    order_id: orderId,\n    shipment_id: shipmentId,\n    topic,\n    resource,\n    user_id: body.user_id || null,\n    received_at: new Date().toISOString()\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1020,6 +1074,39 @@
       },
       {
         "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "cond-es-shipment",
+                "leftValue": "={{ $json.type }}",
+                "rightValue": "shipment",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          480,
+          200
+        ],
+        "id": "node-if-es-envio",
+        "name": "¿Es Envío?"
+      },
+      {
+        "parameters": {
           "workflowId": {
             "__rl": true,
             "value": "MUsInFnHGy2zWvn0",
@@ -1041,7 +1128,7 @@
       {
         "parameters": {
           "method": "GET",
-          "url": "=https://api.mercadolibre.com/orders/{{ $('Clasificar Notificación ML').item.json.order_id }}",
+          "url": "=https://api.mercadolibre.com/orders/{{ $('Clasificar Notificación ML').first().json.order_id }}",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -1083,7 +1170,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ order_id: $('Clasificar Notificación ML').item.json.order_id, order_data: $json }) }}",
+          "jsonBody": "={{ JSON.stringify({ order_id: $('Clasificar Notificación ML').first().json.order_id, order_data: $json }) }}",
           "options": {
             "ignoreHttpStatusErrors": true
           }
@@ -1140,7 +1227,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "=Bearer {{ $('Obtener Token ML (Orden)').item.json[\"Access Token\"] }}"
+                "value": "=Bearer {{ $('Obtener Token ML (Orden)').first().json[\"Access Token\"] }}"
               },
               {
                 "name": "Content-Type",
@@ -1150,7 +1237,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ from: { user_id: $json.seller_id }, to: { user_id: $json.buyer_id }, text: $json.mensaje }) }}",
+          "jsonBody": "={{ JSON.stringify({ from: { user_id: Number($json.seller_id) || $json.seller_id }, to: { user_id: Number($json.buyer_id) || $json.buyer_id }, text: $json.mensaje }) }}",
           "options": {
             "ignoreHttpStatusErrors": true
           }
@@ -1179,7 +1266,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  order_id: $('Evaluar Reglas Post-Venta en App').item.json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').item.json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').item.json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').item.json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').item.json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').item.json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').item.json.mla,\n  tipo_logistica: $('Evaluar Reglas Post-Venta en App').item.json.tipo_logistica,\n  es_full: $('Evaluar Reglas Post-Venta en App').item.json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').item.json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').item.json.regla_id,\n  estado: ($json.status === 400 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Evaluar Reglas Post-Venta en App').first().json.log_id,\n  order_id: $('Evaluar Reglas Post-Venta en App').first().json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').first().json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').first().json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').first().json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,\n  tipo_logistica: $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,\n  es_full: $('Evaluar Reglas Post-Venta en App').first().json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -1214,7 +1301,7 @@
       {
         "parameters": {
           "method": "GET",
-          "url": "=https://api.mercadolibre.com/shipments/{{ $('Clasificar Notificación ML').item.json.shipment_id }}",
+          "url": "=https://api.mercadolibre.com/shipments/{{ $('Clasificar Notificación ML').first().json.shipment_id }}",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -1289,7 +1376,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ shipment_id: $('Clasificar Notificación ML').item.json.shipment_id, shipment_data: $json }) }}",
+          "jsonBody": "={{ JSON.stringify({ shipment_id: $('Clasificar Notificación ML').first().json.shipment_id, shipment_data: $json }) }}",
           "options": {
             "ignoreHttpStatusErrors": true
           }
@@ -1346,7 +1433,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "=Bearer {{ $('Obtener Token ML (Shipment)').item.json[\"Access Token\"] }}"
+                "value": "=Bearer {{ $('Obtener Token ML (Shipment)').first().json[\"Access Token\"] }}"
               },
               {
                 "name": "Content-Type",
@@ -1356,7 +1443,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ from: { user_id: $json.seller_id }, to: { user_id: $json.buyer_id }, text: $json.mensaje }) }}",
+          "jsonBody": "={{ JSON.stringify({ from: { user_id: Number($json.seller_id) || $json.seller_id }, to: { user_id: Number($json.buyer_id) || $json.buyer_id }, text: $json.mensaje }) }}",
           "options": {
             "ignoreHttpStatusErrors": true
           }
@@ -1385,7 +1472,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Procesar Entrega Full en App').item.json.log_id,\n  order_id: $('Procesar Entrega Full en App').item.json.order_id,\n  estado: ($json.status === 400 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Procesar Entrega Full en App').first().json.log_id,\n  order_id: $('Procesar Entrega Full en App').first().json.order_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -1570,7 +1657,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "=Bearer {{ $('Obtener Token ML (Cron)').item.json[\"Access Token\"] }}"
+                "value": "=Bearer {{ $('Obtener Token ML (Cron)').first().json[\"Access Token\"] }}"
               },
               {
                 "name": "Content-Type",
@@ -1580,7 +1667,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ from: { user_id: $('Desglosar Pendientes Full').item.json.seller_id }, to: { user_id: $('Desglosar Pendientes Full').item.json.buyer_id }, text: $('Desglosar Pendientes Full').item.json.mensaje }) }}",
+          "jsonBody": "={{ JSON.stringify({ from: { user_id: Number($('Desglosar Pendientes Full').item.json.seller_id) || $('Desglosar Pendientes Full').item.json.seller_id }, to: { user_id: Number($('Desglosar Pendientes Full').item.json.buyer_id) || $('Desglosar Pendientes Full').item.json.buyer_id }, text: $('Desglosar Pendientes Full').item.json.mensaje }) }}",
           "options": {
             "ignoreHttpStatusErrors": true
           }
@@ -1609,7 +1696,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Desglosar Pendientes Full').item.json.log_id,\n  order_id: $('Desglosar Pendientes Full').item.json.order_id,\n  estado: ($json.status === 400 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Desglosar Pendientes Full').item.json.log_id,\n  order_id: $('Desglosar Pendientes Full').item.json.order_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -1656,11 +1743,23 @@
           ],
           [
             {
-              "node": "Obtener Token ML (Shipment)",
+              "node": "¿Es Envío?",
               "type": "main",
               "index": 0
             }
           ]
+        ]
+      },
+      "¿Es Envío?": {
+        "main": [
+          [
+            {
+              "node": "Obtener Token ML (Shipment)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
         ]
       },
       "Obtener Token ML (Orden)": {
@@ -1885,10 +1984,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-09-02T15:18:33.169Z",
-        "id": 1914,
+        "createdAt": "2026-09-03T21:48:04.065Z",
+        "id": 1952,
         "workflowId": "9Rdq6Tk7icFrkdl9",
-        "versionId": "46935508-8355-4215-adf7-734ca110bc73",
+        "versionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
         "event": "activated",
         "userId": "f2dd9786-63c9-40ee-b5a3-c1a11225b72e"
       }

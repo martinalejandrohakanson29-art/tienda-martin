@@ -621,6 +621,40 @@ Orden real del procesamiento de un mensaje entrante:
   bienvenida + foto, sin espurios, sin nota — **menor:** "De que parte son ?" cae en la posición del
   primer mensaje (que solo alimenta `Resolver Variante`) y no se contesta; orden poco común, no manda
   nada incorrecto.
+- **LOOP INFINITO: el bot mandó ~20 veces la misma bienvenida del pack final a conv 3266
+  (+5493735563199, "Sanchez"), una cada ~8s (2026-09-03).** Ejecución real 95313. Grupo 3 pineado
+  `esperando_moto`. Ráfaga: "Recorrido corto" + "Pero tengo una duda querer cambiar el cilindro y la
+  tapa tengo que cambiar la biela también?". `Dividir y Etiquetar` → `[variante, otro]` →
+  `Parsear Sub-preguntas` resuelve la variante a `pack_id 7` y como queda un `otro` suelto devuelve
+  `ruteo_moto:true` → `¿Grupo Compatibilidad Universal?` → `Resolver Variante Sin Moto` (pack 7) →
+  `Marcar Pack Final Pineado` → `Enviar Bienvenida Pack Final` → `¿Hay Resto Para Resolver?
+  (Variante)` [`resto_mensaje` no vacío → true] → `Traer Ultimo Mensaje Nuestro` → **el mismo
+  camino otra vez** (el pin en `ctx` sigue stale-`esperando_moto` porque `saltea-reloop` saltea
+  `Leer Kit Pineado`, y `¿Grupo Compatibilidad Universal?` vuelve a "resolver" la variante). `¿Hay
+  Resto Para Resolver? (Variante)` chequeaba SOLO `$('Unir Mensajes').item.json.resto_mensaje` —
+  valor estático que nunca cambia → sin condición de corte. Paró solo cuando la app devolvió "Bad
+  Gateway" en el envío #40 y n8n mató la ejecución. `Enviar Bienvenida Pack Final` corrió 40 veces
+  en UNA ejecución. Los fixes previos (`saltea-reloop`, `no-reescala-la-variante`) movieron el
+  destino del re-loop pero **nunca agregaron una guarda de "ya pasé por acá"**.
+  **Fix** (`apply-fix-loop-resto-variante-pack-final.mjs`, 0 nodos, 1 edición): `¿Hay Resto Para
+  Resolver? (Variante)` ahora es AND de la condición vieja Y `{{ $runIndex }} === 0` — la 2ª vez que
+  el nodo se alcanza en la misma ejecución (siempre por el loop; su único input es `Enviar
+  Bienvenida Pack Final`) da falso y corta. Sin Redis, sin estado entre ráfagas. Rollback n8n
+  `95435fcf-0fed-4077-8eb8-5eda4438b391`.
+  **Validado en vivo (conv 2411, 03/09, reproducción exacta con pin grupo 3 `esperando_moto` +
+  ráfaga "Recorrido corto" / biela):** ejecución 95383 — `¿Hay Resto Para Resolver? (Variante)` run
+  0 → salida true (loop), run 1 → salida false (corta). `Enviar Bienvenida Pack Final` corrió **2
+  veces** (antes 40), la ejecución terminó sola sin error.
+  **RESIDUAL sin resolver:** todavía manda **2** bienvenidas idénticas (la del 2º paso antes de que
+  `¿Hay Resto…` corte). Para dejarlo en 1 hay que rutear el resto en el 1er paso a la máquina de
+  sub-preguntas **salteando** los nodos de resolución de variante (`¿Grupo Compatibilidad
+  Universal?` / `Resolver Variante Sin Moto` / `Marcar Pack Final Pineado` / `Enviar Bienvenida Pack
+  Final`) — rewire más grande, pendiente. Además: `preguntas_sin_match_pendientes` de conv 3266 y
+  la pregunta de la biela quedaron sin contestar; bot pausado con `/bot off` (nota 14:37) — un
+  humano tiene que retomar. **Gotcha de testing:** el buffer/seq de ráfaga (`Buffer Mensaje`,
+  `seq2:`) se llavea por `body.conversation.messages[0].sender.phone_number`, NO por
+  `body.sender.phone_number` ni `conversation.meta.sender.phone_number` — un webhook sintético que
+  no setee ese campo cae en el namespace del teléfono real.
 - **"De que parte son ?" / "de donde son?" ahora es `ubicacion` (2026-09-02).** Observación (a) de
   arriba. `Extraer Tema Negocio (Sub-pregunta)` clasificaba esas frases como "otro" → no encontraba
   la dirección → escalaba algo que el bot sí sabe. Fix (script

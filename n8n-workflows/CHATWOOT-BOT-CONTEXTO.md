@@ -655,6 +655,30 @@ Orden real del procesamiento de un mensaje entrante:
   `seq2:`) se llavea por `body.conversation.messages[0].sender.phone_number`, NO por
   `body.sender.phone_number` ni `conversation.meta.sender.phone_number` — un webhook sintético que
   no setee ese campo cae en el namespace del teléfono real.
+- **Grupo esperando la moto: no re-preguntar la moto arriba de un escalado silencioso
+  (2026-09-03).** Caso real conv 3263 (+5492645529968, "Luis"), ejecución 95380. Grupo 3 pineado
+  `esperando_moto`, bienvenida no fresca. El cliente escribió *"Claro a mi no me sirve como se q no
+  me están estafando"*. `Dividir y Etiquetar` lo partió bien (`negocio` + `otro`); ninguna resolvió
+  con datos → **las dos escalaron en nota privada** (correcto). Pero `Parsear Sub-preguntas` (rama
+  grupo esperando moto, PUT 1 / 2b) agrega un pedazo `repregunta_moto` por el solo hecho de que
+  exista un `negocio`/`envio` en la ráfaga, **sin mirar si ese pedazo se contestó o se escaló** →
+  el bot le respondió "Para qué moto lo estás buscando?" a un cliente que decía "¿cómo sé que no me
+  estafan?". Recaída del principio ya fijado el 28/08 ([[fix-bot-grupo-esperando-moto-consulta-ajena]]):
+  la re-pregunta de la moto va **solo cuando el negocio se resolvió**. Fix (script
+  `apply-grupo-espera-moto-no-repregunta-si-todo-escala.mjs`, 0 nodos, 1 edición en `Armar
+  Mensajes`): copia la red de seguridad que ya existe para el "cierre" — si el único pedazo
+  "resuelto" es `repregunta_moto` y además hay algo sin resolver (toda la ráfaga escala), se
+  suprime la re-pregunta → escalado en silencio, cero mensaje al cliente. Se sigue mandando cuando
+  además se contesta algo real (ej. "mandan a Misiones?" → respuesta de envío + "¿para qué moto?").
+  Rollback n8n `46aac983-06db-49fd-a160-f97cde2d0ac1`. **Validado** contra el payload real de
+  `Aggregate Piezas` de la ejecución 95380 + 3 casos de regresión (envío+repregunta, solo
+  repregunta, negocio resuelto+repregunta): caso 3263 → `hayMensajes:false` + `haySinResolver:true`
+  (nota privada, sin mensaje); los otros 3 siguen mandando la re-pregunta. Sin webhook sintético
+  (setear el pin `{grupo_id:3,estado:esperando_moto}` exacto no lo cubre "Pinear Kit Manual").
+  **Pendiente:** contestarle a mano a Luis (conv 3263) — quedó con "¿para qué moto?" + bot en
+  `/bot off` desde 14:48. **Menor:** el contador `resto_grupo_intentos` igual se incrementa aunque
+  el nudge no se mande (el If de conteo está en `Parsear Sub-preguntas`, río arriba); tras 3 pasa
+  al tope de reintentos → escala, mismo desenlace. Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
 - **"De que parte son ?" / "de donde son?" ahora es `ubicacion` (2026-09-02).** Observación (a) de
   arriba. `Extraer Tema Negocio (Sub-pregunta)` clasificaba esas frases como "otro" → no encontraba
   la dirección → escalaba algo que el bot sí sabe. Fix (script

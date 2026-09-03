@@ -1358,6 +1358,38 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   filas nuevas en `chat_articulo_compatibilidad`; (2) nota privada ambigua sin dato usable ("dale, ok,
   gracias") → siguió cayendo en `Fin - Confianza Baja` sin mandar nada, como antes. Filas sintéticas
   borradas al terminar.
+- **BUG (cuarto de la misma familia, 2026-09-03): una respuesta PÚBLICA del equipo no pausaba el
+  bot en la conversación** — arreglado 2026-09-03. Caso real: conv 3242 (+5493812501333, "Richar").
+  El 02/09 el bot escaló en nota privada un "piston para ns200" (`preguntas_sin_match_pendientes`
+  id 487). Al día siguiente un humano ("Revolucion") le contestó al cliente **en público** ("no
+  tenemos nada de pistones para ns, mil disculpas", ejecución 95111). 11 minutos después el cliente
+  dijo "Perfecto" (ejecución 95172) y el bot — que **nunca se pausó en Redis** — disparó el
+  `cierre` ("Dale bro, cualquier cosa nos escribís y coordinamos."). Martín lo reportó como "el
+  bot on/off no funciona": el switch del panel mostraba **Bot OFF** (porque
+  `calcularBotPausadoDesdeHistorial` en `lib/chatwoot-bot.ts` ya considera pausado cualquier reply
+  público de un agente) mientras el bot seguía activo de verdad.
+  **Causa raíz confirmada contra la ejecución 95111:** el único gate de pausa en la rama de
+  respuesta del equipo (`¿Hay Pregunta Pendiente?[1]` → `Chequear Sin Match Antes de Pausar` →
+  `¿Hay Sin Match Pendiente Tambien?`) tiene salida 0 = "hay sin-match pendiente" → `Fin - No es
+  Entrante` (**no pausa**), asumiendo que el equipo siempre contesta esas pendientes por nota
+  privada (flujo de aprendizaje). Como acá contestó en público, `¿Hay Sin Match Pendiente Tambien?`
+  dio `cantidad: 1` → salió por 0 → no pausó, y de paso marcó la pendiente `respondida`, así que
+  para cuando llegó "Perfecto" no había ni pendiente ni `bot_pausado:3242` en Redis.
+  **Fix aplicado** (`apply-pausar-bot-en-respuesta-publica-equipo.mjs`, 2 nodos nuevos, 0 borrados,
+  459→461): entre `¿Es Respuesta de Mi Equipo?` y `Buscar Preguntas Pendientes` se intercaló
+  `¿Respuesta Publica del Equipo?` (If: `{{ $json.body.private === true }}` operación "false") →
+  salida 0 (público) → `Marcar Bot Pausado (Equipo Publico)` (Redis SET `bot_pausado:{conv}` = 1,
+  TTL 30 días, misma credencial que `Marcar Bot Pausado`) → `Buscar Preguntas Pendientes`; salida 1
+  (nota privada) → `Buscar Preguntas Pendientes` directo, sin cambios. Ahora respuesta pública de
+  un humano = pausa igual que `/bot off`; se reactiva con `/bot on` o el switch del panel. El flujo
+  de aprendizaje por nota privada queda intacto. Decisión de semántica confirmada con Martín en la
+  sesión ("Sí, respuesta pública = pausa").
+  **Validado** con webhook sintético público (`sender.id: 1`, `private: false`) contra la
+  conversación de prueba 2411 (ejecución 95245): `¿Respuesta Publica del Equipo?` → salida 0 →
+  `Marcar Bot Pausado (Equipo Publico)` corrió sin error → siguió a `Buscar Preguntas Pendientes`
+  sin mandar nada al cliente. Claves de Redis de prueba limpiadas después con
+  `POST /webhook/limpiar-pin-prueba` (`conversationIds: [2411]`). Rollback: restore versionId
+  `9662331e-9902-4a5e-91b8-89ddd66288eb`.
 - **PRÓXIMO PASO, a mitad de investigación:** falta cubrir el otro caso de "cuando el cliente
   contesta con un dato usable, seguir la charla" — la desambiguación de **3 opciones de kit**
   (`Enviar Repregunta Candidatos (Propuesta)`, el "¿Te referís al Kit 120 para 110, a la Tapa cdi,

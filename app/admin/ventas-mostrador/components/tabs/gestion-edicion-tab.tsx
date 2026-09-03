@@ -12,6 +12,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -290,98 +291,135 @@ export function GestionEdicionTab({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  ventasParaTabla.map((v) => (
-                    <TableRow key={v.id} className="hover:bg-slate-50/70 transition-colors border-b border-slate-100">
-                      <TableCell className="py-3">
-                        <span
-                          className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600"
-                          onClick={() => onCopiarTexto(v.id)}
-                          title="Click para copiar ID completo"
-                        >
-                          {v.numeroVenta ? `#${v.numeroVenta}` : v.id.slice(0, 8)}
-                        </span>
-                      </TableCell>
+                  ventasParaTabla.map((v) => {
+                    const isCancelada = v.estadoPedido === "CANCELADO";
+                    return (
+                      <TableRow
+                        key={v.id}
+                        className={`transition-colors border-b border-slate-100 ${
+                          isCancelada
+                            ? "bg-rose-50/30 hover:bg-rose-50/50 text-slate-500"
+                            : "hover:bg-slate-50/70"
+                        }`}
+                      >
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`text-xs font-mono font-bold px-2 py-1 rounded border cursor-pointer hover:text-blue-600 ${
+                                isCancelada
+                                  ? "text-slate-400 bg-slate-100 line-through border-slate-200"
+                                  : "text-slate-700 bg-slate-100 border-slate-200"
+                              }`}
+                              onClick={() => onCopiarTexto(v.id)}
+                              title="Click para copiar ID completo"
+                            >
+                              {v.numeroVenta ? `#${v.numeroVenta}` : v.id.slice(0, 8)}
+                            </span>
+                            {isCancelada && (
+                              <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-rose-200 text-[10px] font-bold px-1.5 py-0">
+                                {v.info?.includes("ANULADA CON NC") ? "ANULADA CON NC" : "CANCELADA"}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
 
-                      <TableCell className="py-3 text-xs text-slate-600">
-                        {new Date(v.createdAt).toLocaleDateString("es-AR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })}
-                      </TableCell>
+                        <TableCell className="py-3 text-xs text-slate-600">
+                          {new Date(v.createdAt).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </TableCell>
 
-                      <TableCell className="py-3 text-xs font-bold text-slate-800">
-                        {v.cliente}
-                      </TableCell>
+                        <TableCell className="py-3 text-xs font-bold text-slate-800">
+                          {v.cliente}
+                        </TableCell>
 
-                      <TableCell className="py-3 text-xs">
-                        <span className="font-semibold text-slate-700">{v.metodo_pago}</span>
-                      </TableCell>
+                        <TableCell className="py-3 text-xs">
+                          <span className="font-semibold text-slate-700">{v.metodo_pago}</span>
+                        </TableCell>
 
-                      <TableCell className="py-3 text-xs font-mono text-slate-500">
-                        {(v.metodo_pago === "Cruzada" || v.metodo_pago === "Mixto") ? v.de || "-" : v.cupon || "-"}
-                      </TableCell>
+                        <TableCell className="py-3 text-xs font-mono text-slate-500">
+                          {(v.metodo_pago === "Cruzada" || v.metodo_pago === "Mixto") ? v.de || "-" : v.cupon || "-"}
+                        </TableCell>
 
-                      <TableCell className="py-3 text-xs font-mono text-slate-500">
-                        {(v.metodo_pago === "Cruzada" || v.metodo_pago === "Mixto")
-                          ? renderParaDisplay(v.para)
-                          : v.transaccionId || "-"}
-                      </TableCell>
+                        <TableCell className="py-3 text-xs font-mono text-slate-500">
+                          {(v.metodo_pago === "Cruzada" || v.metodo_pago === "Mixto")
+                            ? renderParaDisplay(v.para)
+                            : v.transaccionId || "-"}
+                        </TableCell>
 
-                      <TableCell className="py-3 text-xs text-slate-500 max-w-[180px] truncate">
-                        {v.info || "-"}
-                      </TableCell>
+                        <TableCell className="py-3 text-xs text-slate-500 max-w-[180px] truncate">
+                          {v.info || "-"}
+                        </TableCell>
 
-                      <TableCell className="py-3 text-right font-black text-slate-900 text-xs">
-                        $ {Number(v.totalFinal || v.total).toLocaleString("es-AR")}
-                      </TableCell>
-
-                      <TableCell className="py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {!v.info?.includes("ANULADA CON NC") && v.estadoPedido !== "CANCELADO" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onEditarVenta(v)}
-                                className="border-amber-300 text-amber-800 hover:bg-amber-50 h-8 px-2.5 text-xs font-bold"
-                              >
-                                <Edit className="h-3.5 w-3.5 mr-1" /> Editar
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => onAnularConNC(v.id)}
-                                disabled={isFacturando || !v.cae}
-                                className="bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300 h-8 px-2.5 text-xs font-bold disabled:opacity-50"
-                              >
-                                <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Anular (NC)
-                              </Button>
-                            </>
+                        <TableCell className="py-3 text-right font-black text-xs">
+                          {isCancelada ? (
+                            <div className="flex flex-col items-end">
+                              <span className="line-through text-slate-400 font-normal">
+                                $ {Number(v.totalFinal || v.total).toLocaleString("es-AR")}
+                              </span>
+                              <span className="text-[10px] text-rose-600 font-bold">
+                                $ 0 (Cancelada)
+                              </span>
+                            </div>
+                          ) : (
+                            <span>$ {Number(v.totalFinal || v.total).toLocaleString("es-AR")}</span>
                           )}
+                        </TableCell>
 
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => onAbrirHistorial(v.id)}
-                            className="bg-slate-100 text-slate-700 hover:bg-slate-200 h-8 px-2.5 text-xs font-semibold"
-                          >
-                            <History className="h-3.5 w-3.5 mr-1" /> Historial
-                          </Button>
+                        <TableCell className="py-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {!isCancelada && !v.info?.includes("ANULADA CON NC") && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => onEditarVenta(v)}
+                                  className="border-amber-300 text-amber-800 hover:bg-amber-50 h-8 px-2.5 text-xs font-bold"
+                                >
+                                  <Edit className="h-3.5 w-3.5 mr-1" /> Editar
+                                </Button>
 
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => onEliminarVenta(v)}
-                            className="bg-red-100 text-red-700 hover:bg-red-200 border border-red-200 h-8 px-2.5 text-xs font-bold"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => onAnularConNC(v.id)}
+                                  disabled={isFacturando || !v.cae}
+                                  className="bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300 h-8 px-2.5 text-xs font-bold disabled:opacity-50"
+                                >
+                                  <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Anular (NC)
+                                </Button>
+                              </>
+                            )}
+
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => onAbrirHistorial(v.id)}
+                              className="bg-slate-100 text-slate-700 hover:bg-slate-200 h-8 px-2.5 text-xs font-semibold"
+                            >
+                              <History className="h-3.5 w-3.5 mr-1" /> Historial
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => onEliminarVenta(v)}
+                              className={`h-8 px-2.5 text-xs font-bold border ${
+                                isCancelada
+                                  ? "bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-700 border-slate-200"
+                                  : "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
+                              }`}
+                              title={isCancelada ? "Eliminar definitivamente de la BD" : "Cancelar / Eliminar"}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

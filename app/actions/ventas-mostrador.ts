@@ -549,6 +549,7 @@ export async function exportarVentasListadoParaExcel(
       createdAt: v.createdAt.toISOString(),
       cliente: v.cliente,
       metodo_pago: v.metodo_pago,
+      estadoPedido: v.estadoPedido,
       totalFinal: Number(v.totalFinal),
       puntoVenta: v.puntoVenta?.nombre ?? null,
       items: v.items.map(i => ({
@@ -614,6 +615,7 @@ export async function obtenerVentasRendimiento(fechaDesde: string, fechaHasta: s
     const ventas = await prisma.venta.findMany({
       where: {
         tipoVenta: { not: "PEDIDO" },
+        estadoPedido: { not: "CANCELADO" },
         createdAt: { gte: inicio, lte: fin },
       },
       include: { items: true, puntoVenta: true },
@@ -2049,8 +2051,13 @@ export async function actualizarAlertaML(ventaId: string, alerta: boolean, obser
   }
 }
 
-export async function cancelarVenta(ventaId: string) {
-  await requireAdmin();
+export async function cancelarVenta(
+  ventaId: string,
+  options?: { soloMarcarCancelada?: boolean; motivo?: string }
+) {
+  const session = await requireAdmin();
+  const usuario = (session.user as any)?.name || (session.user as any)?.email || "Admin";
+
   const venta = await prisma.venta.findUnique({
     where: { id: ventaId },
     include: { items: true }
@@ -2062,7 +2069,8 @@ export async function cancelarVenta(ventaId: string) {
     .filter(i => i.productoId)
     .map(i => ({ productoId: i.productoId!, cantidad: i.cantidad }));
 
-  if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
+  // Si tiene factura en ARCA y no se indicó omitir emisión automática de NC
+  if (venta.cae && !venta.info?.includes("ANULADA CON NC") && !options?.soloMarcarCancelada) {
     // LIMPIEZA CRÍTICA: Quitamos guiones y espacios.
     // Si no hay docNro, probamos con dni (que a veces tiene el CUIT).
     const cuitLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');
@@ -2094,6 +2102,14 @@ export async function cancelarVenta(ventaId: string) {
             ) : new Date(),
           }
         });
+        await tx.ventaAuditoria.create({
+          data: {
+            ventaId,
+            usuario,
+            accion: "CANCELACION_VENTA",
+            detalle: `Venta anulada con NC Nro: ${resNC.numero} (CAE: ${resNC.cae}) por ${usuario}`
+          }
+        });
         const esMetodoImpacto = venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto";
         if (esMetodoImpacto && venta.para) {
           const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
@@ -2104,7 +2120,7 @@ export async function cancelarVenta(ventaId: string) {
         await ajustarStockItemsTx(tx, stockItems, "increment");
       }, { timeout: 20000 });
       revalidatePath("/admin/ventas-mostrador");
-      return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
+      return { success: true, message: "Venta cancelada y Nota de Crédito generada en ARCA." };
     } else {
       return {
         success: false,
@@ -2115,9 +2131,28 @@ export async function cancelarVenta(ventaId: string) {
   }
 
   await prisma.$transaction(async (tx) => {
+    const detalleCancelacion = options?.soloMarcarCancelada
+      ? `Venta marcada como cancelada por ${usuario} (NC registrada manualmente)`
+      : `Venta cancelada por ${usuario}${options?.motivo ? `: ${options.motivo}` : ""}`;
+
+    const nuevaInfo = options?.soloMarcarCancelada && !venta.info?.includes("ANULADA")
+      ? `${venta.info ? `${venta.info} | ` : ""}CANCELADA (NC manual ARCA)`
+      : venta.info;
+
     await tx.venta.update({
       where: { id: ventaId },
-      data: { estadoPedido: "CANCELADO" }
+      data: {
+        estadoPedido: "CANCELADO",
+        ...(nuevaInfo ? { info: nuevaInfo } : {})
+      }
+    });
+    await tx.ventaAuditoria.create({
+      data: {
+        ventaId,
+        usuario,
+        accion: "CANCELACION_VENTA",
+        detalle: detalleCancelacion
+      }
     });
     const esMetodoImpacto = venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto";
     if (esMetodoImpacto && venta.para) {
@@ -2378,6 +2413,7 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
       prisma.venta.findMany({
         where: {
           tipoVenta: { not: "PEDIDO" },
+          estadoPedido: { not: "CANCELADO" },
           createdAt: { gte: inicio, lte: fin },
         },
         include: { items: true, puntoVenta: true },
@@ -2546,6 +2582,7 @@ export async function buscarVentaGlobalPorMLId(mlId: string) {
           { mlIdVenta: { contains: term } },
           { mlIdEnvio: { contains: term } },
           { mlPackId: { contains: term } },
+          { cupon: { contains: term } },
         ],
       },
       include: { items: true, puntoVenta: true },

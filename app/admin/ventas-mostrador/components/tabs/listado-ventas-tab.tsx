@@ -134,11 +134,17 @@ export function ListadoVentasTab({
   const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
   const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
 
-  const montoTotalListado = React.useMemo(() => {
-    return ventasParaTabla.reduce(
-      (acc, v) => acc + Number(v.totalFinal || v.total || 0),
-      0
-    );
+  const { montoTotalListado, canceladasCount } = React.useMemo(() => {
+    let canceladas = 0;
+    let total = 0;
+    for (const v of ventasParaTabla) {
+      if (v.estadoPedido === "CANCELADO") {
+        canceladas++;
+      } else {
+        total += Number(v.totalFinal || v.total || 0);
+      }
+    }
+    return { montoTotalListado: total, canceladasCount: canceladas };
   }, [ventasParaTabla]);
 
   const toggleExpand = (id: string) => {
@@ -345,6 +351,11 @@ export function ListadoVentasTab({
                 </span>
                 <span className="text-xs font-black text-slate-800">
                   {totalItems}
+                  {canceladasCount > 0 && (
+                    <span className="text-[10px] font-semibold text-rose-600 ml-1">
+                      ({canceladasCount} canc.)
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="w-px h-6 bg-slate-200" />
@@ -408,12 +419,15 @@ export function ListadoVentasTab({
                 ) : (
                   ventasPaginadas.map((v) => {
                     const isExpanded = expandedVentas.has(v.id);
+                    const isCancelada = v.estadoPedido === "CANCELADO";
                     const tieneFotoML = !!v.mlIdEnvio && enviosConFoto.has(v.mlIdEnvio);
                     const estadoFotoPedido = pedidosConFoto[v.id];
 
                     return (
                       <React.Fragment key={v.id}>
-                        <TableRow className="hover:bg-slate-50/70 transition-colors border-b border-slate-100">
+                        <TableRow className={`transition-colors border-b border-slate-100 ${
+                          isCancelada ? "bg-rose-50/20 hover:bg-rose-50/40 text-slate-500" : "hover:bg-slate-50/70"
+                        }`}>
                           <TableCell className="py-2.5 text-center">
                             <button
                               type="button"
@@ -430,9 +444,16 @@ export function ListadoVentasTab({
 
                           <TableCell className="py-2.5 text-xs font-medium">
                             <div className="flex flex-col">
-                              <span className="font-bold text-slate-900">
-                                {v.numeroVenta ? `#${v.numeroVenta}` : v.id.slice(0, 8)}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`font-bold ${isCancelada ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                                  {v.numeroVenta ? `#${v.numeroVenta}` : v.id.slice(0, 8)}
+                                </span>
+                                {isCancelada && (
+                                  <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-rose-200 text-[10px] font-bold px-1.5 py-0">
+                                    {v.info?.includes("ANULADA CON NC") ? "ANULADA CON NC" : "CANCELADA"}
+                                  </Badge>
+                                )}
+                              </div>
                               <span className="text-slate-400 text-[11px]">
                                 {new Date(v.createdAt).toLocaleDateString("es-AR", {
                                   day: "2-digit",
@@ -485,8 +506,21 @@ export function ListadoVentasTab({
                             )}
                           </TableCell>
 
-                          <TableCell className="py-2.5 text-right font-black text-slate-900 text-sm">
-                            $ {Number(v.totalFinal || v.total).toLocaleString("es-AR")}
+                          <TableCell className="py-2.5 text-right font-black text-sm">
+                            {isCancelada ? (
+                              <div className="flex flex-col items-end">
+                                <span className="line-through text-slate-400 font-medium text-xs">
+                                  $ {Number(v.totalFinal || v.total).toLocaleString("es-AR")}
+                                </span>
+                                <span className="text-[10px] font-bold text-rose-600">
+                                  $ 0 (Cancelada)
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-900">
+                                $ {Number(v.totalFinal || v.total).toLocaleString("es-AR")}
+                              </span>
+                            )}
                           </TableCell>
 
                           {/* Acciones */}
@@ -563,17 +597,19 @@ export function ListadoVentasTab({
                                 <History className="h-3.5 w-3.5" />
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => onEditarVenta(v)}
-                                className="h-7 w-7 text-amber-600 hover:bg-amber-50"
-                                title="Editar Venta"
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </Button>
+                              {!isCancelada && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onEditarVenta(v)}
+                                  className="h-7 w-7 text-amber-600 hover:bg-amber-50"
+                                  title="Editar Venta"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
 
-                              {v.tipoComprobante === 6 && (
+                              {!isCancelada && v.tipoComprobante === 6 && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -589,8 +625,18 @@ export function ListadoVentasTab({
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => onEliminarVenta(v)}
-                                className="h-7 w-7 text-red-500 hover:bg-red-50"
-                                title={v.cae ? "Anular con Nota de Crédito" : "Eliminar Venta"}
+                                className={`h-7 w-7 ${
+                                  isCancelada
+                                    ? "text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                    : "text-red-500 hover:bg-red-50"
+                                }`}
+                                title={
+                                  isCancelada
+                                    ? "Eliminar de la Base de Datos"
+                                    : v.cae
+                                    ? "Anular con Nota de Crédito"
+                                    : "Cancelar / Eliminar Venta"
+                                }
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>

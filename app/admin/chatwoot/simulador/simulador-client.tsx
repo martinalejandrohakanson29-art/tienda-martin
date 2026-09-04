@@ -26,7 +26,9 @@ import { toast } from "sonner"
 import {
     enviarMensajeSimulador,
     getConfiguracionAgenteAction,
-    guardarConfiguracionAgenteAction
+    guardarConfiguracionAgenteAction,
+    obtenerHistorialSimuladorAction,
+    limpiarHistorialSimuladorAction
 } from "@/app/actions/agente-bot"
 import { CASOS_PRUEBA_REALES, CasoPrueba } from "@/bot-agente/pruebas/casos-reales"
 import { MensajeChat, RespuestaAgente } from "@/bot-agente/tipos"
@@ -72,6 +74,43 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
     useEffect(() => {
         const savedKey = localStorage.getItem("rm_simulador_openai_key")
         if (savedKey) setApiKey(savedKey)
+    }, [])
+
+    // Cargar historial previo de la base de datos si existe
+    useEffect(() => {
+        async function cargarHistorial() {
+            try {
+                const filas = await obtenerHistorialSimuladorAction("sesion-activa")
+                if (filas && filas.length > 0) {
+                    const uiMensajes: MensajeUI[] = [
+                        {
+                            id: "m0",
+                            rol: "assistant",
+                            texto: "¡Hola! Soy el simulador del nuevo Agente de WhatsApp. Recuperé tu conversación anterior de la sesión activa:"
+                        }
+                    ]
+                    for (const f of filas) {
+                        uiMensajes.push({
+                            id: `u_${f.id}`,
+                            rol: "user",
+                            texto: f.mensaje_usuario
+                        })
+                        uiMensajes.push({
+                            id: `b_${f.id}`,
+                            rol: "assistant",
+                            texto: f.respuesta_bot || "*(El bot guardó silencio cara al cliente)*",
+                            latenciaMs: f.latencia_ms,
+                            herramientas: f.herramientas,
+                            escaladoHumano: f.escalado_humano
+                        })
+                    }
+                    setMensajes(uiMensajes)
+                }
+            } catch (e) {
+                console.error("Error al cargar historial previo del simulador:", e)
+            }
+        }
+        cargarHistorial()
     }, [])
 
     const handleSaveApiKey = (key: string) => {
@@ -171,7 +210,12 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
         handleEnviar(caso.mensajeCliente)
     }
 
-    const handleReiniciarChat = () => {
+    const handleReiniciarChat = async () => {
+        try {
+            await limpiarHistorialSimuladorAction("sesion-activa")
+        } catch (e) {
+            console.error("Error al limpiar historial en base:", e)
+        }
         setMensajes([
             {
                 id: "m0",

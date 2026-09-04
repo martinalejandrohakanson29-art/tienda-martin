@@ -80,3 +80,6 @@ firebase-base64.txt
 n8n-workflows/backups/
 # Office lock/temp files
 ~$*
+
+# Bot Agente runtime logs
+bot-agente/ultimo-chat.json

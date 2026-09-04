@@ -54,7 +54,14 @@ export default async function ChatwootPage() {
             color: "border-l-4 border-l-rose-500"
         },
         {
-            title: "Prueba de Mensajes",
+            title: "Simulador del Agente (Nuevo)",
+            description: "Probá el nuevo cerebro de IA con herramientas en tiempo real: mirá qué tablas consulta, qué responde, controlá el estilo y ajustá palabras prohibidas.",
+            icon: <Bot className="h-8 w-8 text-cyan-600" />,
+            href: "/admin/chatwoot/simulador",
+            color: "border-l-4 border-l-cyan-500"
+        },
+        {
+            title: "Prueba de Mensajes (n8n viejo)",
             description: "Simulá un mensaje entrante de WhatsApp y probá el workflow de n8n sin depender de un mensaje real.",
             icon: <Bot className="h-8 w-8 text-violet-600" />,
             href: "/admin/chatwoot/prueba",

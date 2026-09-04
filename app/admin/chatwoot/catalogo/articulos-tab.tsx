@@ -34,6 +34,7 @@ const SIN_CATEGORIA = "ninguna"
 
 const FORM_VACIO: ChatArticuloInput = {
     articuloMostradorId: "",
+    tituloComercial: "",
     alias: "",
     precio: "",
     detalle: "",
@@ -120,6 +121,7 @@ export function ArticulosTab({
         setForm({
             id: articulo.id,
             articuloMostradorId: articulo.articulo_mostrador_id,
+            tituloComercial: articulo.titulo_comercial || "",
             alias: articulo.alias || "",
             precio: articulo.precio !== null ? String(articulo.precio) : "",
             detalle: articulo.detalle || "",
@@ -167,6 +169,7 @@ export function ArticulosTab({
                 id,
                 articulo_mostrador_id: form.articuloMostradorId,
                 nombre: nombreSeleccionado || "",
+                titulo_comercial: form.tituloComercial?.trim() || null,
                 alias: form.alias.trim() || null,
                 precio: form.precio.trim() ? Number(form.precio.trim().replace(/[^\d.,]/g, "").replace(",", ".")) : null,
                 detalle: form.detalle.trim() || null,
@@ -310,12 +313,12 @@ export function ArticulosTab({
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <Label htmlFor="alias">Alias (separados por coma)</Label>
+                                <Label htmlFor="tituloComercial">Título comercial (para mencionar al cliente / bot)</Label>
                                 <Input
-                                    id="alias"
-                                    placeholder="Ej: cilindro solo, 125 solo, 120 solo"
-                                    value={form.alias}
-                                    onChange={(e) => actualizarCampo("alias", e.target.value)}
+                                    id="tituloComercial"
+                                    placeholder="Ej: Tapa CDI 125, Carburador CG 125"
+                                    value={form.tituloComercial || ""}
+                                    onChange={(e) => actualizarCampo("tituloComercial", e.target.value)}
                                     disabled={guardando}
                                 />
                             </div>
@@ -326,6 +329,16 @@ export function ArticulosTab({
                                     placeholder="Ej: 54999"
                                     value={form.precio}
                                     onChange={(e) => actualizarCampo("precio", e.target.value)}
+                                    disabled={guardando}
+                                />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                                <Label htmlFor="alias">Alias (separados por coma)</Label>
+                                <Input
+                                    id="alias"
+                                    placeholder="Ej: cilindro solo, 125 solo, 120 solo"
+                                    value={form.alias}
+                                    onChange={(e) => actualizarCampo("alias", e.target.value)}
                                     disabled={guardando}
                                 />
                             </div>
@@ -473,7 +486,8 @@ export function ArticulosTab({
                             <Table>
                                 <TableHeader className="bg-slate-50">
                                     <TableRow>
-                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Artículo Mostrador</TableHead>
+                                        <TableHead>Título Comercial (Bot)</TableHead>
                                         <TableHead>Alias</TableHead>
                                         <TableHead>Categoría</TableHead>
                                         <TableHead>Precio</TableHead>
@@ -491,6 +505,9 @@ export function ArticulosTab({
                                                         <Badge variant="outline" className="font-normal text-violet-700 border-violet-300 bg-violet-50">Pack</Badge>
                                                     )}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="font-semibold text-emerald-700 text-sm">
+                                                {articulo.titulo_comercial || "—"}
                                             </TableCell>
                                             <TableCell className="text-sm text-gray-500 max-w-[240px] truncate">{articulo.alias || "—"}</TableCell>
                                             <TableCell className="text-sm text-gray-500 capitalize">

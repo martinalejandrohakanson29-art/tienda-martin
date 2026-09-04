@@ -25,13 +25,15 @@ export interface ArticuloSueltoInfo {
     categoria: string | null
     alias: string | null
     precio: number
-    detalle: string | null
+    detalle?: string | null
 }
 
 export interface GrupoInfo {
     id: number
     nombre: string
     mensaje_bienvenida?: string
+    pregunta_variante?: string | null
+    pregunta_variante_reintento?: string | null
     foto_url?: string | null
     variantes: {
         id: number
@@ -201,12 +203,14 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 id: number
                 nombre: string
                 mensaje_bienvenida: string
+                pregunta_variante: string | null
+                pregunta_variante_reintento: string | null
                 foto_url: string | null
                 plantillas_bienvenida: string | null
                 plantillas_referral: string | null
             }[]
         >`
-            SELECT id, nombre, mensaje_bienvenida, foto_url, plantillas_bienvenida, plantillas_referral
+            SELECT id, nombre, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, plantillas_bienvenida, plantillas_referral
             FROM chat_pack_grupos
             WHERE activo = true
             ORDER BY nombre ASC
@@ -218,6 +222,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 pack_id: number
                 articulo_id: number
                 nombre_mostrador: string | null
+                titulo_comercial: string | null
                 categoria: string | null
                 alias: string | null
                 precio: any
@@ -228,6 +233,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 cpa.pack_id,
                 ca.id as articulo_id,
                 am.nombre as nombre_mostrador,
+                ca.titulo_comercial,
                 ca.categoria,
                 ca.alias,
                 ca.precio,
@@ -246,11 +252,10 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             }
             articulosPorPack.get(a.pack_id)!.push({
                 id: a.articulo_id,
-                nombre: a.nombre_mostrador || a.categoria || "Pieza suelta",
+                nombre: a.titulo_comercial || a.categoria || a.nombre_mostrador || "Pieza suelta",
                 categoria: a.categoria,
                 alias: a.alias,
-                precio: Number(a.precio) || 0,
-                detalle: a.detalle
+                precio: Number(a.precio) || 0
             })
         }
 
@@ -295,6 +300,8 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 id: g.id,
                 nombre: g.nombre,
                 mensaje_bienvenida: g.mensaje_bienvenida,
+                pregunta_variante: g.pregunta_variante,
+                pregunta_variante_reintento: g.pregunta_variante_reintento,
                 foto_url: g.foto_url,
                 plantillas_bienvenida: g.plantillas_bienvenida,
                 plantillas_referral: g.plantillas_referral,
@@ -373,17 +380,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
 
             let i = 1
             for (const g of gruposFiltrados) {
-                let tituloGrupo = g.nombre
-                const nombreNorm = g.nombre.toLowerCase()
-                const bienvNorm = (g.mensaje_bienvenida || "").toLowerCase()
-                if (nombreNorm.includes("tapa cdi") || bienvNorm.includes("tapa cdi")) {
-                    tituloGrupo = "Combo Kit 120 con Tapa CDI"
-                } else if (nombreNorm.includes("120") && !nombreNorm.includes("carburador")) {
-                    tituloGrupo = "Kit 120 con Carburador y Codo"
-                } else if (nombreNorm.includes("escape") && nombreNorm.includes("leva")) {
-                    tituloGrupo = "Combo Escape PWR + Leva 6.40"
-                }
-                lineasOpciones.push(`👉🏼 Opción ${i}: ${tituloGrupo}`)
+                lineasOpciones.push(`👉🏼 Opción ${i}: ${g.nombre}`)
                 i++
             }
 
@@ -394,12 +391,11 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
 
             lineasOpciones.push("")
             lineasOpciones.push("REGLA ESTRICTA DE MOSTRADOR (PASO 1: IDENTIFICAR EL KIT):")
-            lineasOpciones.push("- El cliente todavía no definió cuál kit busca.")
+            lineasOpciones.push("- El cliente todavía no definió cuál opción busca.")
             lineasOpciones.push("- Tu ÚNICO objetivo en este mensaje es que el cliente elija cuál de las opciones le interesa.")
             lineasOpciones.push("- PROHIBIDO dar precios de variantes todavía.")
-            lineasOpciones.push("- PROHIBIDO mencionar recorrido corto o largo todavía.")
-            lineasOpciones.push("- Si el cliente NO mencionó su moto: NO preguntes por la moto todavía. Solo preguntale cuál de los dos busca.")
-            lineasOpciones.push("- Presentale ÚNICAMENTE las opciones por su nombre y preguntale: 'Cuál de los dos estás buscando?'")
+            lineasOpciones.push("- Si el cliente NO mencionó su moto: NO preguntes por la moto todavía. Solo preguntale cuál de las opciones busca.")
+            lineasOpciones.push("- Presentale ÚNICAMENTE las opciones por su nombre y preguntale: 'Cuál de los dos estás buscando?' (o las opciones que haya).")
 
             return {
                 encontrado: true,
@@ -421,53 +417,44 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             if (p.articulos_sueltos && p.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas de este kit (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of p.articulos_sueltos) {
-                    lineas.push(`     * ${art.nombre} (${art.categoria || 'pieza'}): ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
+                    lineas.push(`     * ${art.nombre}: ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
                     if (art.alias) lineas.push(`       Alias de búsqueda: ${art.alias}`)
-                    if (art.detalle) lineas.push(`       Detalle: ${art.detalle.replace(/\s+/g, ' ').trim()}`)
                 }
             }
             lineas.push("")
         }
 
         for (const g of gruposFiltrados) {
-            let tituloGrupo = g.nombre
-            const nombreNorm = g.nombre.toLowerCase()
-            const bienvNorm = (g.mensaje_bienvenida || "").toLowerCase()
-
-            if (nombreNorm.includes("tapa cdi") || bienvNorm.includes("tapa cdi")) {
-                tituloGrupo = "Combo Tapa CDI + Cilindro 120"
-            } else if (nombreNorm.includes("120") && !nombreNorm.includes("carburador")) {
-                tituloGrupo = "Kit 120 con Carburador y Codo"
-            } else if (nombreNorm.includes("escape") && nombreNorm.includes("leva")) {
-                tituloGrupo = "Combo Escape PWR + Leva 6.40"
-            }
-
-            lineas.push(`• Combo: "${tituloGrupo}" (${g.nombre}) (ID: ${g.id})`)
+            lineas.push(`• Combo: "${g.nombre}" (ID: ${g.id})`)
             lineas.push(`   - Opciones y precios del combo completo:`)
             for (const v of g.variantes) {
                 lineas.push(`     * ${v.criterio_variante || v.nombre}: ${formatearPrecio(v.precio)} (ID: ${v.id})`)
             }
             lineas.push(`   - Envío: Gratis a todo el país por Andreani a domicilio`)
+            if (g.pregunta_variante) {
+                lineas.push(`   - Pregunta oficial para desambiguar la variante (usar si el cliente aún no indicó cuál variante busca o tiene):\n${g.pregunta_variante.trim()}`)
+            }
             if (g.mensaje_bienvenida) {
                 lineas.push(`   - Mensaje oficial cargado en la app (respetar su formato y saltos de línea para consultas del combo):\n${g.mensaje_bienvenida.trim()}`)
             }
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of g.articulos_sueltos) {
-                    lineas.push(`     * ${art.nombre} (${art.categoria || 'pieza'}): ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
+                    lineas.push(`     * ${art.nombre}: ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
                     if (art.alias) lineas.push(`       Alias de búsqueda: ${art.alias}`)
-                    if (art.detalle) lineas.push(`       Detalle: ${art.detalle.replace(/\s+/g, ' ').trim()}`)
                 }
             }
             lineas.push("")
         }
 
         lineas.push(`⚠️ REGLA COMERCIAL PARA PIEZAS SUELTAS / ARTÍCULOS POR SEPARADO:`)
-        lineas.push(`- Si el cliente pregunta expresamente por una pieza sola por separado (ej: "la tapa sola cuánto cuesta?", "vendés el carburador solo?", "precio del cilindro solo?"):`)
-        lineas.push(`  1. Verificá si la pieza que pide está listada en los 'Artículos y piezas sueltas' del combo actual.`)
-        lineas.push(`  2. Si existe: respondé DIRECTAMENTE el precio exacto de esa pieza suelta y qué incluye de forma breve y amable. Podés recordarle amablemente que en combo con el kit completo le resulta mucho más conveniente.`)
-        lineas.push(`  3. ¡PROHIBIDO repetir el mensaje de bienvenida del combo completo si el cliente preguntó por una pieza suelta!`)
-        lineas.push(`  4. Si el cliente NO pide una pieza suelta (solo pregunta por el combo): NO menciones los precios de las piezas sueltas; seguí el embudo comercial normal.`)
+        lineas.push(`- Una consulta por pieza suelta requiere que el cliente EXPLÍCITAMENTE use palabras como "sola", "solo", "suelto", "separado", "nomás" (ej: "la tapa sola cuánto sale?", "vendés el carburador solo?").`)
+        lineas.push(`- Si el bot le preguntó qué opción busca y el cliente responde "tapa cdi", "el de tapa cdi" o "con tapa", EL CLIENTE ESTÁ ELIGIENDO EL COMBO COMPLETO, NO PIDIENDO UNA PIEZA SUELTA. En ese caso entregá la bienvenida y precios del combo completo (Paso 2). ¡PROHIBIDO responder con la pieza suelta si no dijo "sola"!`)
+        lineas.push(`- Si el cliente efectivamente pregunta expresamente por una pieza SOLA por separado:`)
+        lineas.push(`  1. Respondé ÚNICAMENTE su nombre comercial y el precio (ej: "La Tapa CDI 125 sola cuesta $124.999 con las dos coronitas de regalo").`)
+        lineas.push(`  2. CERO VOLCADO DE FICHA TÉCNICA: NO expliques válvulas, conductos, cielo, milímetros ni detalles técnicos a menos que el cliente haya preguntado específicamente sobre eso.`)
+        lineas.push(`  3. Podés invitar amablemente a coordinar: "Si te interesa avisame y coordinamos!"`)
+        lineas.push(`  4. ¡PROHIBIDO repetir el mensaje de bienvenida del combo completo cuando preguntan por una pieza suelta!`)
         lineas.push(`  5. Solo podés ofrecer piezas sueltas que pertenezcan al kit del cual se está hablando en la conversación.`)
 
         return {

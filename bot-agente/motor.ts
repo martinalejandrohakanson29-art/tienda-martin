@@ -128,9 +128,20 @@ function esSaludoSinIntencion(msg: string): boolean {
     let escaladoHumano = false
     let motivoEscalado: string | undefined
 
-    const promptFinal = config.tonoEstilo
+    const fechaHoraCordoba = new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Argentina/Cordoba",
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+    }).format(new Date())
+
+    const promptFinal = (config.tonoEstilo
         ? `${PROMPT_SISTEMA_AGENTE}\n\n### PAUTA DE ESTILO CONFIGURADA POR EL DUEÑO:\n${config.tonoEstilo}`
-        : PROMPT_SISTEMA_AGENTE
+        : PROMPT_SISTEMA_AGENTE) + `\n\n### CONTEXTO TEMPORAL ACTUAL EN EL LOCAL (Córdoba Capital):\nHoy es ${fechaHoraCordoba} hs.`
 
     // Construir los mensajes para la API
     const mensajes: any[] = [

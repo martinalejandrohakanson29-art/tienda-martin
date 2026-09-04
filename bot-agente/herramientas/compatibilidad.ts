@@ -4,6 +4,7 @@ import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 export interface ArgsCompatibilidad {
     modelo_moto: string
     kit_nombre_o_id?: string
+    variante_elegida?: string
 }
 
 export interface ResultadoCompatibilidad {
@@ -25,11 +26,15 @@ export const definicionCompatibilidad: DefinicionHerramienta = {
             properties: {
                 modelo_moto: {
                     type: "string",
-                    description: "Marca y modelo tal como lo dijo el cliente (ej: 'Smash 110', 'Zanella ZB 110', 'Wave', 'S2 150'). NUNCA inventes una marca que el cliente no mencionó (por ejemplo, si el cliente dijo 'smash 110', pasa 'smash 110', no le agregues 'Honda')."
+                    description: "Marca y modelo tal como lo dijo el cliente (ej: 'Smash 110', 'Zanella ZB 110', 'Wave', 'S2 150'). NUNCA inventes una marca que el cliente no mencionó. NUNCA pases variantes como 'recorrido corto' o 'recorrido largo' como si fueran modelos de moto."
                 },
                 kit_nombre_o_id: {
                     type: "string",
                     description: "Nombre o ID del kit consultado (ej: 'Kit 120 para 110', 'Kit 170 varillero', 'Tapa CDI')."
+                },
+                variante_elegida: {
+                    type: "string",
+                    description: "Si el cliente ya eligió o indicó su variante en este mensaje o en turnos anteriores (ej: 'recorrido corto' o 'recorrido largo'), pasala acá para que el sistema sepa que ya está definida y no la vuelva a preguntar."
                 }
             },
             required: ["modelo_moto"]
@@ -77,6 +82,35 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
     }
 
     try {
+        // Obtenemos dinámicamente las variantes de catálogo existentes para no confundir variantes con motos
+        const packsConVariante = await prisma.$queryRaw<{ criterio_variante: string }[]>`
+            SELECT DISTINCT criterio_variante 
+            FROM chat_packs 
+            WHERE criterio_variante IS NOT NULL AND activo = true
+        `
+        const variantesCatalogo = new Set<string>()
+        const palabrasVariante = new Set<string>()
+
+        for (const p of packsConVariante) {
+            if (!p.criterio_variante) continue
+            const vNorm = normalizarTexto(p.criterio_variante)
+            variantesCatalogo.add(vNorm)
+            for (const palabra of vNorm.split(" ").filter((w) => w.length >= 3)) {
+                variantesCatalogo.add(palabra)
+                palabrasVariante.add(palabra)
+            }
+        }
+
+        // Si lo que se pasó como moto es una variante del catálogo
+        if (variantesCatalogo.has(motoBuscada)) {
+            return {
+                encontrado: false,
+                mensaje_para_agente: `ERROR: "${args.modelo_moto}" NO es una marca o modelo de moto; es una VARIANTE del catálogo.
+- NO consultes compatibilidad con una variante.
+- Si el cliente ya eligió su variante, el producto exacto y el precio final ya están 100% definidos. Confirmale esa opción y ofrecé coordinar la compra.`
+            }
+        }
+
         // Obtenemos las compatibilidades registradas
         const registros = await prisma.$queryRaw<
             { id: number; modelo_moto: string; kit: string; kit_id: number | null; compatible: boolean; detalle: string | null }[]
@@ -93,10 +127,22 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         }
 
         // Marcas y palabras genéricas que a veces se cruzan o el LLM inventa
-        const palabrasIgnoradas = new Set(["honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller", "brava", "mondial", "guerrero", "moto", "cc", "para", "una", "el", "la", "todas", "las"])
+        const palabrasIgnoradas = new Set([
+            "honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller", "brava", "mondial", "guerrero",
+            "moto", "cc", "para", "una", "el", "la", "todas", "las",
+            ...palabrasVariante
+        ])
 
         const tokensBuscados = motoBuscada.split(" ").filter((w) => w.length >= 2)
         const distintivasBuscadas = tokensBuscados.filter((w) => !palabrasIgnoradas.has(w) && isNaN(Number(w)))
+
+        // Si no hay palabras distintivas ni modelo real (solo palabras ignoradas como "recorrido corto"), no buscar
+        if (distintivasBuscadas.length === 0 && !tokensBuscados.some((t) => !isNaN(Number(t)))) {
+            return {
+                encontrado: false,
+                mensaje_para_agente: `"${args.modelo_moto}" no contiene un modelo de moto identificable. Preguntale al cliente qué marca y modelo de moto tiene.`
+            }
+        }
 
         // Buscamos coincidencia con puntuación
         let mejorMatch: typeof registros[0] | null = null
@@ -159,6 +205,18 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             }
 
             if (mejorMatch.compatible && grupoAsociado?.pregunta_variante) {
+                if (args.variante_elegida) {
+                    return {
+                        encontrado: true,
+                        modelo_moto_detectado: mejorMatch.modelo_moto,
+                        kit: mejorMatch.kit,
+                        compatible: true,
+                        detalle: mejorMatch.detalle,
+                        mensaje_para_agente: `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}
+VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. ¡ESTÁ TOTALMENTE PROHIBIDO volver a preguntar por la variante o pedir que elija! Confirmale directamente que le va perfecto en ${args.variante_elegida} y ofrecé coordinar la venta.`
+                    }
+                }
+
                 const pLimpia = grupoAsociado.pregunta_variante.replace(/\n+/g, " ").trim()
                 return {
                     encontrado: true,
@@ -167,7 +225,9 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                     compatible: true,
                     detalle: mejorMatch.detalle,
                     mensaje_para_agente: `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}
-REGLA DE GRUPO CON VARIANTES: Este kit tiene opciones de variante (ej: recorrido corto y largo). Como el cliente aún no indicó cuál es su moto, confirmale que le va de diez y preguntale la variante obligatoria: "${pLimpia}".`
+REGLA DE GRUPO CON VARIANTES:
+- Si el cliente todavía NO indicó cuál variante busca o tiene: confirmale que le va de diez a su moto y preguntale la variante con la pregunta oficial: "${pLimpia}".
+- Si el cliente YA había indicado la variante en este mensaje o en turnos anteriores: ¡ESTÁ TOTALMENTE PROHIBIDO volver a preguntar la variante! Confirmale directamente el precio de esa variante y ofrecé coordinar la venta.`
                 }
             }
 

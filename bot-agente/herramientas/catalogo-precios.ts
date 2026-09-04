@@ -16,6 +16,16 @@ export interface PackInfo {
     foto_url?: string | null
     grupo_id?: number | null
     criterio_variante?: string | null
+    articulos_sueltos?: ArticuloSueltoInfo[]
+}
+
+export interface ArticuloSueltoInfo {
+    id: number
+    nombre: string
+    categoria: string | null
+    alias: string | null
+    precio: number
+    detalle: string | null
 }
 
 export interface GrupoInfo {
@@ -28,7 +38,9 @@ export interface GrupoInfo {
         nombre: string
         criterio_variante?: string | null
         precio: number
+        articulos_sueltos?: ArticuloSueltoInfo[]
     }[]
+    articulos_sueltos?: ArticuloSueltoInfo[]
 }
 
 export interface ResultadoCatalogoPrecios {
@@ -200,6 +212,48 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             ORDER BY nombre ASC
         `
 
+        // Consultar artículos sueltos vinculados a cada pack (chat_pack_articulos + chat_articulos)
+        const articulosRaw = await prisma.$queryRaw<
+            {
+                pack_id: number
+                articulo_id: number
+                nombre_mostrador: string | null
+                categoria: string | null
+                alias: string | null
+                precio: any
+                detalle: string | null
+            }[]
+        >`
+            SELECT 
+                cpa.pack_id,
+                ca.id as articulo_id,
+                am.nombre as nombre_mostrador,
+                ca.categoria,
+                ca.alias,
+                ca.precio,
+                ca.detalle
+            FROM chat_pack_articulos cpa
+            JOIN chat_articulos ca ON ca.id = cpa.articulo_id
+            LEFT JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
+            WHERE ca.activo = true
+            ORDER BY cpa.pack_id, cpa.orden ASC
+        `
+
+        const articulosPorPack = new Map<number, ArticuloSueltoInfo[]>()
+        for (const a of articulosRaw || []) {
+            if (!articulosPorPack.has(a.pack_id)) {
+                articulosPorPack.set(a.pack_id, [])
+            }
+            articulosPorPack.get(a.pack_id)!.push({
+                id: a.articulo_id,
+                nombre: a.nombre_mostrador || a.categoria || "Pieza suelta",
+                categoria: a.categoria,
+                alias: a.alias,
+                precio: Number(a.precio) || 0,
+                detalle: a.detalle
+            })
+        }
+
         const packs: (PackInfo & { plantillas_bienvenida?: string | null; plantillas_referral?: string | null })[] = (packsRaw || []).map((p) => ({
             id: p.id,
             nombre: p.nombre,
@@ -210,7 +264,8 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             grupo_id: p.grupo_id,
             criterio_variante: p.criterio_variante,
             plantillas_bienvenida: p.plantillas_bienvenida,
-            plantillas_referral: p.plantillas_referral
+            plantillas_referral: p.plantillas_referral,
+            articulos_sueltos: articulosPorPack.get(p.id) || []
         }))
 
         const grupos: (GrupoInfo & { plantillas_bienvenida?: string | null; plantillas_referral?: string | null })[] = (gruposRaw || []).map((g) => {
@@ -220,8 +275,22 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                     id: v.id,
                     nombre: v.nombre,
                     criterio_variante: v.criterio_variante ?? null,
-                    precio: v.precio
+                    precio: v.precio,
+                    articulos_sueltos: v.articulos_sueltos
                 }))
+
+            const packIdsDelGrupo = packs.filter((p) => p.grupo_id === g.id).map((p) => p.id)
+            const mapArticulosGrupo = new Map<number, ArticuloSueltoInfo>()
+            for (const pid of packIdsDelGrupo) {
+                const arts = articulosPorPack.get(pid) || []
+                for (const art of arts) {
+                    if (!mapArticulosGrupo.has(art.id)) {
+                        mapArticulosGrupo.set(art.id, art)
+                    }
+                }
+            }
+            const articulosGrupo = Array.from(mapArticulosGrupo.values())
+
             return {
                 id: g.id,
                 nombre: g.nombre,
@@ -229,7 +298,8 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 foto_url: g.foto_url,
                 plantillas_bienvenida: g.plantillas_bienvenida,
                 plantillas_referral: g.plantillas_referral,
-                variantes
+                variantes,
+                articulos_sueltos: articulosGrupo
             }
         })
 
@@ -271,12 +341,14 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             }
 
             packsFiltrados = packsFiltrados.filter((p) => {
-                const corpusPack = `${p.nombre} ${p.criterio_variante || ""} ${p.plantillas_bienvenida || ""} ${p.plantillas_referral || ""} ${p.mensaje_bienvenida || ""}`
+                const corpusArticulos = (p.articulos_sueltos || []).map((a) => `${a.nombre} ${a.categoria || ""} ${a.alias || ""}`).join(" ")
+                const corpusPack = `${p.nombre} ${p.criterio_variante || ""} ${p.plantillas_bienvenida || ""} ${p.plantillas_referral || ""} ${p.mensaje_bienvenida || ""} ${corpusArticulos}`
                 return matchTexto(corpusPack)
             })
 
             gruposFiltrados = gruposFiltrados.filter((g) => {
-                const corpusGrupo = `${g.nombre} ${g.plantillas_bienvenida || ""} ${g.plantillas_referral || ""} ${g.mensaje_bienvenida || ""} ${g.variantes.map((v) => `${v.nombre} ${v.criterio_variante || ""}`).join(" ")}`
+                const corpusArticulosG = (g.articulos_sueltos || []).map((a) => `${a.nombre} ${a.categoria || ""} ${a.alias || ""}`).join(" ")
+                const corpusGrupo = `${g.nombre} ${g.plantillas_bienvenida || ""} ${g.plantillas_referral || ""} ${g.mensaje_bienvenida || ""} ${g.variantes.map((v) => `${v.nombre} ${v.criterio_variante || ""}`).join(" ")} ${corpusArticulosG}`
                 return matchTexto(corpusGrupo)
             })
         }
@@ -346,6 +418,14 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             if (p.mensaje_bienvenida) {
                 lineas.push(`   - Mensaje oficial cargado en la app (respetar su formato y saltos de línea):\n${p.mensaje_bienvenida.trim()}`)
             }
+            if (p.articulos_sueltos && p.articulos_sueltos.length > 0) {
+                lineas.push(`   - Artículos y piezas sueltas de este kit (SOLO si el cliente pide expresamente una pieza sola por separado):`)
+                for (const art of p.articulos_sueltos) {
+                    lineas.push(`     * ${art.nombre} (${art.categoria || 'pieza'}): ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
+                    if (art.alias) lineas.push(`       Alias de búsqueda: ${art.alias}`)
+                    if (art.detalle) lineas.push(`       Detalle: ${art.detalle.replace(/\s+/g, ' ').trim()}`)
+                }
+            }
             lineas.push("")
         }
 
@@ -363,16 +443,32 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             }
 
             lineas.push(`• Combo: "${tituloGrupo}" (${g.nombre}) (ID: ${g.id})`)
-            lineas.push(`   - Opciones y precios:`)
+            lineas.push(`   - Opciones y precios del combo completo:`)
             for (const v of g.variantes) {
                 lineas.push(`     * ${v.criterio_variante || v.nombre}: ${formatearPrecio(v.precio)} (ID: ${v.id})`)
             }
             lineas.push(`   - Envío: Gratis a todo el país por Andreani a domicilio`)
             if (g.mensaje_bienvenida) {
-                lineas.push(`   - Mensaje oficial cargado en la app (respetar su formato y saltos de línea):\n${g.mensaje_bienvenida.trim()}`)
+                lineas.push(`   - Mensaje oficial cargado en la app (respetar su formato y saltos de línea para consultas del combo):\n${g.mensaje_bienvenida.trim()}`)
+            }
+            if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {
+                lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
+                for (const art of g.articulos_sueltos) {
+                    lineas.push(`     * ${art.nombre} (${art.categoria || 'pieza'}): ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
+                    if (art.alias) lineas.push(`       Alias de búsqueda: ${art.alias}`)
+                    if (art.detalle) lineas.push(`       Detalle: ${art.detalle.replace(/\s+/g, ' ').trim()}`)
+                }
             }
             lineas.push("")
         }
+
+        lineas.push(`⚠️ REGLA COMERCIAL PARA PIEZAS SUELTAS / ARTÍCULOS POR SEPARADO:`)
+        lineas.push(`- Si el cliente pregunta expresamente por una pieza sola por separado (ej: "la tapa sola cuánto cuesta?", "vendés el carburador solo?", "precio del cilindro solo?"):`)
+        lineas.push(`  1. Verificá si la pieza que pide está listada en los 'Artículos y piezas sueltas' del combo actual.`)
+        lineas.push(`  2. Si existe: respondé DIRECTAMENTE el precio exacto de esa pieza suelta y qué incluye de forma breve y amable. Podés recordarle amablemente que en combo con el kit completo le resulta mucho más conveniente.`)
+        lineas.push(`  3. ¡PROHIBIDO repetir el mensaje de bienvenida del combo completo si el cliente preguntó por una pieza suelta!`)
+        lineas.push(`  4. Si el cliente NO pide una pieza suelta (solo pregunta por el combo): NO menciones los precios de las piezas sueltas; seguí el embudo comercial normal.`)
+        lineas.push(`  5. Solo podés ofrecer piezas sueltas que pertenezcan al kit del cual se está hablando en la conversación.`)
 
         return {
             encontrado: true,

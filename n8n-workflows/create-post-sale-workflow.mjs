@@ -308,12 +308,12 @@ return [{
   seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,
   id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,
   mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,
-  tipo_logistica: $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,
-  es_full: $('Evaluar Reglas Post-Venta en App').first().json.is_full,
+  tipo_logistica: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? 'fulfillment' : $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,
+  es_full: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? true : $('Evaluar Reglas Post-Venta en App').first().json.is_full,
   mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,
   regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,
-  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',
-  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)
+  estado: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? 'pendiente_entrega_full' : (($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado'),
+  error_detalle: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? null : ($json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null))
 }) }}`,
         options: {},
       },

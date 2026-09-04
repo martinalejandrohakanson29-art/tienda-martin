@@ -30,29 +30,46 @@ export async function POST(req: NextRequest) {
     const yaProcesado = await prisma.mlMensajePostVentaLog.findFirst({
       where: {
         orderId: orderId,
-        estado: { in: ["enviado", "procesando"] },
+        estado: { in: ["enviado", "procesando", "pendiente_entrega_full"] },
       },
     });
 
     if (yaProcesado) {
-      return NextResponse.json({
-        should_send: false,
-        reason: `Mensaje post-venta ya fue enviado o está en proceso para la orden ${orderId} (estado actual: ${yaProcesado.estado})`,
-        order_id: orderId,
-        log_id: yaProcesado.id,
-      });
+      if (yaProcesado.estado === "enviado") {
+        return NextResponse.json({
+          should_send: false,
+          reason: `Mensaje post-venta ya fue enviado previamente para la orden ${orderId}`,
+          order_id: orderId,
+          log_id: yaProcesado.id,
+        });
+      }
+
+      if (yaProcesado.estado === "pendiente_entrega_full") {
+        return NextResponse.json({
+          should_send: false,
+          status: "pendiente_entrega_full",
+          is_full: true,
+          reason: `La orden ${orderId} ya está registrada como pendiente de entrega Full.`,
+          order_id: orderId,
+          shipment_id: yaProcesado.shipmentId,
+          log_id: yaProcesado.id,
+        });
+      }
+
+      // Si está en 'procesando' pero fue hace menos de 5 minutos, evitar duplicados concurrentes
+      const cincoMinutosAtras = new Date(Date.now() - 5 * 60 * 1000);
+      if (yaProcesado.createdAt > cincoMinutosAtras) {
+        return NextResponse.json({
+          should_send: false,
+          reason: `Mensaje post-venta en proceso reciente para la orden ${orderId} (estado: ${yaProcesado.estado})`,
+          order_id: orderId,
+          log_id: yaProcesado.id,
+        });
+      }
+      // Si fue hace más de 5 minutos en 'procesando', se asume que falló o se interrumpió y permitimos re-evaluar
     }
 
-    // 2. Extraer información del envío (Full vs Flex/Colecta)
-    const shipping = orderData.shipping || body.shipping || body.shipment || {};
-    const shipmentId = shipping.id ? String(shipping.id).trim() : (body.shipment_id ? String(body.shipment_id).trim() : null);
-    const logisticType = String(shipping.logistic_type || body.logistic_type || "").trim().toLowerCase();
-    const shippingStatus = String(shipping.status || body.shipping_status || "").trim().toLowerCase();
-
-    const isFull = logisticType === "fulfillment" || body.is_full === true;
-    const isDelivered = shippingStatus === "delivered" || orderData.status === "delivered";
-
-    // 3. Extraer MLAs y SKUs directos de la orden
+    // 2. Extraer MLAs y SKUs directos de la orden
     const orderItems = Array.isArray(orderData.order_items) ? orderData.order_items : [];
     const mlas: string[] = [];
     const directSkus: string[] = [];
@@ -74,6 +91,29 @@ export async function POST(req: NextRequest) {
         order_id: orderId,
       });
     }
+
+    // 3. Extraer información del envío (Full vs Flex/Colecta)
+    const shipping = orderData.shipping || body.shipping || body.shipment || {};
+    const shipmentId = shipping.id ? String(shipping.id).trim() : (body.shipment_id ? String(body.shipment_id).trim() : null);
+    let logisticType = String(shipping.logistic_type || body.logistic_type || "").trim().toLowerCase();
+    const shippingStatus = String(shipping.status || body.shipping_status || "").trim().toLowerCase();
+
+    // Detección exhaustiva de Full (Fulfillment):
+    // 1) logistic_type explícito en shipping ('fulfillment')
+    // 2) body.is_full === true
+    // 3) stock.node_id en cualquiera de los items de la orden (en ventas Full, Mercado Libre asigna el depósito ej. "ARBA01")
+    // 4) logistic_type en item.item.shipping
+    const hasFullStock = orderItems.some(
+      (item: any) =>
+        (item?.stock?.node_id && String(item.stock.node_id).trim() !== "") ||
+        (item?.item?.shipping?.logistic_type === "fulfillment")
+    );
+
+    const isFull = logisticType === "fulfillment" || body.is_full === true || hasFullStock;
+    if (isFull && (!logisticType || logisticType === "standard")) {
+      logisticType = "fulfillment";
+    }
+    const isDelivered = shippingStatus === "delivered" || orderData.status === "delivered";
 
     // 4. Obtener reglas activas
     const activeRules = await prisma.mlMensajePostVenta.findMany({
@@ -182,11 +222,10 @@ export async function POST(req: NextRequest) {
     // Si la orden es de Full y todavía no se entregó al comprador, Mercado Libre no permite abrir
     // el chat. Por lo tanto, registramos el log como "pendiente_entrega_full" y diferimos el envío.
     if (isFull && !isDelivered) {
-      // Buscar si ya existe un registro pendiente para no duplicarlo
+      // Buscar si ya existe un registro para esta orden para no duplicarlo
       const existingPending = await prisma.mlMensajePostVentaLog.findFirst({
         where: {
           orderId: orderId,
-          estado: "pendiente_entrega_full",
         },
       });
 
@@ -196,7 +235,7 @@ export async function POST(req: NextRequest) {
           where: { id: existingPending.id },
           data: {
             shipmentId,
-            tipoLogistica: logisticType || "fulfillment",
+            tipoLogistica: "fulfillment",
             esFull: true,
             mensajeEnviado: mensajeFinal,
             buyerId,
@@ -204,6 +243,8 @@ export async function POST(req: NextRequest) {
             mla: matchedMla,
             idArticulo: matchedRule.idArticulo,
             reglaId: matchedRule.id,
+            estado: "pendiente_entrega_full",
+            errorDetalle: null,
           },
         });
       } else {

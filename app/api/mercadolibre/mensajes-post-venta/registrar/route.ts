@@ -29,13 +29,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Auto-recuperación de seguridad: Si Mercado Libre rechazó el mensaje post-venta porque
+    // la orden es de Full y aún no fue entregada (blocked_by_fulfillment), no lo marcamos como error
+    // sino como pendiente_entrega_full para que se envíe automáticamente cuando se entregue el paquete.
+    let finalEstado = estado;
+    let finalEsFull = esFull;
+    let finalTipoLogistica = tipoLogistica;
+    if (
+      (errorDetalle && errorDetalle.toLowerCase().includes("blocked_by_fulfillment")) ||
+      (mensajeEnviado && mensajeEnviado.toLowerCase().includes("blocked_by_fulfillment"))
+    ) {
+      finalEstado = "pendiente_entrega_full";
+      finalEsFull = true;
+      finalTipoLogistica = "fulfillment";
+    }
+
     // 1. Si viene log_id directo, actualizar ese log
     if (logId) {
       const updated = await prisma.mlMensajePostVentaLog.update({
         where: { id: logId },
         data: {
-          estado,
-          errorDetalle,
+          estado: finalEstado,
+          errorDetalle: finalEstado === "pendiente_entrega_full" ? null : errorDetalle,
+          esFull: finalEsFull,
+          ...(finalTipoLogistica ? { tipoLogistica: finalTipoLogistica } : {}),
           ...(mensajeEnviado ? { mensajeEnviado } : {}),
         },
       });

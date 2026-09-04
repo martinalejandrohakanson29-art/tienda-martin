@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03T21:48:03.786Z",
+  "updatedAt": "2026-09-04T01:23:40.125Z",
   "createdAt": "2026-09-02T15:01:34.297Z",
   "id": "9Rdq6Tk7icFrkdl9",
   "name": "ML - Mensajes Post-Venta Automáticos",
@@ -263,7 +263,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Evaluar Reglas Post-Venta en App').first().json.log_id,\n  order_id: $('Evaluar Reglas Post-Venta en App').first().json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').first().json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').first().json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').first().json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,\n  tipo_logistica: $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,\n  es_full: $('Evaluar Reglas Post-Venta en App').first().json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  log_id: $('Evaluar Reglas Post-Venta en App').first().json.log_id,\n  order_id: $('Evaluar Reglas Post-Venta en App').first().json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').first().json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').first().json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').first().json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,\n  tipo_logistica: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? 'fulfillment' : $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,\n  es_full: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? true : $('Evaluar Reglas Post-Venta en App').first().json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,\n  estado: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? 'pendiente_entrega_full' : (($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado'),\n  error_detalle: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? null : ($json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null))\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -998,16 +998,16 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
-  "activeVersionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
-  "versionCounter": 5,
+  "versionId": "dfc801c0-19e9-4177-839e-9e60777f86a2",
+  "activeVersionId": "dfc801c0-19e9-4177-839e-9e60777f86a2",
+  "versionCounter": 6,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-09-03T21:48:03.793Z",
-    "createdAt": "2026-09-03T21:48:03.793Z",
-    "versionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
+    "updatedAt": "2026-09-04T01:23:40.127Z",
+    "createdAt": "2026-09-04T01:23:40.127Z",
+    "versionId": "dfc801c0-19e9-4177-839e-9e60777f86a2",
     "workflowId": "9Rdq6Tk7icFrkdl9",
     "nodes": [
       {
@@ -1266,7 +1266,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Evaluar Reglas Post-Venta en App').first().json.log_id,\n  order_id: $('Evaluar Reglas Post-Venta en App').first().json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').first().json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').first().json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').first().json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,\n  tipo_logistica: $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,\n  es_full: $('Evaluar Reglas Post-Venta en App').first().json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,\n  estado: ($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado',\n  error_detalle: $json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null)\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  log_id: $('Evaluar Reglas Post-Venta en App').first().json.log_id,\n  order_id: $('Evaluar Reglas Post-Venta en App').first().json.order_id,\n  pack_id: $('Evaluar Reglas Post-Venta en App').first().json.pack_id,\n  shipment_id: $('Evaluar Reglas Post-Venta en App').first().json.shipment_id,\n  buyer_id: $('Evaluar Reglas Post-Venta en App').first().json.buyer_id,\n  seller_id: $('Evaluar Reglas Post-Venta en App').first().json.seller_id,\n  id_articulo: $('Evaluar Reglas Post-Venta en App').first().json.id_articulo,\n  mla: $('Evaluar Reglas Post-Venta en App').first().json.mla,\n  tipo_logistica: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? 'fulfillment' : $('Evaluar Reglas Post-Venta en App').first().json.tipo_logistica,\n  es_full: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? true : $('Evaluar Reglas Post-Venta en App').first().json.is_full,\n  mensaje: $('Evaluar Reglas Post-Venta en App').first().json.mensaje,\n  regla_id: $('Evaluar Reglas Post-Venta en App').first().json.regla_id,\n  estado: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? 'pendiente_entrega_full' : (($json.status === 400 || $json.status === 403 || $json.error || $json.cause) ? 'error' : 'enviado'),\n  error_detalle: ($json.message === 'blocked_by_fulfillment' || $json.error === 'blocked_by_fulfillment') ? null : ($json.message || $json.error || ($json.cause ? JSON.stringify($json.cause) : null))\n}) }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -1984,10 +1984,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-09-03T21:48:04.065Z",
-        "id": 1952,
+        "createdAt": "2026-09-04T01:23:40.337Z",
+        "id": 1956,
         "workflowId": "9Rdq6Tk7icFrkdl9",
-        "versionId": "fa7304f1-c7d4-4ca3-953f-64300b9d7edb",
+        "versionId": "dfc801c0-19e9-4177-839e-9e60777f86a2",
         "event": "activated",
         "userId": "f2dd9786-63c9-40ee-b5a3-c1a11225b72e"
       }

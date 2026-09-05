@@ -133,6 +133,7 @@ export function FinalizarVentaModal({
   setDocNro,
   condicionIva,
   setCondicionIva,
+  tipoFacturaSugerida,
   setTipoFacturaSugerida,
   sujetoId,
   setSujetoId,
@@ -324,13 +325,20 @@ export function FinalizarVentaModal({
     try {
       const res = await consultarPadron(raw);
       if (res.success) {
+        const cuitOdoc = res.cuit || raw;
+        const esCuit = cuitOdoc.length === 11;
+        const docTipoDet = esCuit ? 80 : (cuitOdoc.length >= 7 ? 96 : 99);
+        const condIva = res.condicionIva ?? 5;
+        const tipoFactura = (condIva === 1 && esCuit) ? 1 : 6;
+
         setCliente(res.nombre || "Consumidor Final");
-        setDocNro(raw);
-        setDocTipo(raw.length === 11 ? 80 : 96);
-        setCondicionIva(res.condicionIva ?? 5);
-        setTipoFacturaSugerida(res.tipoFactura ?? (res.condicionIva === 1 ? 1 : 6));
+        setDocNro(cuitOdoc);
+        setDocTipo(docTipoDet);
+        setCondicionIva(condIva);
+        setTipoFacturaSugerida(tipoFactura);
+        setCuitBusqueda(cuitOdoc);
         setSujetoId(null);
-        const dniExtraid = raw.length === 11 ? raw.slice(2, 10) : raw;
+        const dniExtraid = esCuit ? cuitOdoc.slice(2, 10) : cuitOdoc;
         if (!dni) setDni(dniExtraid);
         if (!mlDni) setMlDni(dniExtraid);
         if (requiereCuentaCorriente && res.nombre) {
@@ -363,21 +371,26 @@ export function FinalizarVentaModal({
 
   const handleSelectSujeto = (s: any) => {
     setCliente(s.razonSocial);
-    setDocNro(s.cuit);
-    setDocTipo(80);
-    setCondicionIva(s.condicionIva || 1);
-    setTipoFacturaSugerida(s.condicionIva === 1 ? 1 : 6);
+    const cuitLimpio = (s.cuit || "").replace(/\D/g, "");
+    const esCuit = cuitLimpio.length === 11;
+    const docTipoDet = esCuit ? 80 : (cuitLimpio.length >= 7 ? 96 : 99);
+    const condIva = s.condicionIva || 5; // Fallback seguro a 5 (Consumidor Final)
+    const tipoFactura = (condIva === 1 && esCuit) ? 1 : 6;
+
+    setDocNro(cuitLimpio);
+    setDocTipo(docTipoDet);
+    setCondicionIva(condIva);
+    setTipoFacturaSugerida(tipoFactura);
     setSujetoId(s.id);
-    setCuitBusqueda(s.cuit);
+    setCuitBusqueda(s.cuit || "");
     if (s.telefono && !telefono) {
       setTelefono(s.telefono);
     }
     if (s.email && !email) {
       setEmail(s.email);
     }
-    if (s.cuit && !dni) {
-      const clean = s.cuit.replace(/\D/g, "");
-      setDni(clean.length === 11 ? clean.slice(2, 10) : clean);
+    if (cuitLimpio && !dni) {
+      setDni(esCuit ? cuitLimpio.slice(2, 10) : cuitLimpio);
     }
     if (s.observaciones) {
       setInfo(s.observaciones);
@@ -452,12 +465,20 @@ export function FinalizarVentaModal({
                           const val = e.target.value;
                           setCuitBusqueda(val);
                           handleSearchSujetos(val);
+                          const rawVal = val.replace(/\D/g, "");
                           if (!val.trim()) {
                             setCliente("Consumidor Final");
                             setDocNro("");
+                            setDocTipo(99);
                             setCondicionIva(5);
                             setTipoFacturaSugerida(6);
                             setSujetoId(null);
+                          } else if (rawVal.length === 11) {
+                            setDocTipo(80);
+                            setDocNro(rawVal);
+                          } else if (rawVal.length >= 7 && rawVal.length <= 8) {
+                            setDocTipo(96);
+                            setDocNro(rawVal);
                           }
                         }}
                         onKeyDown={(e) => {
@@ -486,7 +507,7 @@ export function FinalizarVentaModal({
                             >
                               <p className="font-bold text-slate-800">{s.razonSocial}</p>
                               <p className="text-[11px] text-slate-400">
-                                {s.cuit} - {s.condicionIva === 1 ? "RI" : "Cons. Final"}
+                                {s.cuit} - {s.condicionIva === 1 ? "RI (Factura A)" : "Cons. Final (Factura B)"}
                               </p>
                             </div>
                           ))}
@@ -518,6 +539,7 @@ export function FinalizarVentaModal({
                         setDocNro("");
                         setDocTipo(99);
                         setCondicionIva(5);
+                        setTipoFacturaSugerida(6);
                       }}
                       className="rounded-xl h-10 px-3 shrink-0 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
                       title="Limpiar y volver a Consumidor Final"
@@ -545,11 +567,11 @@ export function FinalizarVentaModal({
               </div>
 
               {docNro && (
-                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2.5">
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <Label className="text-[10px] font-bold uppercase text-emerald-700">
-                        Razón Social
+                        Razón Social / Cliente
                       </Label>
                       <Input
                         value={cliente}
@@ -557,24 +579,88 @@ export function FinalizarVentaModal({
                         className="h-7 px-0 border-0 border-b border-emerald-300 rounded-none bg-transparent text-sm font-bold text-emerald-950 shadow-none focus-visible:ring-0"
                       />
                     </div>
-                    <Badge
-                      className={`${
-                        condicionIva === 1
-                          ? "bg-blue-100 text-blue-800 border-blue-200"
-                          : condicionIva === 6
-                          ? "bg-amber-100 text-amber-800 border-amber-200"
-                          : "bg-slate-100 text-slate-700 border-slate-200"
-                      } font-bold text-[10px] border shadow-none shrink-0`}
-                    >
-                      {condicionIva === 1
-                        ? "RESP. INSCRIPTO"
-                        : condicionIva === 6
-                        ? "MONOTRIBUTISTA"
-                        : "CONSUMIDOR FINAL"}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge
+                        className={`${
+                          tipoFacturaSugerida === 1
+                            ? "bg-blue-600 text-white border-blue-700"
+                            : "bg-emerald-600 text-white border-emerald-700"
+                        } font-black text-[11px] px-2 py-0.5 shadow-xs`}
+                      >
+                        {tipoFacturaSugerida === 1 ? "FACTURA A" : "FACTURA B"}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-emerald-700 font-bold">
-                    {docTipo === 80 ? "CUIT" : "DNI"}: {docNro}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60">
+                    <div>
+                      <Label className="text-[10px] font-bold uppercase text-emerald-800">
+                        Condición IVA
+                      </Label>
+                      <select
+                        value={condicionIva}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setCondicionIva(val);
+                          if (val === 1) {
+                            if (docTipo === 80 && docNro.replace(/\D/g, "").length === 11) {
+                              setTipoFacturaSugerida(1);
+                            } else {
+                              alert("Para Responsable Inscripto y Factura A se requiere un CUIT de 11 dígitos.");
+                              setCondicionIva(5);
+                              setTipoFacturaSugerida(6);
+                            }
+                          } else {
+                            setTipoFacturaSugerida(6);
+                          }
+                        }}
+                        className="w-full h-7 rounded-lg border border-emerald-300 bg-white px-2 text-[11px] font-bold text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value={5}>Consumidor Final</option>
+                        <option value={6}>Monotributista</option>
+                        <option value={1} disabled={docNro.replace(/\D/g, "").length !== 11}>
+                          Responsable Inscripto (Factura A)
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label className="text-[10px] font-bold uppercase text-emerald-800">
+                        Tipo Comprobante
+                      </Label>
+                      <select
+                        value={tipoFacturaSugerida}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setTipoFacturaSugerida(val);
+                          if (val === 1) {
+                            if (docNro.replace(/\D/g, "").length === 11) {
+                              setCondicionIva(1);
+                            } else {
+                              alert("Para Factura A se requiere un CUIT de 11 dígitos.");
+                              setTipoFacturaSugerida(6);
+                            }
+                          } else {
+                            if (condicionIva === 1) setCondicionIva(5);
+                          }
+                        }}
+                        className="w-full h-7 rounded-lg border border-emerald-300 bg-white px-2 text-[11px] font-bold text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value={6}>Factura B</option>
+                        <option value={1} disabled={docNro.replace(/\D/g, "").length !== 11}>
+                          Factura A
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-emerald-800 font-bold flex justify-between items-center pt-0.5">
+                    <span>
+                      {docTipo === 80 ? "CUIT" : "DNI"}: {docNro}
+                    </span>
+                    <span className="text-[10px] font-medium text-emerald-600">
+                      {docTipo === 80 ? "Identificador Fiscal (CUIT)" : "Doc. Personal (DNI)"}
+                    </span>
                   </div>
                 </div>
               )}

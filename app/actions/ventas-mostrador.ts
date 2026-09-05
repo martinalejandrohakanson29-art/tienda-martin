@@ -832,15 +832,45 @@ export async function crearVentaMostrador(data: {
   const session = await requireAdmin();
   const currentUserId = (session.user as any).id as string | undefined
   try {
+    const docNroLimpio = (data.docNro || "0").replace(/\D/g, '');
+    let docTipoSaneado = data.docTipo;
+    if (!docNroLimpio || docNroLimpio === "0") {
+      docTipoSaneado = 99;
+    } else if (docNroLimpio.length === 11) {
+      docTipoSaneado = 80;
+    } else if (docNroLimpio.length === 7 || docNroLimpio.length === 8) {
+      docTipoSaneado = 96;
+    } else if (!docTipoSaneado) {
+      docTipoSaneado = 99;
+    }
+
+    let condicionIvaSaneada = data.condicionIva ?? 5;
+    let tipoComprobanteSaneado = data.tipoComprobante || 6;
+
+    if (condicionIvaSaneada === 1) {
+      if (docTipoSaneado === 80) {
+        tipoComprobanteSaneado = 1;
+      } else {
+        condicionIvaSaneada = 5;
+        tipoComprobanteSaneado = 6;
+      }
+    } else if (tipoComprobanteSaneado === 1) {
+      if (docTipoSaneado === 80) {
+        condicionIvaSaneada = 1;
+      } else {
+        tipoComprobanteSaneado = 6;
+      }
+    }
+
     let arcaData = {
       cae: data.cae,
       vencimientoCae: data.vencimientoCae,
       facturaNumero: data.facturaNumero,
       facturaPuntoVenta: data.facturaPuntoVenta || 9,
-      tipoComprobante: data.tipoComprobante,
-      docTipo: data.docTipo,
-      docNro: data.docNro,
-      condicionIva: data.condicionIva,
+      tipoComprobante: tipoComprobanteSaneado,
+      docTipo: docTipoSaneado,
+      docNro: docNroLimpio,
+      condicionIva: condicionIvaSaneada,
       importeIva: data.importeIva,
       alicuotaIva: data.alicuotaIva
     };
@@ -849,10 +879,10 @@ export async function crearVentaMostrador(data: {
     if (data.solicitarFactura && !arcaData.cae) {
       const resAfip = await facturarVenta({
         monto: data.totalFinal,
-        docTipo: data.docTipo || 99,
-        docNro: parseInt((data.docNro || "0").replace(/\D/g, '')),
-        ivaReceptor: data.condicionIva || 5,
-        tipoComprobante: data.tipoComprobante || 6 // Por defecto B
+        docTipo: docTipoSaneado,
+        docNro: parseInt(docNroLimpio || "0"),
+        ivaReceptor: condicionIvaSaneada,
+        tipoComprobante: tipoComprobanteSaneado
       });
 
       if (resAfip.success) {
@@ -861,7 +891,10 @@ export async function crearVentaMostrador(data: {
           arcaData.vencimientoCae = new Date(resAfip.vencimiento.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
         }
         arcaData.facturaNumero = resAfip.numero;
-        arcaData.tipoComprobante = data.tipoComprobante || 6;
+        arcaData.tipoComprobante = resAfip.tipoComprobante || tipoComprobanteSaneado;
+        arcaData.docTipo = resAfip.docTipo || docTipoSaneado;
+        arcaData.docNro = resAfip.docNro ? String(resAfip.docNro) : docNroLimpio;
+        arcaData.condicionIva = resAfip.condicionIva || condicionIvaSaneada;
       } else {
         return {
           success: false,
@@ -1999,17 +2032,43 @@ export async function generarFacturaARCA(ventaId: string) {
     if (!venta) return { success: false, error: "Venta no encontrada" };
     if (venta.cae) return { success: false, error: "Esta venta ya fue facturada (CAE existente)" };
 
-    // Validaciones básicas de datos ARCA
-    if (!venta.docTipo || !venta.docNro) {
-      return { success: false, error: "Faltan datos del cliente (Tipo Doc / Nro) para facturar" };
+    // Sanitizar datos fiscales
+    const docNroLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');
+    let docTipoSaneado = venta.docTipo;
+    if (!docNroLimpio || docNroLimpio === "0") {
+      docTipoSaneado = 99;
+    } else if (docNroLimpio.length === 11) {
+      docTipoSaneado = 80;
+    } else if (docNroLimpio.length === 7 || docNroLimpio.length === 8) {
+      docTipoSaneado = 96;
+    } else if (!docTipoSaneado) {
+      docTipoSaneado = 99;
+    }
+
+    let condicionIvaSaneada = venta.condicionIva ?? 5;
+    let tipoComprobanteSaneado = venta.tipoComprobante || 6;
+
+    if (condicionIvaSaneada === 1) {
+      if (docTipoSaneado === 80) {
+        tipoComprobanteSaneado = 1;
+      } else {
+        condicionIvaSaneada = 5;
+        tipoComprobanteSaneado = 6;
+      }
+    } else if (tipoComprobanteSaneado === 1) {
+      if (docTipoSaneado === 80) {
+        condicionIvaSaneada = 1;
+      } else {
+        tipoComprobanteSaneado = 6;
+      }
     }
 
     const resARCA = await facturarVenta({
       monto: Number(venta.totalFinal || venta.total),
-      docTipo: venta.docTipo,
-      docNro: (venta.docNro && venta.docNro !== "0") ? parseInt(venta.docNro.replace(/\D/g, '')) : 0,
-      ivaReceptor: venta.condicionIva || 5,
-      tipoComprobante: venta.tipoComprobante || undefined
+      docTipo: docTipoSaneado,
+      docNro: parseInt(docNroLimpio || "0"),
+      ivaReceptor: condicionIvaSaneada,
+      tipoComprobante: tipoComprobanteSaneado
     });
 
     if (resARCA.success) {
@@ -2019,6 +2078,10 @@ export async function generarFacturaARCA(ventaId: string) {
           cae: resARCA.cae,
           facturaNumero: resARCA.numero,
           facturaPuntoVenta: 9,
+          tipoComprobante: resARCA.tipoComprobante || tipoComprobanteSaneado,
+          docTipo: resARCA.docTipo || docTipoSaneado,
+          docNro: resARCA.docNro ? String(resARCA.docNro) : docNroLimpio,
+          condicionIva: resARCA.condicionIva || condicionIvaSaneada,
           vencimientoCae: resARCA.vencimiento ? new Date(
             parseInt(resARCA.vencimiento.substring(0, 4)),
             parseInt(resARCA.vencimiento.substring(4, 6)) - 1,

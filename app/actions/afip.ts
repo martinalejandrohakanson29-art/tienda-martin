@@ -278,8 +278,58 @@ export async function facturarVenta(data: {
 }) {
     console.log("📝 [AFIP] Iniciando facturación de venta:", data);
     try {
-        const { monto, docTipo, docNro, ivaReceptor = 5, concepto = 1, tipoComprobante } = data;
-        const cbteTipo = tipoComprobante || AFIP_CONFIG.tipoComprobante;
+        const monto = data.monto;
+        // 1. Sanitización de Documento y Tipo
+        const docNroStr = String(data.docNro || "0").replace(/\D/g, "");
+        let finalDocNro = parseInt(docNroStr, 10) || 0;
+        let finalDocTipo = data.docTipo;
+
+        if (finalDocNro === 0) {
+            finalDocTipo = 99; // Sin identificar
+        } else if (docNroStr.length === 11) {
+            finalDocTipo = 80; // CUIT
+        } else if (docNroStr.length === 7 || docNroStr.length === 8) {
+            finalDocTipo = 96; // DNI
+        } else if (!finalDocTipo || finalDocTipo === 99) {
+            finalDocTipo = 99;
+        }
+
+        // 2. Sanitización y coherencia de Tipo de Comprobante e IVA Receptor
+        let finalIvaReceptor = data.ivaReceptor ?? 5; // Default Consumidor Final
+        let cbteTipo = data.tipoComprobante || AFIP_CONFIG.tipoComprobante;
+        const concepto = data.concepto || 1;
+
+        // Reglas estrictas de ARCA:
+        // - Si el receptor es Responsable Inscripto (1):
+        if (finalIvaReceptor === 1) {
+            if (finalDocTipo === 80) {
+                // A un RI con CUIT le corresponde Factura A
+                cbteTipo = 1;
+            } else {
+                // Sin CUIT (DNI o anónimo), no puede ser RI fiscalmente: normalizamos a Consumidor Final
+                finalIvaReceptor = 5;
+                cbteTipo = 6;
+            }
+        }
+
+        // - Si el comprobante es Factura B (6):
+        if (cbteTipo === 6) {
+            // AFIP rechaza Factura B si ivaReceptor es 1 (Error 10243)
+            if (finalIvaReceptor === 1) {
+                finalIvaReceptor = 5;
+            }
+        }
+
+        // - Si el comprobante es Factura A (1):
+        if (cbteTipo === 1) {
+            if (finalDocTipo !== 80 || finalDocNro === 0) {
+                throw new Error("Factura A requiere CUIT de 11 dígitos válido");
+            }
+            finalIvaReceptor = 1;
+        }
+
+        console.log(`🧾 [AFIP] Parámetros saneados -> CbteTipo: ${cbteTipo}, DocTipo: ${finalDocTipo}, DocNro: ${finalDocNro}, IvaReceptor: ${finalIvaReceptor}`);
+
         const ta = await obtenerTicketAcceso('wsfe');
 
         const token = (ta as any).token || (ta as any).credentials?.token;
@@ -336,7 +386,7 @@ export async function facturarVenta(data: {
                 };
             }
 
-            console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${docNro}`, { total, neto, importeIva });
+            console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${finalDocNro}`, { total, neto, importeIva });
 
             const facturaData = {
                 FeCAEReq: {
@@ -344,8 +394,8 @@ export async function facturarVenta(data: {
                     FeDetReq: {
                         FECAEDetRequest: [{
                             Concepto: concepto,
-                            DocTipo: docTipo,
-                            DocNro: docNro,
+                            DocTipo: finalDocTipo,
+                            DocNro: finalDocNro,
                             CbteDesde: nextNumber,
                             CbteHasta: nextNumber,
                             CbteFch: fecha,
@@ -357,7 +407,7 @@ export async function facturarVenta(data: {
                             ImpIVA: importeIva,
                             MonId: 'PES',
                             MonCotiz: 1,
-                            CondicionIVAReceptorId: ivaReceptor,
+                            CondicionIVAReceptorId: finalIvaReceptor,
                             ...(ivaArray ? { Iva: ivaArray } : {})
                         }]
                     }
@@ -384,7 +434,16 @@ export async function facturarVenta(data: {
                 : result.FeDetResp.FECAEDetResponse;
 
             console.log(`✅ [AFIP] Factura autorizada! CAE: ${det.CAE}`);
-            return { success: true, cae: det.CAE, numero: nextNumber, vencimiento: det.CAEFchVto };
+            return {
+                success: true,
+                cae: det.CAE,
+                numero: nextNumber,
+                vencimiento: det.CAEFchVto,
+                tipoComprobante: cbteTipo,
+                docTipo: finalDocTipo,
+                docNro: finalDocNro,
+                condicionIva: finalIvaReceptor
+            };
         }
 
         // 2. Caso de Rechazo (R) u Observaciones

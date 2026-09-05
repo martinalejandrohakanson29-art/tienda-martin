@@ -472,6 +472,36 @@ export default function VentasMostradorClient({
         ]);
       }
 
+      const docNroLimpio = (docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : "")).replace(/\D/g, "");
+      let docTipoFinal = docTipo;
+      if (!docNroLimpio || docNroLimpio === "0") {
+        docTipoFinal = 99;
+      } else if (docNroLimpio.length === 11) {
+        docTipoFinal = 80;
+      } else if (docNroLimpio.length === 7 || docNroLimpio.length === 8) {
+        docTipoFinal = 96;
+      } else if (!docTipoFinal) {
+        docTipoFinal = 99;
+      }
+
+      let condicionIvaFinal = condicionIva ?? 5;
+      let tipoComprobanteFinal = tipoFacturaSugerida || 6;
+
+      if (condicionIvaFinal === 1) {
+        if (docTipoFinal === 80) {
+          tipoComprobanteFinal = 1;
+        } else {
+          condicionIvaFinal = 5;
+          tipoComprobanteFinal = 6;
+        }
+      } else if (tipoComprobanteFinal === 1) {
+        if (docTipoFinal === 80) {
+          condicionIvaFinal = 1;
+        } else {
+          tipoComprobanteFinal = 6;
+        }
+      }
+
       const payloadComun = {
         cliente: cliente || "Consumidor Final",
         total: cart.totalConDescuento,
@@ -489,10 +519,10 @@ export default function VentasMostradorClient({
         email,
         eventoOffline,
         puntoVentaId,
-        docTipo,
-        docNro: docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : ""),
-        condicionIva,
-        tipoComprobante: tipoFacturaSugerida,
+        docTipo: docTipoFinal,
+        docNro: docNroLimpio,
+        condicionIva: condicionIvaFinal,
+        tipoComprobante: tipoComprobanteFinal,
         mlIdVenta,
         mlIdEnvio,
         mlMla,
@@ -537,10 +567,22 @@ export default function VentasMostradorClient({
             })
           );
 
-          if (debeFiscalizar && (resultado as any).id) {
-            await generarFacturaARCA((resultado as any).id);
+          // Si se solicitó fiscalizar pero no se emitió en crearVentaMostrador (por ej. si no tenía CAE), intentamos emitir
+          if (debeFiscalizar && (resultado as any).id && !(resultado as any).cae) {
+            const resARCA = await generarFacturaARCA((resultado as any).id);
+            if (resARCA.success) {
+              mostrarMensajeExito(`¡Venta registrada y fiscalizada! CAE: ${resARCA.cae}`);
+            } else {
+              mostrarMensajeExito("¡Venta registrada! (sin fiscalizar)");
+              alert(`La venta se registró pero ARCA rechazó el comprobante:\n${resARCA.error || ""}${resARCA.details ? "\n" + resARCA.details : ""}\n\nPodés refacturarla desde el listado.`);
+            }
+          } else {
+            mostrarMensajeExito(
+              (resultado as any).cae
+                ? `¡Venta registrada y fiscalizada! CAE: ${(resultado as any).cae}`
+                : "¡Venta registrada con éxito!"
+            );
           }
-          mostrarMensajeExito("¡Venta registrada con éxito!");
         }
 
         setIsFinalizarModalOpen(false);

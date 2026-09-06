@@ -2,6 +2,8 @@
 
 import { requireAdmin } from "@/lib/auth-guard"
 import { ejecutarTurnoAgente } from "@/bot-agente/motor"
+import { correrBancoPruebas, ReporteBanco } from "@/bot-agente/pruebas/correr-banco"
+import { limpiarEstadoConversacion } from "@/bot-agente/nucleo/estado-persistente"
 import { MensajeChat, RespuestaAgente } from "@/bot-agente/tipos"
 import {
     obtenerConfiguracionAgente,
@@ -29,7 +31,7 @@ export async function enviarMensajeSimulador(
     const logPath = path.join(process.cwd(), "bot-agente", "ultimo-chat.json")
 
     try {
-        const respuesta = await ejecutarTurnoAgente(mensaje, historial, opciones)
+        const respuesta = await ejecutarTurnoAgente(mensaje, historial, { ...opciones, estadoKey: sessionId })
 
         const nuevoHistorial = [
             ...historial,
@@ -40,9 +42,9 @@ export async function enviarMensajeSimulador(
         // 1. Guardar en Postgres (para monitoreo y soporte en tiempo real)
         try {
             await prisma.$executeRawUnsafe(
-                `INSERT INTO bot_simulador_conversaciones 
-                 (session_id, usuario, mensaje_usuario, respuesta_bot, herramientas, escalado_humano, latencia_ms, tokens, historial_completo, created_at)
-                 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, $9::jsonb, NOW())`,
+                `INSERT INTO bot_simulador_conversaciones
+                 (session_id, usuario, mensaje_usuario, respuesta_bot, herramientas, escalado_humano, latencia_ms, tokens, historial_completo, foto_url, created_at)
+                 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, $9::jsonb, $10, NOW())`,
                 sessionId,
                 username,
                 mensaje,
@@ -51,7 +53,8 @@ export async function enviarMensajeSimulador(
                 respuesta.escaladoHumano,
                 respuesta.latenciaMs,
                 JSON.stringify(respuesta.tokensUsados || {}),
-                JSON.stringify(nuevoHistorial)
+                JSON.stringify(nuevoHistorial),
+                respuesta.fotoUrl || null
             )
         } catch (dbErr) {
             console.error("Error guardando en bot_simulador_conversaciones:", dbErr)
@@ -108,9 +111,9 @@ export async function obtenerHistorialSimuladorAction(sessionId: string = "sesio
     await requireAdmin()
     try {
         const filas = await prisma.$queryRawUnsafe<any[]>(
-            `SELECT id, session_id, usuario, mensaje_usuario, respuesta_bot, herramientas, escalado_humano, latencia_ms, tokens, historial_completo, created_at 
-             FROM bot_simulador_conversaciones 
-             WHERE session_id = $1 
+            `SELECT id, session_id, usuario, mensaje_usuario, respuesta_bot, herramientas, escalado_humano, latencia_ms, tokens, historial_completo, foto_url, created_at
+             FROM bot_simulador_conversaciones
+             WHERE session_id = $1
              ORDER BY created_at ASC`,
             sessionId
         )
@@ -128,10 +131,33 @@ export async function limpiarHistorialSimuladorAction(sessionId: string = "sesio
             `DELETE FROM bot_simulador_conversaciones WHERE session_id = $1`,
             sessionId
         )
+        await limpiarEstadoConversacion(sessionId)
         return { success: true }
     } catch (e: any) {
         return { success: false, error: e.message }
     }
+}
+
+/**
+ * Corre el banco de pruebas real (bot-agente/pruebas/casos-reales.ts) contra el
+ * motor y devuelve el reporte de pasa/falla por caso. Red de seguridad
+ * anti-regresion: correr antes de dar por terminado cualquier cambio del bot.
+ */
+export async function correrBancoPruebasAction(opciones: {
+    apiKey?: string
+    modelo?: string
+    baseUrl?: string
+    soloIds?: string[]
+} = {}): Promise<ReporteBanco> {
+    await requireAdmin()
+    return correrBancoPruebas(
+        {
+            apiKey: opciones.apiKey?.trim() || undefined,
+            modelo: opciones.modelo || undefined,
+            baseUrl: opciones.baseUrl?.trim() || undefined
+        },
+        opciones.soloIds
+    )
 }
 
 export async function getConfiguracionAgenteAction(): Promise<ConfiguracionAgente> {
@@ -148,6 +174,8 @@ export async function guardarConfiguracionAgenteAction(data: {
     deepseekApiKey?: string
     openrouterApiKey?: string
     proveedorActivo?: string
+    debounceSegundos?: number
+    debounceActivo?: boolean
 }): Promise<{ success: boolean; error?: string }> {
     const session = await requireAdmin()
     const username = (session?.user as any)?.username || "admin"
@@ -170,6 +198,12 @@ export async function guardarConfiguracionAgenteAction(data: {
         if (data.proveedorActivo) {
             await guardarAjusteConfig("proveedor_activo", data.proveedorActivo.trim(), username)
         }
+        if (data.debounceSegundos !== undefined) {
+            await guardarAjusteConfig("debounce_segundos", String(data.debounceSegundos), username)
+        }
+        if (data.debounceActivo !== undefined) {
+            await guardarAjusteConfig("debounce_activo", data.debounceActivo ? "true" : "false", username)
+        }
 
         return { success: true }
     } catch (err: any) {
@@ -177,3 +211,79 @@ export async function guardarConfiguracionAgenteAction(data: {
         return { success: false, error: err.message || "Error al guardar configuración" }
     }
 }
+
+export async function probarConexionModeloAction(data: {
+    apiKey: string
+    modelo: string
+    baseUrl?: string
+}): Promise<{ ok: boolean; mensaje: string; latenciaMs?: number }> {
+    await requireAdmin()
+    const inicio = Date.now()
+    try {
+        const rawBase = data.baseUrl?.trim() || "https://api.openai.com/v1"
+        const cleanBaseUrl = rawBase.replace(/\/chat\/completions\/?$/, "").replace(/\/$/, "")
+        const url = `${cleanBaseUrl}/chat/completions`
+
+        const ctrl = new AbortController()
+        const timer = setTimeout(() => ctrl.abort(), 15_000)
+
+        // Modelos de razonamiento de OpenAI (gpt-5*, o1/o3/o4): no aceptan `temperature`
+        // distinto del default y usan `max_completion_tokens` en vez de `max_tokens`.
+        const modeloNorm = data.modelo.trim().toLowerCase()
+        const esRazonador = /(^|\/)(gpt-5|o1|o3|o4)([.-]|$)/.test(modeloNorm)
+        const cuerpo: Record<string, any> = {
+            model: data.modelo.trim(),
+            messages: [{ role: "user", content: "hola" }]
+        }
+        if (esRazonador) {
+            cuerpo.max_completion_tokens = 16
+        } else {
+            cuerpo.max_tokens = 10
+            cuerpo.temperature = 0
+        }
+
+        const res = await fetch(url, {
+            method: "POST",
+            signal: ctrl.signal,
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${data.apiKey.trim()}`
+            },
+            body: JSON.stringify(cuerpo)
+        })
+        clearTimeout(timer)
+
+        const latenciaMs = Date.now() - inicio
+
+        if (!res.ok) {
+            const errText = await res.text()
+            let mensajeLimpio = errText
+            try {
+                const parsed = JSON.parse(errText)
+                mensajeLimpio = parsed.error?.message || parsed.message || errText
+            } catch {
+                // mantener texto original
+            }
+            return {
+                ok: false,
+                mensaje: `Error ${res.status}: ${mensajeLimpio.slice(0, 250)}`,
+                latenciaMs
+            }
+        }
+
+        const json = await res.json()
+        const respuesta = json.choices?.[0]?.message?.content || "(OK)"
+        return {
+            ok: true,
+            mensaje: `Conexión exitosa con ${data.modelo} (${latenciaMs}ms). Respuesta de prueba: "${respuesta.trim().slice(0, 50)}"`,
+            latenciaMs
+        }
+    } catch (err: any) {
+        return {
+            ok: false,
+            mensaje: `Error de conexión: ${err.message || String(err)}`,
+            latenciaMs: Date.now() - inicio
+        }
+    }
+}
+

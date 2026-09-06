@@ -9,6 +9,8 @@ export interface ConfiguracionAgente {
     deepseekApiKey?: string
     openrouterApiKey?: string
     proveedorActivo?: string
+    debounceSegundos: number
+    debounceActivo: boolean
 }
 
 export const CONFIG_DEFAULTS: ConfiguracionAgente = {
@@ -19,7 +21,9 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     openaiApiKey: "",
     deepseekApiKey: "",
     openrouterApiKey: "",
-    proveedorActivo: "openai:gpt-4o-mini"
+    proveedorActivo: "openai:gpt-4o-mini",
+    debounceSegundos: 60,
+    debounceActivo: true
 }
 
 /**
@@ -53,6 +57,12 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
         const openrouterApiKey = mapa.get("openrouter_api_key") || process.env.OPENROUTER_API_KEY || ""
         const proveedorActivo = mapa.get("proveedor_activo") || CONFIG_DEFAULTS.proveedorActivo
 
+        const debounceSegundosRaw = mapa.get("debounce_segundos")
+        const debounceSegundos = debounceSegundosRaw ? parseInt(debounceSegundosRaw, 10) || 60 : CONFIG_DEFAULTS.debounceSegundos
+        const debounceActivo = mapa.has("debounce_activo")
+            ? mapa.get("debounce_activo") === "true"
+            : CONFIG_DEFAULTS.debounceActivo
+
         return {
             tonoEstilo,
             palabrasProhibidas,
@@ -61,7 +71,9 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             openaiApiKey,
             deepseekApiKey,
             openrouterApiKey,
-            proveedorActivo
+            proveedorActivo,
+            debounceSegundos,
+            debounceActivo
         }
     } catch (err) {
         console.error("Error al leer chat_config, usando valores por defecto:", err)

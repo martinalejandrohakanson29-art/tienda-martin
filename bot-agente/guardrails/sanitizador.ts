@@ -18,14 +18,21 @@ const REEMPLAZOS_MODISMOS: [RegExp, string][] = [
     [/\bpana\b/gi, "amigo"]
 ]
 
-// Frases prohibidas que delatan IA
+// Frases prohibidas que delatan IA o filtran datos del sistema
 const FRASES_PROHIBIDAS_IA = [
     /soy una inteligencia artificial/gi,
-    /soy un bot/gi,
+    /soy un bot\b/gi,
     /como modelo de lenguaje/gi,
+    /soy un modelo de lenguaje/gi,
     /como asistente virtual/gi,
+    /soy un asistente virtual/gi,
+    /como ia\b/gi,
     /no tengo sentimientos/gi,
-    /en qué puedo asistirte hoy/gi
+    /en qué puedo asistirte hoy/gi,
+    /mis instrucciones (de sistema|son|internas)/gi,
+    /mi prompt (de sistema|es|dice)/gi,
+    /fui programado para/gi,
+    /fui creado por OpenAI/gi
 ]
 
 // Frases de espera o proceso interno que JAMÁS deben llegar al cliente
@@ -49,7 +56,8 @@ const FRASES_CALL_CENTER: [RegExp, string][] = [
     [/no dudes en consultarme[.,?!]?/gi, "Cualquier duda me avisás."],
     [/quedo a tu (entera\s*)?disposición[.,?!]?/gi, ""],
     [/estoy a tu disposición[.,?!]?/gi, ""],
-    [/en qué más (te puedo|puedo)\s*(ayudar|asistir|colaborar)\??/gi, ""]
+    [/en qué más (te puedo|puedo)\s*(ayudar|asistir|colaborar)\??/gi, ""],
+    [/(?:^|\s*)(?:éxitos|exitos|suerte|ojal[aá])\s+(?:con\s+(?:la\s+)?juntada|con\s+(?:la\s+)?junta|juntando(?:\s+(?:la\s+)?plata)?|juntes(?:\s+(?:la\s+)?plata)?|puedas\s+juntar|con\s+el\s+cobro|cobres\s+pronto)[.!]*/gi, ""]
 ]
 
 // Corrección obligatoria de tuteo neutro a voseo argentino (ej: Recuerda -> Recordá)
@@ -78,6 +86,7 @@ export interface ResultadoSanitizacion {
 export interface OpcionesSanitizacion {
     palabrasProhibidas?: string[]
     permitirBro?: boolean
+    esConversacionEnCurso?: boolean
 }
 
 /**
@@ -95,6 +104,19 @@ export function sanitizarMensajeSalida(
     let modificado = false
     let alertasIA = false
 
+    // 0. Si la conversación ya está en curso (turno 2 en adelante o globos secundarios),
+    // remover cualquier saludo inicial residual que el modelo o la plantilla hayan arrastrado
+    if (opciones.esConversacionEnCurso) {
+        const rxSaludoInicial = /^(hola(\s+(bro|amigo|amiga|como va|como andas|buenas|buen dia|buenas tardes|buenas noches))?|buenas(\s+(tardes|dias|noches|bro|amigo))?|buen dia|buenas tardes|buenas noches)[!.,\s]*/i
+        if (rxSaludoInicial.test(limpio)) {
+            limpio = limpio.replace(rxSaludoInicial, "").trim()
+            if (limpio.length > 0) {
+                limpio = limpio.charAt(0).toUpperCase() + limpio.slice(1)
+            }
+            modificado = true
+        }
+    }
+
     // 1. Quitar signos de apertura obligatoriamente (¿ y ¡)
     if (/[¿¡]/.test(limpio)) {
         limpio = limpio.replace(/[¿¡]/g, "")
@@ -103,6 +125,7 @@ export function sanitizarMensajeSalida(
 
     // 2. Control contra frases que delatan IA
     for (const regex of FRASES_PROHIBIDAS_IA) {
+        regex.lastIndex = 0 // los regex son constantes de modulo con flag /g: reset obligatorio
         if (regex.test(limpio)) {
             alertasIA = true
             limpio = limpio.replace(regex, "")
@@ -112,6 +135,7 @@ export function sanitizarMensajeSalida(
 
     // 2.b Control contra frases de espera o proceso interno (silencio cara al cliente)
     for (const regex of FRASES_PROCESO_INTERNO) {
+        regex.lastIndex = 0
         if (regex.test(limpio)) {
             // Si el mensaje es solo una frase de espera ("un momento voy a consultar..."), se anula completamente
             return {
@@ -124,25 +148,30 @@ export function sanitizarMensajeSalida(
 
     // 2.c Reemplazo de fórmulas pesadas de call center por cierres naturales de mostrador
     for (const [regex, reemplazo] of FRASES_CALL_CENTER) {
-        if (regex.test(limpio)) {
-            limpio = limpio.replace(regex, reemplazo)
+        regex.lastIndex = 0
+        const nuevo = limpio.replace(regex, reemplazo).trim()
+        if (nuevo !== limpio) {
+            limpio = nuevo
             modificado = true
         }
     }
 
     // 2.d Corrección determinista de voseo argentino (ej: Recuerda -> Recordá, Dime -> Decime)
     for (const [regex, reemplazo] of CORRECCIONES_VOSEO_ARGENTINO) {
-        if (regex.test(limpio)) {
-            limpio = limpio.replace(regex, (match) => {
-                const esMayus = match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase()
-                return esMayus ? reemplazo.charAt(0).toUpperCase() + reemplazo.slice(1) : reemplazo
-            })
+        regex.lastIndex = 0
+        const nuevo = limpio.replace(regex, (match) => {
+            const esMayus = match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase()
+            return esMayus ? reemplazo.charAt(0).toUpperCase() + reemplazo.slice(1) : reemplazo
+        })
+        if (nuevo !== limpio) {
+            limpio = nuevo
             modificado = true
         }
     }
 
     // 3. Reemplazo o eliminación de modismos no deseados fijos
     for (const [regex, reemplazo] of REEMPLAZOS_MODISMOS) {
+        regex.lastIndex = 0
         if (regex.test(limpio)) {
             limpio = limpio.replace(regex, reemplazo)
             modificado = true

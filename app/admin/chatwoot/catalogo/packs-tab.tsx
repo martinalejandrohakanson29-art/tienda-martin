@@ -43,6 +43,7 @@ const FORM_VACIO: ChatPackInput = {
     activo: true,
     grupoId: null,
     criterioVariante: "",
+    sinonimosVariante: "",
     categoria: "",
 }
 
@@ -139,6 +140,7 @@ export function PacksTab({
             activo: pack.activo,
             grupoId: pack.grupo_id,
             criterioVariante: pack.criterio_variante || "",
+            sinonimosVariante: (pack.sinonimos_variante || []).join(", "),
             categoria: pack.categoria || "",
         })
         setComponentes(
@@ -286,6 +288,9 @@ export function PacksTab({
                 creado_en: packs.find((p) => p.id === form.id)?.creado_en || new Date(),
                 grupo_id: grupoId,
                 criterio_variante: grupoId ? form.criterioVariante.trim() : null,
+                sinonimos_variante: grupoId
+                    ? form.sinonimosVariante.split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean)
+                    : [],
                 categoria: grupoId ? null : form.categoria.trim() || null,
                 componentes: componentes.map((c, i) => ({
                     articulo_id: c.articuloId,
@@ -514,6 +519,19 @@ export function PacksTab({
                                         onChange={(e) => actualizarCampo("criterioVariante", e.target.value)}
                                         disabled={guardando}
                                     />
+                                    <Label htmlFor="sinonimosVariante" className="pt-1">
+                                        Cómo la puede nombrar el cliente (separado por comas)
+                                    </Label>
+                                    <Input
+                                        id="sinonimosVariante"
+                                        placeholder="corto, recorrido corto, 54, c/corta"
+                                        value={form.sinonimosVariante}
+                                        onChange={(e) => actualizarCampo("sinonimosVariante", e.target.value)}
+                                        disabled={guardando}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        El bot usa esto para reconocer qué variante quiere el cliente, sea el eje que sea (recorrido, color, mm…).
+                                    </p>
                                 </div>
                             )}
                         </div>

@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes, MessagesSquare } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes, MessagesSquare, ListChecks } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -59,6 +59,13 @@ export default async function ChatwootPage() {
             icon: <Bot className="h-8 w-8 text-cyan-600" />,
             href: "/admin/chatwoot/simulador",
             color: "border-l-4 border-l-cyan-500"
+        },
+        {
+            title: "Situaciones del Bot (nuevo)",
+            description: "Reglas situacionales editables (descuento, mayorista, 'sos un bot?', comprobante...). Cada caso nuevo es una fila acá, no un párrafo más en el prompt. El bot inyecta solo la que aplica a cada mensaje.",
+            icon: <ListChecks className="h-8 w-8 text-orange-600" />,
+            href: "/admin/chatwoot/situaciones",
+            color: "border-l-4 border-l-orange-500"
         },
         {
             title: "Prueba de Mensajes (n8n viejo)",

@@ -16,13 +16,13 @@ export const definicionInfoNegocio: DefinicionHerramienta = {
     type: "function",
     function: {
         name: "consultar_info_negocio",
-        description: "Consulta las políticas oficiales del negocio cargadas en el sistema (ej. envíos a todo el país, ubicación física en Córdoba, formas de pago, horarios de atención, garantías).",
+        description: "Consulta las políticas oficiales del negocio cargadas en el sistema (ej. envíos a todo el país, ubicación física en Córdoba, formas de pago, horarios de atención, garantías, seguridad y confianza de compra).",
         parameters: {
             type: "object",
             properties: {
                 tema: {
                     type: "string",
-                    description: "El tema a consultar. Ejemplos: 'envios', 'ubicacion', 'pagos', 'horarios', 'garantia'."
+                    description: "El tema a consultar. Ejemplos: 'envios', 'ubicacion', 'pagos', 'horarios', 'garantia' (para dudas de seguridad, estafa o confianza de compra)."
                 }
             },
             required: ["tema"]
@@ -131,6 +131,9 @@ export async function consultarInfoNegocio(args: ArgsInfoNegocio): Promise<Resul
             }
             if (temaBuscado.includes("pago") || temaBuscado.includes("tarjeta") || temaBuscado.includes("transferencia")) {
                 return t.includes("pago") || t.includes("medio")
+            }
+            if (temaBuscado.includes("garant") || temaBuscado.includes("confian") || temaBuscado.includes("estaf") || temaBuscado.includes("segur")) {
+                return t.includes("garantia") || t.includes("confian")
             }
             return t.includes(temaBuscado)
         })

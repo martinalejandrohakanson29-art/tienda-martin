@@ -458,6 +458,7 @@ export type ChatPack = {
     creado_en: Date
     grupo_id: number | null
     criterio_variante: string | null
+    sinonimos_variante: string[] | null
     categoria: string | null
     componentes: ChatPackComponente[]
 }
@@ -475,6 +476,7 @@ export type ChatPackInput = {
     activo: boolean
     grupoId: number | null
     criterioVariante: string
+    sinonimosVariante: string
     categoria: string
 }
 
@@ -486,12 +488,24 @@ export type ChatPackComponenteInput = {
 export async function getChatPacks(): Promise<ChatPack[]> {
     await requireAdmin()
 
-    const packs = await prisma.$queryRaw<Omit<ChatPack, "componentes">[]>`
+    const packs = await prisma.$queryRaw<Omit<ChatPack, "componentes" | "sinonimos_variante">[]>`
         SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, plantillas_referral, detalle, activo, creado_en, grupo_id, criterio_variante, categoria
         FROM chat_packs
         ORDER BY creado_en DESC
     `
     if (packs.length === 0) return []
+
+    // Sinónimos de variante en query aparte y tolerante: la columna puede no
+    // existir todavía (antes de correr n8n-workflows/chat-variantes-sinonimos.sql).
+    let sinonimosPorPack = new Map<number, string[]>()
+    try {
+        const sinRows = await prisma.$queryRaw<{ id: number; sinonimos_variante: string[] | null }[]>`
+            SELECT id, sinonimos_variante FROM chat_packs
+        `
+        sinonimosPorPack = new Map(sinRows.map((r) => [r.id, r.sinonimos_variante || []]))
+    } catch {
+        /* columna inexistente: sin sinónimos */
+    }
 
     const componentes = await prisma.$queryRaw<(ChatPackComponente & { pack_id: number })[]>`
         SELECT pa.pack_id, pa.articulo_id, am.nombre, a.alias, a.precio, pa.cantidad, pa.orden
@@ -503,6 +517,7 @@ export async function getChatPacks(): Promise<ChatPack[]> {
 
     return packs.map((pack) => ({
         ...pack,
+        sinonimos_variante: sinonimosPorPack.get(pack.id) ?? [],
         componentes: componentes.filter((c) => c.pack_id === pack.id),
     }))
 }
@@ -529,6 +544,12 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
     // (mismo criterio que mensaje_bienvenida) — acá solo se guarda propia si
     // es un pack sin grupo.
     const categoria = data.grupoId ? null : data.categoria.trim() || null
+    const sinonimosVariante = data.grupoId
+        ? (data.sinonimosVariante || "")
+              .split(/[\n,]/)
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean)
+        : []
 
     let packId = data.id
     if (packId) {
@@ -548,6 +569,18 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
             RETURNING id
         `
         packId = inserted[0].id
+    }
+
+    // Sinónimos de variante: statement aparte y tolerante (la columna puede no
+    // existir hasta correr n8n-workflows/chat-variantes-sinonimos.sql).
+    try {
+        await prisma.$executeRawUnsafe(
+            `UPDATE chat_packs SET sinonimos_variante = $1 WHERE id = $2`,
+            sinonimosVariante,
+            packId
+        )
+    } catch {
+        /* columna inexistente: se ignora hasta correr la migración */
     }
 
     await prisma.$executeRaw`DELETE FROM chat_pack_articulos WHERE pack_id = ${packId}`

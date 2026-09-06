@@ -54,6 +54,10 @@ export interface HerramientaEjecutadaInfo {
 export interface RespuestaAgente {
     /** Mensaje de texto a enviar al cliente. Si es null, el bot debe guardar silencio */
     mensajeFinal: string | null
+    /** Lista de mensajes cuando la respuesta se emite en ráfaga (separados por pausas de tipeo humano) */
+    mensajesFinales?: string[]
+    /** Foto del kit/combo a adjuntar junto con el mensaje de bienvenida (match exacto o descubierto por el LLM) */
+    fotoUrl?: string | null
     /** Lista de herramientas que la IA ejecutó durante este turno */
     herramientasEjecutadas: HerramientaEjecutadaInfo[]
     /** Indica si la consulta requirió escalar a un humano en silencio */

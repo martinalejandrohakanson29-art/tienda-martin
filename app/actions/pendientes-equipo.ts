@@ -29,6 +29,8 @@ export type PendienteEquipo = {
     conversationId: number
     resumen: string
     preguntaOriginal: string
+    modeloMoto?: string
+    kit?: string
     creadoEn: string
 }
 
@@ -68,6 +70,8 @@ export async function listarPendientesEquipo(): Promise<PanelPendientes> {
             conversationId: Number(f.conversation_id),
             resumen: [f.modelo_moto, f.kit].filter(Boolean).join(" — ") || "(sin modelo/kit identificado)",
             preguntaOriginal: f.pregunta_original,
+            modeloMoto: f.modelo_moto || undefined,
+            kit: f.kit || undefined,
             creadoEn: f.creado_en.toISOString(),
         })),
         ...precios.map((f) => ({

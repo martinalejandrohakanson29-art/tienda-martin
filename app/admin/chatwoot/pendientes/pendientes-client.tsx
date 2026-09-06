@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronUp, ExternalLink, Loader2, MessageSquare, RefreshCw, Send, ThumbsDown, ThumbsUp } from "lucide-react"
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronUp, ExternalLink, Loader2, MessageSquare, Plus, RefreshCw, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import {
     listarPendientesEquipo,
     responderPendienteEquipo,
@@ -18,6 +19,7 @@ import {
     type TipoPendiente,
     type MensajeConversacion,
 } from "@/app/actions/pendientes-equipo"
+import { asociarAliasAMoto, crearMotoCanonica, type MotoCanonica } from "@/app/actions/motos-aprendizaje"
 import { ImageLightboxModal, MensajeAdjuntos } from "@/components/chatwoot/chat-media-viewer"
 
 const ETIQUETA_TIPO: Record<TipoPendiente, { texto: string; clase: string }> = {
@@ -79,14 +81,17 @@ function CharlaCompleta({
 
 export function PendientesClient({
     inicial,
+    motosCanonicas: motosCanonicasIniciales = [],
     error,
     chatwootUrl,
 }: {
     inicial: PanelPendientes | null
+    motosCanonicas?: MotoCanonica[]
     error: string | null
     chatwootUrl: string
 }) {
     const [panel, setPanel] = useState<PanelPendientes | null>(inicial)
+    const [motosCanonicas, setMotosCanonicas] = useState<MotoCanonica[]>(motosCanonicasIniciales)
     const [fallo, setFallo] = useState<string | null>(error)
     const [pendiente, arrancarTransicion] = useTransition()
     const [respuestas, setRespuestas] = useState<Record<string, string>>({})
@@ -99,6 +104,14 @@ export function PendientesClient({
     const [charlaAbierta, setCharlaAbierta] = useState<Set<string>>(new Set())
     const [charlas, setCharlas] = useState<Record<string, MensajeConversacion[]>>({})
     const [cargandoCharla, setCargandoCharla] = useState<Set<string>>(new Set())
+
+    // Aprendizaje y normalización de motos / aliases
+    const [formAlias, setFormAlias] = useState<Record<string, { motoId: number | null; alias: string }>>({})
+    const [aliasGuardado, setAliasGuardado] = useState<Record<string, string>>({})
+    const [mostrarCrearMoto, setMostrarCrearMoto] = useState<Record<string, boolean>>({})
+    const [formNuevaMoto, setFormNuevaMoto] = useState<
+        Record<string, { marca: string; modelo: string; cilindrada: string; alias: string }>
+    >({})
 
     const refrescar = async () => {
         try {
@@ -148,6 +161,71 @@ export function PendientesClient({
                     })
                 )
         }
+    }
+
+    const asociarAlias = (item: PendienteEquipo) => {
+        const clave = claveFila(item.tipo, item.id)
+        const f = formAlias[clave] || { motoId: null, alias: item.modeloMoto || "" }
+        if (!f.motoId) {
+            setFallo("Seleccioná un modelo canónico de moto de la lista.")
+            return
+        }
+        if (!f.alias.trim()) {
+            setFallo("Ingresá el alias o texto a asociar.")
+            return
+        }
+        setFallo(null)
+        arrancarTransicion(async () => {
+            try {
+                const res = await asociarAliasAMoto({
+                    motoId: f.motoId!,
+                    nuevoAlias: f.alias.trim(),
+                    pendienteId: item.id,
+                })
+                setAliasGuardado((prev) => ({ ...prev, [clave]: res.mensaje }))
+                setEnviadas((prev) => new Set(prev).add(clave))
+                setMotosCanonicas((prev) =>
+                    prev.map((m) =>
+                        m.id === f.motoId
+                            ? { ...m, aliases: [...m.aliases, f.alias.trim().toLowerCase()] }
+                            : m
+                    )
+                )
+            } catch (e) {
+                setFallo(e instanceof Error ? e.message : "No se pudo asociar el alias")
+            }
+        })
+    }
+
+    const crearNuevaMoto = (item: PendienteEquipo) => {
+        const clave = claveFila(item.tipo, item.id)
+        const f = formNuevaMoto[clave] || { marca: "", modelo: "", cilindrada: "", alias: item.modeloMoto || "" }
+        if (!f.marca.trim() || !f.modelo.trim()) {
+            setFallo("Marca y modelo son obligatorios para dar de alta una moto canónica.")
+            return
+        }
+        setFallo(null)
+        arrancarTransicion(async () => {
+            try {
+                const res = await crearMotoCanonica({
+                    marca: f.marca.trim(),
+                    modelo: f.modelo.trim(),
+                    cilindrada: f.cilindrada ? Number(f.cilindrada) : undefined,
+                    aliasInicial: f.alias.trim() || undefined,
+                    pendienteId: item.id,
+                })
+                setMotosCanonicas((prev) =>
+                    [...prev, res.moto].sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
+                )
+                setAliasGuardado((prev) => ({
+                    ...prev,
+                    [clave]: `Moto "${res.moto.nombre_completo}" creada y alias registrado con éxito.`,
+                }))
+                setEnviadas((prev) => new Set(prev).add(clave))
+            } catch (e) {
+                setFallo(e instanceof Error ? e.message : "No se pudo crear la moto canónica")
+            }
+        })
     }
 
     const enviarTecnica = (item: PendienteEquipo) => {
@@ -311,49 +389,200 @@ export function PendientesClient({
                         />
                     )}
 
-                    {yaEnviada ? (
+                    {aliasGuardado[clave] && (
+                        <div className="flex items-center gap-2 rounded-md bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span>{aliasGuardado[clave]}</span>
+                        </div>
+                    )}
+
+                    {yaEnviada && !aliasGuardado[clave] ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">
                             <Check className="h-4 w-4" /> Guardado — el bot le va a contestar al cliente solo apenas
                             lo procese. Actualizá en unos segundos para verla salir de la lista.
                         </p>
-                    ) : (
-                        <div className="space-y-2 rounded-md border bg-gray-50 p-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm text-gray-600">¿Es compatible?</span>
+                    ) : !yaEnviada && (
+                        <div className="space-y-4">
+                            {/* 1. SECCIÓN DE APRENDIZAJE: ASOCIAR ALIAS A MOTO CANÓNICA */}
+                            <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3 space-y-2.5">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-violet-700">
+                                    <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+                                    <span>Normalización y Aprendizaje Oficial (Evita duplicados)</span>
+                                </div>
+                                <p className="text-xs text-gray-600">
+                                    Si el cliente escribió un modelo con error tipográfico (ej: <em>&quot;smach&quot;</em>, <em>&quot;scua&quot;</em>) o modismo, asocialo a la moto canónica. El bot aprenderá la equivalencia al instante para todos los kits.
+                                </p>
+
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                    <select
+                                        value={formAlias[clave]?.motoId ?? ""}
+                                        onChange={(e) => {
+                                            const val = e.target.value ? Number(e.target.value) : null
+                                            setFormAlias((prev) => ({
+                                                ...prev,
+                                                [clave]: {
+                                                    motoId: val,
+                                                    alias: prev[clave]?.alias ?? item.modeloMoto ?? (item.resumen.includes("—") ? item.resumen.split("—")[0].trim() : item.resumen)
+                                                }
+                                            }))
+                                        }}
+                                        className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                                    >
+                                        <option value="">-- Seleccionar Moto Canónica --</option>
+                                        {motosCanonicas.map((m) => (
+                                            <option key={m.id} value={m.id}>
+                                                {m.nombre_completo} ({m.aliases.length} alias)
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    <Input
+                                        placeholder="Alias / typo a asociar"
+                                        value={formAlias[clave]?.alias ?? item.modeloMoto ?? (item.resumen.includes("—") ? item.resumen.split("—")[0].trim() : item.resumen)}
+                                        onChange={(e) => {
+                                            const val = e.target.value
+                                            setFormAlias((prev) => ({
+                                                ...prev,
+                                                [clave]: {
+                                                    motoId: prev[clave]?.motoId ?? null,
+                                                    alias: val
+                                                }
+                                            }))
+                                        }}
+                                        className="h-9 w-full sm:w-56 bg-white"
+                                    />
+
+                                    <Button
+                                        size="sm"
+                                        disabled={pendiente || !(formAlias[clave]?.motoId)}
+                                        onClick={() => asociarAlias(item)}
+                                        className="gap-1 bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+                                    >
+                                        {pendiente ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                        Asociar alias
+                                    </Button>
+                                </div>
+
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarCrearMoto((prev) => ({ ...prev, [clave]: !prev[clave] }))}
+                                        className="text-xs text-violet-600 hover:text-violet-800 underline inline-flex items-center gap-1"
+                                    >
+                                        <Plus className="h-3 w-3" />
+                                        {mostrarCrearMoto[clave] ? "Ocultar formulario de alta" : "¿No está la moto en el catálogo? Registrar nuevo modelo canónico"}
+                                    </button>
+
+                                    {mostrarCrearMoto[clave] && (
+                                        <div className="mt-2.5 rounded-md border border-violet-300 bg-white p-3 space-y-2">
+                                            <p className="text-xs font-medium text-gray-700">Alta de Nuevo Modelo Oficial</p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                <Input
+                                                    placeholder="Marca (ej: Gilera, Motomel)"
+                                                    value={formNuevaMoto[clave]?.marca ?? ""}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value
+                                                        setFormNuevaMoto((prev) => ({
+                                                            ...prev,
+                                                            [clave]: {
+                                                                marca: val,
+                                                                modelo: prev[clave]?.modelo ?? "",
+                                                                cilindrada: prev[clave]?.cilindrada ?? "",
+                                                                alias: prev[clave]?.alias ?? item.modeloMoto ?? ""
+                                                            }
+                                                        }))
+                                                    }}
+                                                    className="h-8 text-xs"
+                                                />
+                                                <Input
+                                                    placeholder="Modelo (ej: Smash 110, S2 150)"
+                                                    value={formNuevaMoto[clave]?.modelo ?? ""}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value
+                                                        setFormNuevaMoto((prev) => ({
+                                                            ...prev,
+                                                            [clave]: {
+                                                                marca: prev[clave]?.marca ?? "",
+                                                                modelo: val,
+                                                                cilindrada: prev[clave]?.cilindrada ?? "",
+                                                                alias: prev[clave]?.alias ?? item.modeloMoto ?? ""
+                                                            }
+                                                        }))
+                                                    }}
+                                                    className="h-8 text-xs"
+                                                />
+                                                <Input
+                                                    placeholder="Cilindrada opcional (ej: 110)"
+                                                    type="number"
+                                                    value={formNuevaMoto[clave]?.cilindrada ?? ""}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value
+                                                        setFormNuevaMoto((prev) => ({
+                                                            ...prev,
+                                                            [clave]: {
+                                                                marca: prev[clave]?.marca ?? "",
+                                                                modelo: prev[clave]?.modelo ?? "",
+                                                                cilindrada: val,
+                                                                alias: prev[clave]?.alias ?? item.modeloMoto ?? ""
+                                                            }
+                                                        }))
+                                                    }}
+                                                    className="h-8 text-xs"
+                                                />
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                disabled={pendiente || !(formNuevaMoto[clave]?.marca?.trim()) || !(formNuevaMoto[clave]?.modelo?.trim())}
+                                                onClick={() => crearNuevaMoto(item)}
+                                                className="gap-1 bg-violet-600 hover:bg-violet-700 text-white text-xs h-8"
+                                            >
+                                                {pendiente ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                                Crear modelo y asociar consulta
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 2. SECCIÓN DE RESPUESTA PUNTUAL DE COMPATIBILIDAD */}
+                            <div className="space-y-2 rounded-md border bg-gray-50 p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-700">O responder compatibilidad puntual:</span>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={forma.compatible === true ? "default" : "outline"}
+                                        className={forma.compatible === true ? "gap-1 bg-emerald-600 hover:bg-emerald-700" : "gap-1"}
+                                        onClick={() => setForma({ compatible: true })}
+                                    >
+                                        <ThumbsUp className="h-3.5 w-3.5" /> Sí es compatible
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={forma.compatible === false ? "default" : "outline"}
+                                        className={forma.compatible === false ? "gap-1 bg-rose-600 hover:bg-rose-700" : "gap-1"}
+                                        onClick={() => setForma({ compatible: false })}
+                                    >
+                                        <ThumbsDown className="h-3.5 w-3.5" /> No es compatible
+                                    </Button>
+                                </div>
+                                <Textarea
+                                    placeholder="Aclaración opcional (ej: para recorrido corto, hay que cambiar el carburador)…"
+                                    value={forma.detalle}
+                                    onChange={(e) => setForma({ detalle: e.target.value })}
+                                    rows={2}
+                                />
                                 <Button
-                                    type="button"
                                     size="sm"
-                                    variant={forma.compatible === true ? "default" : "outline"}
-                                    className={forma.compatible === true ? "gap-1 bg-emerald-600 hover:bg-emerald-700" : "gap-1"}
-                                    onClick={() => setForma({ compatible: true })}
+                                    disabled={pendiente || forma.compatible === null}
+                                    onClick={() => enviarTecnica(item)}
+                                    className="gap-1"
                                 >
-                                    <ThumbsUp className="h-3.5 w-3.5" /> Sí
-                                </Button>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={forma.compatible === false ? "default" : "outline"}
-                                    className={forma.compatible === false ? "gap-1 bg-rose-600 hover:bg-rose-700" : "gap-1"}
-                                    onClick={() => setForma({ compatible: false })}
-                                >
-                                    <ThumbsDown className="h-3.5 w-3.5" /> No
+                                    {pendiente ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                    Guardar respuesta de compatibilidad
                                 </Button>
                             </div>
-                            <Textarea
-                                placeholder="Aclaración opcional (ej: para recorrido corto, hay que cambiar el carburador)…"
-                                value={forma.detalle}
-                                onChange={(e) => setForma({ detalle: e.target.value })}
-                                rows={2}
-                            />
-                            <Button
-                                size="sm"
-                                disabled={pendiente || forma.compatible === null}
-                                onClick={() => enviarTecnica(item)}
-                                className="gap-1"
-                            >
-                                {pendiente ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                Guardar respuesta
-                            </Button>
                         </div>
                     )}
                 </CardContent>

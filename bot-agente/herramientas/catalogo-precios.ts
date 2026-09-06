@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import { normalizarTexto, puntuarItemCatalogo } from "../nucleo/texto"
 
 export interface ArgsCatalogoPrecios {
     termino_busqueda?: string
@@ -84,16 +85,6 @@ function formatearPrecio(monto: number): string {
         currency: "ARS",
         maximumFractionDigits: 0
     }).format(monto)
-}
-
-function normalizarTexto(txt: string): string {
-    return (txt || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
 }
 
 /**
@@ -321,43 +312,32 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             gruposFiltrados = grupos.filter((g) => g.id === args.grupo_id)
             packsFiltrados = []
         } else if (args.termino_busqueda) {
-            const termNorm = normalizarTexto(args.termino_busqueda)
-            const palabrasTerm = termNorm.split(" ").filter((w) => w.length >= 2)
-            const numerosTerm = termNorm.match(/\b\d+\b/g) || []
+            // Scorer unico y compartido: ver bot-agente/nucleo/texto.ts
+            const puntuarItem = (nombre: string, corpusExtra: string): number =>
+                puntuarItemCatalogo(args.termino_busqueda!, nombre, corpusExtra)
 
-            const matchTexto = (corpus: string): boolean => {
-                const normCorpus = normalizarTexto(corpus)
-                // 1. Inclusión directa
-                if (normCorpus.includes(termNorm) || termNorm.includes(normCorpus)) return true
-
-                // 2. Coincidencia por números clave (ej: "110", "120", "170", "200")
-                if (numerosTerm.length > 0) {
-                    const todosNumerosPresentes = numerosTerm.every((n) => {
-                        const rx = new RegExp(`\\b${n}\\b`)
-                        return rx.test(normCorpus)
-                    })
-                    if (todosNumerosPresentes) return true
-                }
-
-                // 3. Palabras coincidentes suficientes
-                const palabrasCoincidentes = palabrasTerm.filter((p) => normCorpus.includes(p))
-                if (palabrasTerm.length >= 2 && palabrasCoincidentes.length >= 2) return true
-                if (palabrasTerm.length === 1 && palabrasCoincidentes.length === 1 && palabrasTerm[0].length >= 3) return true
-
-                return false
-            }
-
-            packsFiltrados = packsFiltrados.filter((p) => {
-                const corpusArticulos = (p.articulos_sueltos || []).map((a) => `${a.nombre} ${a.categoria || ""} ${a.alias || ""}`).join(" ")
-                const corpusPack = `${p.nombre} ${p.criterio_variante || ""} ${p.plantillas_bienvenida || ""} ${p.plantillas_referral || ""} ${p.mensaje_bienvenida || ""} ${corpusArticulos}`
-                return matchTexto(corpusPack)
-            })
-
-            gruposFiltrados = gruposFiltrados.filter((g) => {
+            const scoredGrupos = gruposFiltrados.map((g) => {
                 const corpusArticulosG = (g.articulos_sueltos || []).map((a) => `${a.nombre} ${a.categoria || ""} ${a.alias || ""}`).join(" ")
                 const corpusGrupo = `${g.nombre} ${g.plantillas_bienvenida || ""} ${g.plantillas_referral || ""} ${g.mensaje_bienvenida || ""} ${g.variantes.map((v) => `${v.nombre} ${v.criterio_variante || ""}`).join(" ")} ${corpusArticulosG}`
-                return matchTexto(corpusGrupo)
+                return { item: g, score: puntuarItem(g.nombre, corpusGrupo) }
             })
+
+            const scoredPacks = packsFiltrados.map((p) => {
+                const corpusArticulos = (p.articulos_sueltos || []).map((a) => `${a.nombre} ${a.categoria || ""} ${a.alias || ""}`).join(" ")
+                const corpusPack = `${p.nombre} ${p.criterio_variante || ""} ${p.plantillas_bienvenida || ""} ${p.plantillas_referral || ""} ${p.mensaje_bienvenida || ""} ${corpusArticulos}`
+                return { item: p, score: puntuarItem(p.nombre, corpusPack) }
+            })
+
+            const allScores = [...scoredGrupos.map((s) => s.score), ...scoredPacks.map((s) => s.score)]
+            const maxScore = Math.max(...allScores, 0)
+
+            if (maxScore >= 30) {
+                gruposFiltrados = scoredGrupos.filter((s) => s.score > 0 && s.score >= maxScore * 0.75).map((s) => s.item)
+                packsFiltrados = scoredPacks.filter((s) => s.score > 0 && s.score >= maxScore * 0.75).map((s) => s.item)
+            } else {
+                gruposFiltrados = []
+                packsFiltrados = []
+            }
         }
 
         if (packsFiltrados.length === 0 && gruposFiltrados.length === 0) {
@@ -372,30 +352,29 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
         // Resumen formateado para que el agente redacte con precisión
         const totalOpciones = packsFiltrados.length + gruposFiltrados.length
         if (totalOpciones > 1) {
-            const lineasOpciones: string[] = [
-                `CATÁLOGO OFICIAL:`,
-                `⚠️ ATENCIÓN VENDEDOR (MÚLTIPLES COMBOS ENCONTRADOS):`,
-                `Se encontraron ${totalOpciones} combos/kits diferentes en el catálogo para esta consulta:`
+            const nombresOpciones = [
+                ...gruposFiltrados.map((g) => g.nombre),
+                ...packsFiltrados.map((p) => p.nombre)
             ]
+            const cierrePregunta = nombresOpciones.length === 2 ? "Cuál de los dos estás buscando?" : "Cuál de estas estás buscando?"
+            const bloqueParaCliente = [
+                ...nombresOpciones.map((n) => `👉🏼 ${n}`),
+                "",
+                cierrePregunta
+            ].join("\n")
 
-            let i = 1
-            for (const g of gruposFiltrados) {
-                lineasOpciones.push(`👉🏼 Opción ${i}: ${g.nombre}`)
-                i++
-            }
-
-            for (const p of packsFiltrados) {
-                lineasOpciones.push(`👉🏼 Opción ${i}: ${p.nombre}`)
-                i++
-            }
-
-            lineasOpciones.push("")
-            lineasOpciones.push("REGLA ESTRICTA DE MOSTRADOR (PASO 1: IDENTIFICAR EL KIT):")
-            lineasOpciones.push("- El cliente todavía no definió cuál opción busca.")
-            lineasOpciones.push("- Tu ÚNICO objetivo en este mensaje es que el cliente elija cuál de las opciones le interesa.")
-            lineasOpciones.push("- PROHIBIDO dar precios de variantes todavía.")
-            lineasOpciones.push("- Si el cliente NO mencionó su moto: NO preguntes por la moto todavía. Solo preguntale cuál de las opciones busca.")
-            lineasOpciones.push("- Presentale ÚNICAMENTE las opciones por su nombre y preguntale: 'Cuál de los dos estás buscando?' (o las opciones que haya).")
+            const lineasOpciones: string[] = [
+                `CATÁLOGO OFICIAL — PASO 1: IDENTIFICAR EL KIT.`,
+                `El cliente todavía no eligió. Tu único objetivo es que elija cuál opción quiere.`,
+                ``,
+                `TEXTO PARA ENVIAR AL CLIENTE (mandalo TAL CUAL, respetando cada 👉🏼 en su renglón; solo podés ajustar el saludo inicial):`,
+                bloqueParaCliente,
+                ``,
+                `REGLAS:`,
+                `- PROHIBIDO dar precios o variantes todavía.`,
+                `- Si el cliente NO mencionó su moto: NO preguntes por la moto todavía.`,
+                `- No agregues descripciones de lo que incluye cada kit: solo los nombres.`
+            ]
 
             return {
                 encontrado: true,
@@ -412,7 +391,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             lineas.push(`• Kit Simple: "${p.nombre}" (ID: ${p.id})`)
             lineas.push(`   - Precio: ${formatearPrecio(p.precio)}${p.envio ? ` - Envío: ${p.envio}` : " - Envío gratis a todo el país"}`)
             if (p.mensaje_bienvenida) {
-                lineas.push(`   - Mensaje oficial cargado en la app (respetar su formato y saltos de línea):\n${p.mensaje_bienvenida.trim()}`)
+                lineas.push(`   - Mensaje oficial cargado en la app (respetar formato, listas y datos técnicos; si la charla ya está en curso, OMITIR el saludo inicial):\n${p.mensaje_bienvenida.trim()}`)
             }
             if (p.articulos_sueltos && p.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas de este kit (SOLO si el cliente pide expresamente una pieza sola por separado):`)
@@ -426,17 +405,23 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
 
         for (const g of gruposFiltrados) {
             lineas.push(`• Combo: "${g.nombre}" (ID: ${g.id})`)
-            lineas.push(`   - Opciones y precios del combo completo:`)
-            for (const v of g.variantes) {
-                lineas.push(`     * ${v.criterio_variante || v.nombre}: ${formatearPrecio(v.precio)} (ID: ${v.id})`)
-            }
-            lineas.push(`   - Envío: Gratis a todo el país por Andreani a domicilio`)
-            if (g.pregunta_variante) {
-                lineas.push(`   - Pregunta oficial para desambiguar la variante (usar si el cliente aún no indicó cuál variante busca o tiene):\n${g.pregunta_variante.trim()}`)
-            }
+            const bloqueVariantes = [
+                ...g.variantes.map((v) => `👉🏼 ${v.criterio_variante || v.nombre}: ${formatearPrecio(v.precio)}`),
+                "",
+                "Envío gratis a todo el país!"
+            ].join("\n")
+
+            lineas.push(`   - PASO 2 (el cliente ya eligió este combo pero NO dio su moto ni su variante).`)
             if (g.mensaje_bienvenida) {
-                lineas.push(`   - Mensaje oficial cargado en la app (respetar su formato y saltos de línea para consultas del combo):\n${g.mensaje_bienvenida.trim()}`)
+                lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (mandá el mensaje oficial tal cual, respetando saltos de renglón y viñetas; si la charla ya está en curso OMITÍ el saludo inicial y NADA MÁS):`)
+                lineas.push(g.mensaje_bienvenida.trim())
+            } else {
+                lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (respetá cada 👉🏼 en su renglón):`)
+                lineas.push(`${bloqueVariantes}\n\nPara qué moto lo estás buscando?`)
             }
+            lineas.push(`   - Precios de referencia (por si necesitás confirmarlos): ${g.variantes.map((v) => `${v.criterio_variante || v.nombre} ${formatearPrecio(v.precio)}`).join(" / ")}.`)
+            lineas.push(`   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`)
+            lineas.push(`   - En cuanto el cliente diga su moto O su variante (corto/largo/etc.), usá SIEMPRE resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo, NUNCA redactes el precio de memoria. Hacé lo que devuelva.`)
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of g.articulos_sueltos) {

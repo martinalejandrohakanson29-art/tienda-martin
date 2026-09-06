@@ -1,13 +1,20 @@
 import { listarPendientesEquipo } from "@/app/actions/pendientes-equipo"
+import { listarMotosCanonicas } from "@/app/actions/motos-aprendizaje"
 import { PendientesClient } from "./pendientes-client"
 
 export const dynamic = "force-dynamic"
 
 export default async function PendientesPage() {
     let panel: Awaited<ReturnType<typeof listarPendientesEquipo>> | null = null
+    let motosCanonicas: Awaited<ReturnType<typeof listarMotosCanonicas>> = []
     let error: string | null = null
     try {
-        panel = await listarPendientesEquipo()
+        const [p, m] = await Promise.all([
+            listarPendientesEquipo(),
+            listarMotosCanonicas(),
+        ])
+        panel = p
+        motosCanonicas = m
     } catch (e) {
         error = e instanceof Error ? e.message : "No se pudieron leer las preguntas pendientes"
     }
@@ -19,5 +26,5 @@ export default async function PendientesPage() {
         ""
     )
 
-    return <PendientesClient inicial={panel} error={error} chatwootUrl={chatwootUrl} />
+    return <PendientesClient inicial={panel} motosCanonicas={motosCanonicas} error={error} chatwootUrl={chatwootUrl} />
 }

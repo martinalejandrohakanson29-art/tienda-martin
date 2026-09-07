@@ -23,10 +23,10 @@ export interface OpcionesEjecucion {
     estadoKey?: string
 }
 
-const DEFAULT_MODEL = "gpt-5-mini" // Modelo de producción (chat_config.proveedor_activo)
+const DEFAULT_MODEL = "gpt-5" // Modelo de producción (chat_config.proveedor_activo lo puede pisar)
 const DEFAULT_BASE_URL = "https://api.openai.com/v1"
 const MAX_PASOS_REACT = 6
-const TIMEOUT_LLM_MS = 30_000
+const TIMEOUT_LLM_MS = 60_000 // gpt-5 (razonamiento) es más lento que gpt-5-mini; margen para no abortar turnos válidos
 
 /** fetch a la API del LLM con timeout y un reintento ante error de red. */
 async function fetchLLM(url: string, init: RequestInit): Promise<Response> {
@@ -216,12 +216,12 @@ export async function ejecutarTurnoAgente(
     let baseUrl = opciones.baseUrl
 
     if (!modelo || !baseUrl) {
-        const prov = config.proveedorActivo || "openai:gpt-5-mini"
+        const prov = config.proveedorActivo || "openai:gpt-5"
         if (prov.startsWith("deepseek:")) {
             modelo = modelo || prov.replace("deepseek:", "") || "deepseek-v4-flash"
             baseUrl = baseUrl || "https://api.deepseek.com"
         } else if (prov.startsWith("openai:")) {
-            modelo = modelo || prov.replace("openai:", "") || "gpt-5-mini"
+            modelo = modelo || prov.replace("openai:", "") || "gpt-5"
             baseUrl = baseUrl || "https://api.openai.com/v1"
         } else if (prov.startsWith("openrouter:")) {
             modelo = modelo || prov.replace("openrouter:", "")

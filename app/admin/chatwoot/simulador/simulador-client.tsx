@@ -74,9 +74,9 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
     // Opciones del modelo / API
     const [apiKey, setApiKey] = useState("")
     const [presetSeleccionado, setPresetSeleccionado] = useState(
-        configInicial.proveedorActivo || "openai:gpt-5-mini"
+        configInicial.proveedorActivo || "openai:gpt-5"
     )
-    const [modelo, setModelo] = useState("gpt-5-mini")
+    const [modelo, setModelo] = useState("gpt-5")
     const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1")
     const [esPersonalizado, setEsPersonalizado] = useState(false)
 
@@ -125,10 +125,10 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
 
     // Cargar preset y apiKey de localStorage o de la configuración del servidor
     useEffect(() => {
-        const savedPreset = localStorage.getItem("rm_simulador_preset") || configInicial.proveedorActivo || "openai:gpt-5-mini"
+        const savedPreset = localStorage.getItem("rm_simulador_preset") || configInicial.proveedorActivo || "openai:gpt-5"
         setPresetSeleccionado(savedPreset)
 
-        let initialModel = "gpt-5-mini"
+        let initialModel = "gpt-5"
         let initialBaseUrl = "https://api.openai.com/v1"
         let initialKey = ""
 
@@ -143,7 +143,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
             initialBaseUrl = "https://openrouter.ai/api/v1"
             initialKey = localStorage.getItem("rm_simulador_openrouter_key") || configInicial.openrouterApiKey || ""
         } else {
-            initialModel = modeloDelPreset || localStorage.getItem("rm_simulador_modelo") || "gpt-5-mini"
+            initialModel = modeloDelPreset || localStorage.getItem("rm_simulador_modelo") || "gpt-5"
             initialBaseUrl = "https://api.openai.com/v1"
             initialKey = localStorage.getItem("rm_simulador_openai_key") || configInicial.openaiApiKey || ""
         }
@@ -222,7 +222,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
             setTempApiKey(apiKey)
         } else {
             setTempProveedor("openai")
-            setTempModelo(modelo || "gpt-5-mini")
+            setTempModelo(modelo || "gpt-5")
             setTempBaseUrl(baseUrl || "https://api.openai.com/v1")
             setTempApiKey(localStorage.getItem("rm_simulador_openai_key") || config.openaiApiKey || apiKey || "")
         }
@@ -237,7 +237,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
             setTempBaseUrl("https://api.deepseek.com")
             setTempApiKey(localStorage.getItem("rm_simulador_deepseek_key") || config.deepseekApiKey || "")
         } else if (prov === "openai") {
-            setTempModelo("gpt-5-mini")
+            setTempModelo("gpt-5")
             setTempBaseUrl("https://api.openai.com/v1")
             setTempApiKey(localStorage.getItem("rm_simulador_openai_key") || config.openaiApiKey || "")
         } else if (prov === "openrouter") {
@@ -281,7 +281,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
         }
         setGuardandoModelo(true)
         try {
-            let nuevoPreset = "openai:gpt-5-mini"
+            let nuevoPreset = "openai:gpt-5"
             if (tempProveedor === "deepseek") {
                 nuevoPreset = `deepseek:${tempModelo}`
                 localStorage.setItem("rm_simulador_deepseek_key", tempApiKey.trim())
@@ -1478,8 +1478,8 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                                     </label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {[
-                                            { id: "gpt-5-mini", desc: "Equilibrado: rápido, barato y buen tool calling (recomendado)" },
-                                            { id: "gpt-5", desc: "Máxima capacidad de razonamiento" },
+                                            { id: "gpt-5", desc: "Producción: máxima capacidad de razonamiento y tool calling (recomendado)" },
+                                            { id: "gpt-5-mini", desc: "Equilibrado: más rápido y barato, menos coherente en mensajes multitema" },
                                             { id: "gpt-4o-mini", desc: "Generación anterior, económico" },
                                             { id: "gpt-4o", desc: "Generación anterior, más capaz" },
                                         ].map((m) => (
@@ -1513,7 +1513,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                                     <Input
                                         value={tempModelo}
                                         onChange={(e) => setTempModelo(e.target.value)}
-                                        placeholder="gpt-5-mini"
+                                        placeholder="gpt-5"
                                         className="bg-white text-xs h-8"
                                     />
                                 </div>

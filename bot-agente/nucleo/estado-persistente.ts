@@ -160,7 +160,7 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
     const lineas: string[] = []
 
     if (estado.grupoPineado?.nombre) {
-        lineas.push(`- Combo ya elegido por el cliente: "${estado.grupoPineado.nombre}". No vuelvas a listar opciones ni a preguntar cuál busca.`)
+        lineas.push(`- Combo ya elegido por el cliente: "${estado.grupoPineado.nombre}". Ya recibió la ficha y la foto. No vuelvas a listar opciones, no repitas la ficha completa ni reenvíes la foto, no preguntes cuál combo busca.`)
     }
     if (estado.packPresentado?.nombre) {
         const precio = estado.packPresentado.precio ? ` (${formatearPrecioAR(estado.packPresentado.precio)})` : ""

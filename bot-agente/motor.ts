@@ -301,8 +301,9 @@ export async function ejecutarTurnoAgente(
                 esConversacionEnCurso: historialPrevio.length > 0
             })
 
-            // Recordar que este kit suelto ya se presentó (ficha + foto): en los
-            // turnos siguientes el modelo no repite la ficha ni se reenvía la foto.
+            // Recordar que este kit/combo ya se presentó (ficha + foto): en los
+            // turnos siguientes el modelo no repite la ficha ni se reenvía la
+            // foto (extraerFotoDeBienvenida lo chequea contra este estado).
             if (matchPlantilla.tipo === "pack") {
                 await guardarEstadoConversacion(estadoKey, {
                     packPresentado: {
@@ -310,6 +311,10 @@ export async function ejecutarTurnoAgente(
                         nombre: matchPlantilla.nombre,
                         precio: matchPlantilla.precio || 0
                     }
+                }).catch(() => {})
+            } else if (matchPlantilla.tipo === "grupo") {
+                await guardarEstadoConversacion(estadoKey, {
+                    grupoPineado: { id: matchPlantilla.id, nombre: matchPlantilla.nombre }
                 }).catch(() => {})
             }
 

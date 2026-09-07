@@ -77,8 +77,17 @@ export async function POST(req: Request) {
         if (eventoNombre === "message_created" && conversationId > 0) {
             const mensajeEntrante = body.messages?.[0] || body
             const esEntrante = mensajeEntrante?.message_type === 0 || mensajeEntrante?.message_type === "incoming"
-            const esDeCliente = !mensajeEntrante?.private && mensajeEntrante?.sender?.type === "contact"
+            // Un mensaje `incoming` no privado ES del cliente. NO exigir
+            // `sender.type === "contact"`: el payload del webhook de Chatwoot no
+            // siempre trae ese campo (a diferencia de la API REST), y cuando
+            // faltaba, este bloque entero no se ejecutaba — el piloto nunca
+            // recibió un turno por webhook y la cola no drenaba (07/09).
+            const esDeCliente = !mensajeEntrante?.private
             const textoEntrante = (mensajeEntrante?.content || "").toString().trim()
+
+            console.log(
+                `[webhook bot-agente] conv=${conversationId} event=${eventoNombre} mtype=${JSON.stringify(mensajeEntrante?.message_type)} priv=${mensajeEntrante?.private} senderType=${JSON.stringify(mensajeEntrante?.sender?.type)} entrante=${esEntrante} cliente=${esDeCliente} texto=${textoEntrante.length}`
+            )
 
             if (esEntrante && esDeCliente && textoEntrante) {
                 try {

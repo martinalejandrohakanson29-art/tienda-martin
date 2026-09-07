@@ -51,10 +51,13 @@ const FRASES_CALL_CENTER: [RegExp, string][] = [
     [/responder cualquier otra duda que tengas[.,?!]?\s*(qué te parece\??)?/gi, "Cualquier duda nos avisás."],
     [/responder cualquier duda que tengas[.,?!]?\s*(qué te parece\??)?/gi, "Cualquier duda nos avisás."],
     [/qué te parece\??$/gi, ""],
-    [/te gustaría que te reserve uno\??/gi, "Cualquier cosa nos avisás."],
-    [/te gustaría que procedamos con la compra\??/gi, "Cualquier duda nos avisás."],
-    // Oferta inventada de cotizar/cobrar el envío: contradice el envío gratis.
-    [/(?:quer[eé]s|te gustar[ií]a) que te (?:pase|pas[ae]|calcule|cotice|averig[uü]e)\s+(?:el\s+|un\s+|lo que\s+)?(?:costo|precio|valor|monto|importe|cu[aá]nto (?:sale|cuesta))\s+d?e?l?\s*env[ií]o[^\n.?!]*\??/gi, ""],
+    // Pregunta-oferta de relleno al final del mensaje ("querés que te prepare el
+    // combo?", "querés que te pase el alias?", "te gustaría que procedamos?").
+    // Solo se recorta cuando es la ÚLTIMA oración: las preguntas del embudo
+    // ("a qué moto...?", "sabés si es corto o largo?") no son "querés que ...".
+    // Cuando definamos las ofertas permitidas, van por el `mensaje_para_agente`
+    // de la tool del paso de cierre, no acá.
+    [/(^|[.!?]\s+|\n+)\s*(?:quer[eé]s|querr[ií]as|te gustar[ií]a|podr[ií]as|podés)\s+que\s+(?:te|nos|le|lo|la|se\s+lo|se\s+la)?\s*[a-záéíóúñ]+[^\n?]*\?\s*$/gi, "$1"],
     [/no dudes en consultarme[.,?!]?/gi, "Cualquier duda me avisás."],
     [/quedo a tu (entera\s*)?disposición[.,?!]?/gi, ""],
     [/estoy a tu disposición[.,?!]?/gi, ""],

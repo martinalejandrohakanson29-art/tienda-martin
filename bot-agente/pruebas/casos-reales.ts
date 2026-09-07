@@ -407,6 +407,35 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        id: "caso-31-typo-con-anio-no-se-contradice",
+        titulo: "Moto con typo + año ('blizt 2025') en combo universal — confirma y sigue, no se contradice",
+        mensajeCliente: "A un blizt 2025",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola! El combo de TAPA CDI + CILINDRO 120 viene con la corona de regalo.\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\nA qué moto se lo querés poner?"
+            }
+        ],
+        resultadoEsperado: {
+            // Puede resolverlo por resolver_variante o consultar_compatibilidad;
+            // lo que importa es que NO se contradiga ni escale.
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Repro conv 3515 (07/09): "blizt" (typo de blitz) + "2025" (año, no
+            // cilindrada). El bot había confirmado compatible y al turno siguiente
+            // dijo "NO es compatible, alesar cárteres" citando una fila de OTRA
+            // moto (Honda Biz/Wave) del mismo combo. La Blitz SÍ es compatible.
+            // Debe resolver "blizt 2025" -> Motomel Blitz, confirmar (combo
+            // universal) y preguntar el recorrido. Prohibido cualquier palabra de
+            // incompatibilidad.
+            patronRespuesta: /^(?![\s\S]*(no (le |es )?(compat|va\b|entra)|incompat|alesar|c[aá]rter))[\s\S]*(corto|largo|recorrido)/i,
+            descripcionEsperada:
+                "'blizt 2025' resuelve a Motomel Blitz por tolerancia a transposición; el combo Tapa CDI es universal -> confirma y pregunta recorrido, sin contradecirse ni citar la incompatibilidad de otra moto."
+        }
+    },
+    {
         id: "caso-28-moto-incompatible-informa-y-cierra",
         titulo: "Moto incompatible: informa y cierra, sin inventar alternativas ni repreguntar la moto",
         mensajeCliente: "a una wave nf",

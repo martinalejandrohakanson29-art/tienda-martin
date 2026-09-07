@@ -76,6 +76,40 @@ export function distanciaLevenshtein(a: string, b: string): number {
     return matrix[b.length][a.length]
 }
 
+/**
+ * Distancia de edicion con transposicion de caracteres adyacentes
+ * (Optimal String Alignment / Damerau-Levenshtein restringido). A diferencia
+ * de la Levenshtein pura, un swap de dos letras pegadas cuesta 1, no 2:
+ * "blizt"->"blitz" = 1, "gilrea"->"gilera" = 1. Los typos por transposicion
+ * son de los mas comunes al tipear rapido en el celular.
+ */
+export function distanciaOSA(a: string, b: string): number {
+    if (a === b) return 0
+    const m = a.length
+    const n = b.length
+    if (m === 0) return n
+    if (n === 0) return m
+
+    const d: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+    for (let i = 0; i <= m; i++) d[i][0] = i
+    for (let j = 0; j <= n; j++) d[0][j] = j
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            const costo = a[i - 1] === b[j - 1] ? 0 : 1
+            d[i][j] = Math.min(
+                d[i - 1][j] + 1,
+                d[i][j - 1] + 1,
+                d[i - 1][j - 1] + costo
+            )
+            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+                d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+            }
+        }
+    }
+    return d[m][n]
+}
+
 /** Stop-words que no aportan al matching de un termino de catalogo. */
 export const STOP_WORDS_CATALOGO = new Set([
     "combo", "kit", "para", "con", "de", "del", "el", "la", "los", "las", "un", "una",

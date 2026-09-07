@@ -41,6 +41,8 @@ export interface ResultadoResolverVariante {
     incompatible?: boolean
     escalar?: boolean
     motivo?: string
+    /** Moto que quedó CONFIRMADA compatible en este paso (para la memoria de estado). */
+    moto_confirmada?: string
     mensaje_para_agente: string
 }
 
@@ -320,6 +322,9 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 encontrado: true,
                 resuelta: false,
                 grupo_id: grupo.id,
+                moto_confirmada: confirmadaCompatible
+                    ? (args.modelo_moto || compat.modelo_moto_detectado)
+                    : undefined,
                 mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta definir la variante. Preguntale/explicale exactamente esto: "${guia}"`
             }
         }

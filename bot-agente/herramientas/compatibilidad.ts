@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
-import { normalizarTexto, distanciaLevenshtein, puntuarItemCatalogo } from "../nucleo/texto"
+import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
 import { resolverMoto, listarCandidatos } from "../nucleo/motos"
 
 export interface ArgsCompatibilidad {
@@ -132,24 +132,20 @@ function resolverMotoCanonica(
         }
     }
 
-    // 3. Tolerancia ortográfica / Levenshtein sobre palabras clave distintivas
+    // 3. Tolerancia ortográfica (incluye swaps de letras pegadas) SOLO contra las
+    //    palabras del nombre oficial — NO contra los aliases (que ya traen typos
+    //    a propósito: hacer fuzzy sobre "bliz" hacía que "biz" (Honda Biz)
+    //    resolviera a Motomel Blitz). Ambas palabras 5+ para no colisionar
+    //    modelos cortos distintos.
+    const MARCAS_FUZZY = new Set(["honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller", "brava", "mondial", "guerrero", "bajaj"])
     for (const token of tokensCliente) {
-        if (token.length < 3 || !isNaN(Number(token))) continue
+        if (token.length < 5 || !isNaN(Number(token)) || MARCAS_FUZZY.has(token)) continue
         for (const m of motosCanonicas) {
-            for (const alias of m.aliases) {
-                const aNorm = normalizarTexto(alias)
-                const aWords = aNorm.split(" ").filter((w) => w.length >= 3 && isNaN(Number(w)))
-                for (const aw of aWords) {
-                    const dist = distanciaLevenshtein(token, aw)
-                    // Tolerancia: 1 letra de diferencia para palabras de 4+ caracteres
-                    if (dist === 1 && (token.length >= 4 || aw.length >= 4)) {
-                        return m
-                    }
-                    // Tolerancia: 2 letras de diferencia para palabras largas (6+ caracteres)
-                    if (dist === 2 && (token.length >= 6 && aw.length >= 6)) {
-                        return m
-                    }
-                }
+            const nWords = normalizarTexto(m.nombre_completo)
+                .split(" ")
+                .filter((w) => w.length >= 5 && isNaN(Number(w)) && !MARCAS_FUZZY.has(w))
+            for (const nw of nWords) {
+                if (distanciaOSA(token, nw) === 1) return m
             }
         }
     }
@@ -368,13 +364,18 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             const tokensReg = regMotoNorm.split(" ").filter((p) => p.length >= 2)
             const distintivasReg = tokensReg.filter((w) => !palabrasIgnoradas.has(w) && isNaN(Number(w)))
 
-            let score = 0
+            // `scoreMoto` acumula SOLO lo que matcheó de la moto (canónica, texto,
+            // palabra distintiva, tokens). El kit se puntúa aparte. Regla dura
+            // (Opción 3): una fila que solo matchea por el kit NO cuenta — sin
+            // esto, una fila de otra moto del mismo combo pasaba el piso y el bot
+            // confirmaba/negaba citando una moto que el cliente nunca nombró.
+            let scoreMoto = 0
 
             // 0. Coincidencia a través de Modelo Canónico y sus Alias
             if (motoCanonicaResuelta) {
                 const regCanonica = resolverMotoCanonica(reg.modelo_moto, motosCanonicas)
                 if (regCanonica && regCanonica.id === motoCanonicaResuelta.id) {
-                    score += 80 // Ambas resuelven exactamente al mismo modelo canónico oficial
+                    scoreMoto += 80 // Ambas resuelven exactamente al mismo modelo canónico oficial
                 } else {
                     const nombreCanNorm = normalizarTexto(motoCanonicaResuelta.nombre_completo)
                     const coincideCanonica =
@@ -386,29 +387,30 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                             return an.length >= 3 && (regMotoNorm === an || regMotoNorm.includes(an) || an.includes(regMotoNorm))
                         })
                     if (coincideCanonica) {
-                        score += 60 // Gran impulso: resuelve cualquier typo ("smach", "scua", etc.) al modelo oficial
+                        scoreMoto += 60 // Gran impulso: resuelve cualquier typo ("smach", "scua", etc.) al modelo oficial
                     }
                 }
             }
 
             // 1. Coincidencia exacta de texto
             if (motoBuscada === regMotoNorm) {
-                score += 50
+                scoreMoto += 50
             } else if (regMotoNorm.includes(motoBuscada) || motoBuscada.includes(regMotoNorm)) {
-                score += 25
+                scoreMoto += 25
             }
 
             // 2. Coincidencia de nombre distintivo del modelo (ej: "smash", "zb", "blitz", "trip", "crono", "energy", "rx", "s2", "skua")
             for (const d of distintivasBuscadas) {
                 if (distintivasReg.includes(d) || tokensReg.some((t) => t === d || t.includes(d) || d.includes(t))) {
-                    score += 30 // Puntuación muy alta por modelo clave
+                    scoreMoto += 30 // Puntuación muy alta por modelo clave
                 }
             }
 
             // 3. Palabras en común
             const coincidentes = tokensBuscados.filter((p) => tokensReg.includes(p))
-            score += coincidentes.length * 5
+            scoreMoto += coincidentes.length * 5
 
+            let score = scoreMoto
             if (args.kit_nombre_o_id && reg.kit) {
                 const kNorm = normalizarTexto(args.kit_nombre_o_id)
                 const rNorm = normalizarTexto(reg.kit)
@@ -416,7 +418,9 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 else if (rNorm.includes(kNorm) || kNorm.includes(rNorm)) score += 20
             }
 
-            if (score > maxScore && score >= 15) {
+            // La MOTO tiene que haber matcheado de verdad (canónica, texto,
+            // palabra distintiva o 5+ tokens). Solo el kit no alcanza.
+            if (scoreMoto >= 25 && score > maxScore && score >= 15) {
                 maxScore = score
                 mejorMatch = reg
             }

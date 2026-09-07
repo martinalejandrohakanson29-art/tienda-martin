@@ -23,7 +23,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
-import { normalizarTexto, distanciaLevenshtein } from "./texto"
+import { normalizarTexto, distanciaOSA } from "./texto"
 
 export interface MotoCanonica {
     id: number
@@ -103,16 +103,21 @@ function coincideFamilia(textoNorm: string, m: MotoCanonica): boolean {
     return false
 }
 
-/** Typo: alguna palabra del cliente esta a distancia 1-2 de una palabra de alias. */
+/**
+ * Typo: una palabra del cliente (5+ letras) está a distancia OSA 1 de una
+ * palabra del NOMBRE OFICIAL del modelo. Solo el nombre oficial, no los aliases
+ * (los aliases ya traen typos a propósito: hacer fuzzy sobre "bliz" hacía que
+ * "biz" (Honda Biz) resolviera a Motomel Blitz). Ambas 5+ para no colisionar
+ * modelos cortos distintos.
+ */
 function coincidePorTypo(textoNorm: string, m: MotoCanonica): boolean {
-    const tokens = textoNorm.split(" ").filter((w) => w.length >= 4 && isNaN(Number(w)))
+    const tokens = textoNorm.split(" ").filter((w) => w.length >= 5 && isNaN(Number(w)) && !MARCAS.has(w))
+    const nombreWords = normalizarTexto(m.nombre_completo)
+        .split(" ")
+        .filter((w) => w.length >= 5 && isNaN(Number(w)) && !MARCAS.has(w))
     for (const tok of tokens) {
-        for (const a of m.aliases) {
-            for (const aw of normalizarTexto(a).split(" ").filter((w) => w.length >= 4 && isNaN(Number(w)))) {
-                const d = distanciaLevenshtein(tok, aw)
-                if (d === 1) return true
-                if (d === 2 && tok.length >= 6 && aw.length >= 6) return true
-            }
+        for (const nw of nombreWords) {
+            if (distanciaOSA(tok, nw) === 1) return true // incluye swap de letras pegadas ("blizt"->"blitz")
         }
     }
     return false

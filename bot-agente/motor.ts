@@ -638,6 +638,9 @@ export async function ejecutarTurnoAgente(
                 if (r.resuelta && r.variante_pack_id) {
                     patchEstado.varianteResuelta = { packId: r.variante_pack_id, etiqueta: r.etiqueta || "", precio: r.precio || 0 }
                 }
+                if (r.moto_confirmada && patchEstado.motoConfirmada === undefined) {
+                    patchEstado.motoConfirmada = r.moto_confirmada
+                }
             }
             if (ej.nombre === "consultar_compatibilidad" && r.compatible === true && r.modelo_moto_detectado) {
                 patchEstado.motoConfirmada = r.modelo_moto_detectado

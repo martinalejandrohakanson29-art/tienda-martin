@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import {
+    botDentroDeHorario,
     chatwootConfig,
+    encolarRespuesta,
     enviarImagenChatwoot,
     enviarMensajeChatwoot,
     enviarNotaPrivadaChatwoot,
@@ -55,6 +57,22 @@ async function esperarCadenciaHumana(inicioTurnoMs: number) {
         Date.now() - inicioTurnoMs
     )
     if (restante > 0) await dormirMs(restante)
+}
+
+/**
+ * ¿El bot-agente está en modo global (responde TODAS las conversaciones, no solo
+ * las de `bot_agente_piloto`)? Se prende con la clave `bot_agente_global` en
+ * chat_config. Requiere que n8n esté apagado para no responder por duplicado.
+ */
+export async function botAgenteGlobalActivo(): Promise<boolean> {
+    try {
+        const filas = await prisma.$queryRaw<{ valor: string }[]>`
+            SELECT valor FROM chat_config WHERE clave = 'bot_agente_global' LIMIT 1
+        `
+        return filas[0]?.valor === "true"
+    } catch {
+        return false
+    }
 }
 
 export async function esConversacionPiloto(conversationId: number): Promise<boolean> {
@@ -207,6 +225,34 @@ async function procesarTurno(accountId: number, conversationId: number) {
         }
 
         if (!respuesta.mensajeFinal) return
+
+        // Fuera del horario comercial: mismo criterio que n8n -- la respuesta ya
+        // está generada, pero el mensaje que ve el cliente se difiere. Queda en
+        // `respuestas_pendientes` y el despachador la manda escalonada al abrir.
+        const dentroDeHorario = await botDentroDeHorario().catch(() => true)
+        if (!dentroDeHorario) {
+            await encolarRespuesta({
+                accountId,
+                conversationId,
+                contacto: null,
+                contenido: respuesta.mensajeFinal,
+                origen: "bot_agente",
+                fotoUrl: respuesta.fotoUrl,
+            }).catch((err) => console.error("[bot-agente-tiempo-real] no se pudo encolar fuera de horario:", err))
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: respuesta.mensajeFinal,
+                fotoUrl: respuesta.fotoUrl,
+                escaladoHumano: false,
+                herramientas: respuesta.herramientasEjecutadas,
+                latenciaMs: Date.now() - inicio,
+                resultadoEnvio: "encolado",
+                detalleEnvio: "Fuera del horario comercial: se manda al abrir el local",
+            })
+            return
+        }
 
         // Cadencia humana: demora deliberada para no responder al instante.
         await esperarCadenciaHumana(inicio)

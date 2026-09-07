@@ -179,6 +179,19 @@ function ahoraEnArgentina() {
     }
 }
 
+/** Hora Argentina actual (día de semana + minuto del día), expuesto para que
+ * otros módulos (ej. el bot-agente) apliquen el mismo criterio de horario. */
+export function ahoraArgentina() {
+    return ahoraEnArgentina()
+}
+
+/** ¿El local está dentro del horario comercial cargado en `bot_horario` ahora
+ * mismo? Lee la tabla y aplica `calcularDebeEstarAbierto`. */
+export async function botDentroDeHorario(): Promise<boolean> {
+    const horarios = await getHorarios()
+    return calcularDebeEstarAbierto(horarios, ahoraEnArgentina())
+}
+
 export function calcularDebeEstarAbierto(
     horarios: HorarioDia[],
     ahora: { diaSemana: number; minutosDelDia: number }

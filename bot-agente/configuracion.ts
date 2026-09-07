@@ -15,6 +15,8 @@ export interface ConfiguracionAgente {
     respuestaDelayActivo: boolean
     respuestaDelayMinSeg: number
     respuestaDelayMaxSeg: number
+    /** true = el bot-agente responde TODAS las conversaciones (no solo las de bot_agente_piloto). n8n debe estar apagado. */
+    botAgenteGlobal: boolean
 }
 
 export const CONFIG_DEFAULTS: ConfiguracionAgente = {
@@ -30,7 +32,8 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     debounceActivo: true,
     respuestaDelayActivo: true,
     respuestaDelayMinSeg: 45,
-    respuestaDelayMaxSeg: 75
+    respuestaDelayMaxSeg: 75,
+    botAgenteGlobal: false
 }
 
 /**
@@ -81,6 +84,8 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
         let respuestaDelayMaxSeg = parseSegPositivo("respuesta_delay_max_seg", CONFIG_DEFAULTS.respuestaDelayMaxSeg)
         if (respuestaDelayMaxSeg < respuestaDelayMinSeg) respuestaDelayMaxSeg = respuestaDelayMinSeg
 
+        const botAgenteGlobal = mapa.get("bot_agente_global") === "true"
+
         return {
             tonoEstilo,
             palabrasProhibidas,
@@ -94,7 +99,8 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             debounceActivo,
             respuestaDelayActivo,
             respuestaDelayMinSeg,
-            respuestaDelayMaxSeg
+            respuestaDelayMaxSeg,
+            botAgenteGlobal
         }
     } catch (err) {
         console.error("Error al leer chat_config, usando valores por defecto:", err)

@@ -162,8 +162,9 @@ Un punto medio moderno, robusto y limpio:
     - **Gate de horario** en `procesarTurno`: usa `bot_horario` vía `botDentroDeHorario()` (mismo criterio que n8n). Dentro de hora → responde con la demora humana. Fuera de hora → la respuesta ya generada se difiere a `respuestas_pendientes` (origen `bot_agente`) y el despachador existente (`despacharCola`) la manda escalonada al abrir.
     - En el webhook, con el global activo, cada mensaje entrante llama `sincronizarEstadoBot()` para reconciliar el horario y disparar ese despacho (antes lo gatillaba `/api/chatwoot/enviar` de n8n, que ya no se usa). **Requiere `horario_automatico` = true.**
   - **Demora humana** (Fase 5.5, ya en prod inerte): `procesarTurno` espera un objetivo aleatorio en `chat_config.respuesta_delay_min_seg`–`respuesta_delay_max_seg` (default 45–75, el pasaje lo fija en 50–70) **descontando lo que ya tardó el modelo**, así el total percibido cae siempre en esa ventana. Tras la espera re-chequea Chatwoot y no pisa si contestó un humano. Cálculo puro y testeable: `calcularEsperaCadenciaHumanaMs()` en `lib/bot-agente-tiempo-real.ts`.
+  - **`/bot off` en modo global = humano al mando** (resuelto 07/09): con n8n apagado, `/bot off` (switch de `/admin/chatwoot/chats-vivo`) y una respuesta pública de un humano real dejan la conversación fuera del alcance del motor. `procesarTurno` lo chequea con `calcularBotPausadoDesdeHistorial()` **solo si el global está activo** (en modo piloto `/bot off` sigue siendo el corte de n8n y no frena al motor). Re-chequeo después de la demora de cadencia humana por si el `/bot off` (nota privada) entró durante la espera. El reproceso aplica el mismo criterio y, en global, ya no marca `bot_agente_piloto` (redundante).
   - **Scripts** (todos en `scripts/`, se corren con `npx tsx`):
-    - `activar-bot-agente-global.ts` — prende la perilla + demora 50-70s + deja horario automático prendido y reconcilia. `--off` vuelve a n8n. `--estado` inspecciona. **NO toca n8n.**
+    - `activar-bot-agente-global.ts` — prende la perilla + demora 50-70s + deja horario automático prendido y reconcilia. `--off` vuelve a n8n. `--estado` inspecciona (ahora lista las conversaciones de piloto activas, que arrastran un `/bot off` viejo). `--reactivar-piloto` les manda `/bot on` y las desmarca (correr tras revisar que ningún humano las agarró de verdad). **NO toca n8n.**
     - `reprocesar-cola.ts` — drena `respuestas_pendientes` reprocesando cada conversación con el motor nuevo (reemplaza los borradores de n8n). `--estado`, `--forzar` (correr con el local cerrado).
     - `responder-conversaciones.ts <id> <id> ...` — responde conversaciones puntuales con el motor (misma demora + re-chequeo). Para las que quedaron colgadas sin mensaje nuevo.
     - `probar-demora-humana.ts` — chequeo del cálculo de la demora + dry-run read-only de punta a punta (`--conv <id>`).
@@ -172,10 +173,11 @@ Un punto medio moderno, robusto y limpio:
     1. Verificar que el deploy quedó sano.
     2. `npx tsx scripts/activar-bot-agente-global.ts` → perilla ON.
     3. Apagar workflow n8n "Respuestas chatwoot 2.0".
-    4. `npx tsx scripts/reprocesar-cola.ts` → la cola de la noche sale re-evaluada por el nuevo.
-    5. `npx tsx scripts/responder-conversaciones.ts <ids>` → conversaciones colgadas sin mensaje nuevo.
-    6. Mirar `/admin/chatwoot/chats-vivo` de cerca las primeras horas.
-  - **Riesgos conocidos:** el motor nuevo tiene menos kilómetros que n8n (ej: se contradice solo con el Kit 170/220 que no está migrado al catálogo — ofrece "alternativas" que no existen). El buffer de ráfaga vive en memoria: si el server reinicia mientras junta una ráfaga, esa ráfaga se pierde (la cola de horario lo mejora, no lo elimina). Es un cambio de golpe, no gradual.
+    4. Revisar el listado "piloto activo" que imprime el script; si hay y ningún humano las agarró de verdad: `npx tsx scripts/activar-bot-agente-global.ts --reactivar-piloto`.
+    5. `npx tsx scripts/reprocesar-cola.ts` → la cola de la noche sale re-evaluada por el nuevo.
+    6. `npx tsx scripts/responder-conversaciones.ts <ids>` → conversaciones colgadas sin mensaje nuevo.
+    7. Mirar `/admin/chatwoot/chats-vivo` de cerca las primeras horas.
+  - **Riesgos conocidos:** el motor nuevo tiene menos kilómetros que n8n (ej: se contradice solo con el Kit 170/220 que no está migrado al catálogo — ofrece "alternativas" que no existen). `calcularBotPausadoDesdeHistorial()` solo mira la última página de mensajes de Chatwoot: un `/bot off` muy viejo en una charla larguísima podría quedar fuera de página (mismo límite que ya tiene la reconciliación del espejo). El buffer de ráfaga vive en memoria: si el server reinicia mientras junta una ráfaga, esa ráfaga se pierde (la cola de horario lo mejora, no lo elimina). Es un cambio de golpe, no gradual.
 
 ---
 

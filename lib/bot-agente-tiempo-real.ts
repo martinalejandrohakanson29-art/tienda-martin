@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import {
     botDentroDeHorario,
+    calcularBotPausadoDesdeHistorial,
     chatwootConfig,
     encolarRespuesta,
     enviarImagenChatwoot,
@@ -57,6 +58,20 @@ async function esperarCadenciaHumana(inicioTurnoMs: number) {
         Date.now() - inicioTurnoMs
     )
     if (restante > 0) await dormirMs(restante)
+}
+
+/**
+ * ¿El equipo sacó al bot de esta conversación? Solo aplica en modo global: ahí
+ * `/bot off` (switch de /admin/chatwoot/chats-vivo) y una respuesta pública de
+ * un humano real significan "me hago cargo, callate" — y ya no está n8n para
+ * respetarlo. En modo piloto (global apagado) `/bot off` es el mecanismo de
+ * corte de n8n y NO debe frenar al motor nuevo, así que devolvemos false.
+ */
+async function debeCallarsePorPausaHumana(accountId: number, conversationId: number): Promise<boolean> {
+    const global = await botAgenteGlobalActivo().catch(() => false)
+    if (!global) return false
+    const pausado = await calcularBotPausadoDesdeHistorial(accountId, conversationId).catch(() => null)
+    return pausado === true
 }
 
 /**
@@ -167,6 +182,24 @@ async function procesarTurno(accountId: number, conversationId: number) {
     const inicio = Date.now()
 
     try {
+        // El equipo puede sacar al bot de esta charla (switch de
+        // /admin/chatwoot/chats-vivo -> `/bot off`, o una respuesta pública de un
+        // humano). En modo global ya no está n8n para respetarlo: lo hacemos acá.
+        if (await debeCallarsePorPausaHumana(accountId, conversationId)) {
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: null,
+                escaladoHumano: false,
+                herramientas: [],
+                latenciaMs: Date.now() - inicio,
+                resultadoEnvio: "salteado",
+                detalleEnvio: "Bot en pausa para esta conversación (/bot off o un humano del equipo se hizo cargo)",
+            })
+            return
+        }
+
         const transcripcion = await traerTranscripcion(accountId, conversationId)
 
         // Chequeo de seguridad: si justo mientras esperaba el debounce alguien
@@ -289,6 +322,22 @@ async function procesarTurno(accountId: number, conversationId: number) {
             })
             return
         }
+        // Durante la demora el equipo pudo tocar `/bot off` (nota privada, que no
+        // aparece como mensaje saliente en el chequeo de arriba). Re-chequeo.
+        if (await debeCallarsePorPausaHumana(accountId, conversationId)) {
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: respuesta.mensajeFinal,
+                escaladoHumano: false,
+                herramientas: respuesta.herramientasEjecutadas,
+                latenciaMs: Date.now() - inicio,
+                resultadoEnvio: "salteado",
+                detalleEnvio: "El bot quedó en pausa durante la demora de cadencia humana (/bot off o un humano se hizo cargo)",
+            })
+            return
+        }
 
         try {
             await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })
@@ -391,6 +440,7 @@ export type ResultadoReprocesoConv = {
  */
 export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Promise<ResultadoReprocesoConv[]> {
     const resumen: ResultadoReprocesoConv[] = []
+    const global = await botAgenteGlobalActivo().catch(() => false)
 
     const oldest = await prisma.$queryRaw<
         { conversation_id: bigint; account_id: bigint; contacto: string | null; creado_en: Date }[]
@@ -420,6 +470,13 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             const ultimo = transcripcion[transcripcion.length - 1]
             if (ultimo.saliente) {
                 resumen.push({ conversationId, contacto, resultado: "salteado", detalle: "ya respondido en Chatwoot" })
+                continue
+            }
+
+            // Mismo criterio que el vivo: en global, `/bot off` o un humano que
+            // ya se hizo cargo dejan la conversación fuera del alcance del motor.
+            if (global && (await calcularBotPausadoDesdeHistorial(accountId, conversationId).catch(() => null)) === true) {
+                resumen.push({ conversationId, contacto, resultado: "salteado", detalle: "bot en pausa (/bot off o un humano se hizo cargo)" })
                 continue
             }
 
@@ -507,9 +564,14 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
 
             // Esta conversacion queda respondida por bot-agente: que los
             // mensajes siguientes tambien los conteste el motor nuevo, no n8n.
-            await activarPilotoBotAgente(conversationId, accountId, quien).catch((err) =>
-                console.error(`[bot-agente-tiempo-real] no se pudo activar el piloto en conv ${conversationId}:`, err)
-            )
+            // En modo global el webhook ya enruta TODO al motor nuevo, así que
+            // marcar el piloto (y mandar `/bot off`) es redundante y encima
+            // dispararía el gate de pausa en el próximo turno.
+            if (!global) {
+                await activarPilotoBotAgente(conversationId, accountId, quien).catch((err) =>
+                    console.error(`[bot-agente-tiempo-real] no se pudo activar el piloto en conv ${conversationId}:`, err)
+                )
+            }
 
             resumen.push({ conversationId, contacto, resultado: "enviado", detalle: respuesta.mensajeFinal.slice(0, 200) })
         } catch (err: any) {

@@ -2,9 +2,11 @@
  * Pasa el bot de WhatsApp del sistema viejo (n8n) al nuevo (bot-agente) para
  * TODAS las conversaciones.
  *
- *   npx tsx scripts/activar-bot-agente-global.ts          # activar
- *   npx tsx scripts/activar-bot-agente-global.ts --off     # volver atrás (n8n)
- *   npx tsx scripts/activar-bot-agente-global.ts --estado  # solo mostrar estado
+ *   npx tsx scripts/activar-bot-agente-global.ts                    # activar
+ *   npx tsx scripts/activar-bot-agente-global.ts --off              # volver atrás (n8n)
+ *   npx tsx scripts/activar-bot-agente-global.ts --estado           # solo mostrar estado
+ *   npx tsx scripts/activar-bot-agente-global.ts --reactivar-piloto # /bot on a las charlas
+ *                                                                   # que venían del piloto
  *
  * Qué hace al activar:
  *  - chat_config.bot_agente_global = true  -> el webhook manda TODAS las
@@ -18,16 +20,24 @@
  */
 import "dotenv/config"
 import { guardarAjusteConfig, obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
-import { getEstadoBot, setHorarioAutomatico, botDentroDeHorario } from "@/lib/chatwoot-bot"
+import { getEstadoBot, setHorarioAutomatico, botDentroDeHorario, enviarNotaPrivadaChatwoot } from "@/lib/chatwoot-bot"
 import { sincronizarEstadoBot } from "@/lib/chatwoot-cola"
 import { prisma } from "@/lib/prisma"
 
+async function pilotoActivo(): Promise<number[]> {
+    const filas = await prisma.$queryRaw<any[]>`
+        SELECT conversation_id FROM bot_agente_piloto WHERE activo = true ORDER BY actualizado_en DESC
+    `
+    return filas.map((f) => Number(f.conversation_id))
+}
+
 async function mostrarEstado() {
-    const [cfg, estado, abierto, pend] = await Promise.all([
+    const [cfg, estado, abierto, pend, piloto] = await Promise.all([
         obtenerConfiguracionAgente(),
         getEstadoBot(),
         botDentroDeHorario(),
         prisma.$queryRaw<any[]>`SELECT count(*)::int n FROM respuestas_pendientes WHERE estado = 'pendiente'`,
+        pilotoActivo(),
     ])
     console.log("\n--- estado ---")
     console.log(`bot_agente_global : ${cfg.botAgenteGlobal}`)
@@ -35,12 +45,47 @@ async function mostrarEstado() {
     console.log(`horario_automatico: ${estado.horarioAutomatico}   bot_estado.encendido: ${estado.encendido}`)
     console.log(`ahora el local    : ${abierto ? "ABIERTO (responde en vivo)" : "CERRADO (difiere a la cola)"}`)
     console.log(`cola pendiente    : ${pend[0].n}`)
+    console.log(`piloto activo     : ${piloto.length}${piloto.length ? "  -> " + piloto.join(", ") : ""}`)
+    if (piloto.length) {
+        console.log("  OJO: estas venian del piloto con `/bot off` puesto. En modo global ese `/bot off`")
+        console.log("  hace que el motor nuevo NO les conteste (lo lee como 'un humano se hizo cargo').")
+        console.log("  Revisalas y, salvo las que un humano realmente agarro, corre:")
+        console.log("    npx tsx scripts/activar-bot-agente-global.ts --reactivar-piloto")
+    }
 }
 
 async function main() {
     const args = process.argv.slice(2)
 
     if (args.includes("--estado")) {
+        await mostrarEstado()
+        await prisma.$disconnect()
+        return
+    }
+
+    if (args.includes("--reactivar-piloto")) {
+        const filas = await prisma.$queryRaw<any[]>`
+            SELECT conversation_id, account_id FROM bot_agente_piloto WHERE activo = true
+        `
+        if (filas.length === 0) {
+            console.log("No hay conversaciones de piloto activas.")
+            await prisma.$disconnect()
+            return
+        }
+        console.log(`Mandando /bot on a ${filas.length} conversaciones de piloto y desmarcandolas...`)
+        for (const f of filas) {
+            const cid = Number(f.conversation_id)
+            const acc = Number(f.account_id) || 1
+            try {
+                await enviarNotaPrivadaChatwoot({ accountId: acc, conversationId: cid, content: "/bot on" })
+                await prisma.$executeRaw`
+                    UPDATE bot_agente_piloto SET activo = false, actualizado_en = now() WHERE conversation_id = ${cid}
+                `
+                console.log(`  conv ${cid}: /bot on enviado, piloto desmarcado`)
+            } catch (e: any) {
+                console.error(`  conv ${cid}: ERROR ${e.message || e}`)
+            }
+        }
         await mostrarEstado()
         await prisma.$disconnect()
         return

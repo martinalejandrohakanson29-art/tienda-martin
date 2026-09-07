@@ -27,7 +27,7 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     openaiApiKey: "",
     deepseekApiKey: "",
     openrouterApiKey: "",
-    proveedorActivo: "openai:gpt-4o-mini",
+    proveedorActivo: "openai:gpt-5-mini",
     debounceSegundos: 60,
     debounceActivo: true,
     respuestaDelayActivo: true,

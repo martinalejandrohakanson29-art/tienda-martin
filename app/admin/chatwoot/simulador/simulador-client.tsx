@@ -74,9 +74,9 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
     // Opciones del modelo / API
     const [apiKey, setApiKey] = useState("")
     const [presetSeleccionado, setPresetSeleccionado] = useState(
-        configInicial.proveedorActivo || "openai:gpt-4o-mini"
+        configInicial.proveedorActivo || "openai:gpt-5-mini"
     )
-    const [modelo, setModelo] = useState("gpt-4o-mini")
+    const [modelo, setModelo] = useState("gpt-5-mini")
     const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1")
     const [esPersonalizado, setEsPersonalizado] = useState(false)
 
@@ -125,10 +125,10 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
 
     // Cargar preset y apiKey de localStorage o de la configuración del servidor
     useEffect(() => {
-        const savedPreset = localStorage.getItem("rm_simulador_preset") || configInicial.proveedorActivo || "openai:gpt-4o-mini"
+        const savedPreset = localStorage.getItem("rm_simulador_preset") || configInicial.proveedorActivo || "openai:gpt-5-mini"
         setPresetSeleccionado(savedPreset)
 
-        let initialModel = "gpt-4o-mini"
+        let initialModel = "gpt-5-mini"
         let initialBaseUrl = "https://api.openai.com/v1"
         let initialKey = ""
 
@@ -222,7 +222,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
             setTempApiKey(apiKey)
         } else {
             setTempProveedor("openai")
-            setTempModelo(modelo || "gpt-4o-mini")
+            setTempModelo(modelo || "gpt-5-mini")
             setTempBaseUrl(baseUrl || "https://api.openai.com/v1")
             setTempApiKey(localStorage.getItem("rm_simulador_openai_key") || config.openaiApiKey || apiKey || "")
         }
@@ -281,7 +281,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
         }
         setGuardandoModelo(true)
         try {
-            let nuevoPreset = "openai:gpt-4o-mini"
+            let nuevoPreset = "openai:gpt-5-mini"
             if (tempProveedor === "deepseek") {
                 nuevoPreset = `deepseek:${tempModelo}`
                 localStorage.setItem("rm_simulador_deepseek_key", tempApiKey.trim())

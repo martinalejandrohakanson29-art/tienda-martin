@@ -5,11 +5,14 @@ import { prisma } from "@/lib/prisma"
 const soloIds = process.argv.slice(2).filter((a) => a.startsWith("caso-"))
 
 async function main() {
-    const modelo = process.env.BANCO_MODELO || "deepseek-v4-flash"
-    const baseUrl = process.env.BANCO_BASEURL || "https://api.deepseek.com"
-    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.BANCO_APIKEY
+    // Por defecto NO se pasa nada: el motor resuelve modelo + API key desde
+    // `chat_config` -> corre EXACTAMENTE con lo de produccion (hoy openai:gpt-5-mini).
+    // Para probar otro modelo puntual: BANCO_MODELO / BANCO_BASEURL / BANCO_APIKEY.
+    const modelo = process.env.BANCO_MODELO || undefined
+    const baseUrl = process.env.BANCO_BASEURL || undefined
+    const apiKey = process.env.BANCO_APIKEY || undefined
 
-    console.log(`Modelo: ${modelo} @ ${baseUrl}\n`)
+    console.log(`Modelo: ${modelo || "(chat_config -> produccion)"}\n`)
     const rep = await correrBancoPruebas({ modelo, baseUrl, apiKey }, soloIds.length ? soloIds : undefined)
 
     for (const r of rep.resultados) {

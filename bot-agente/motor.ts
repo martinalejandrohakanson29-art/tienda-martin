@@ -23,7 +23,7 @@ export interface OpcionesEjecucion {
     estadoKey?: string
 }
 
-const DEFAULT_MODEL = "gpt-4o-mini" // Rápido, económico y con excelente soporte de tool calling
+const DEFAULT_MODEL = "gpt-5-mini" // Modelo de producción (chat_config.proveedor_activo)
 const DEFAULT_BASE_URL = "https://api.openai.com/v1"
 const MAX_PASOS_REACT = 6
 const TIMEOUT_LLM_MS = 30_000
@@ -209,12 +209,12 @@ export async function ejecutarTurnoAgente(
     let baseUrl = opciones.baseUrl
 
     if (!modelo || !baseUrl) {
-        const prov = config.proveedorActivo || "openai:gpt-4o-mini"
+        const prov = config.proveedorActivo || "openai:gpt-5-mini"
         if (prov.startsWith("deepseek:")) {
             modelo = modelo || prov.replace("deepseek:", "") || "deepseek-v4-flash"
             baseUrl = baseUrl || "https://api.deepseek.com"
         } else if (prov.startsWith("openai:")) {
-            modelo = modelo || prov.replace("openai:", "") || "gpt-4o-mini"
+            modelo = modelo || prov.replace("openai:", "") || "gpt-5-mini"
             baseUrl = baseUrl || "https://api.openai.com/v1"
         } else if (prov.startsWith("openrouter:")) {
             modelo = modelo || prov.replace("openrouter:", "")

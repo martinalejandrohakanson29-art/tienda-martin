@@ -2,7 +2,7 @@ import { MensajeChat, RespuestaAgente, HerramientaEjecutadaInfo, LlamadaHerramie
 import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import {
@@ -456,6 +456,28 @@ export async function ejecutarTurnoAgente(
 
             const partes = partesRaw.length > 0 ? partesRaw : [contenido.trim()]
 
+            // Guardrail duro: si el modelo filtró razonamiento interno, inglés o
+            // la guía cruda de una herramienta, NO se manda nada dudoso al
+            // cliente — se escala a un humano y silencio total.
+            if (pareceRespuestaNoConfiable(contenido)) {
+                console.warn("[motor] respuesta no confiable (posible fuga de razonamiento/inglés), escalando:", contenido.slice(0, 200))
+                await escalarAHumano({
+                    motivo: "respuesta_no_confiable",
+                    resumen_consulta: `El bot generó una respuesta sospechosa (posible fuga de instrucciones internas). Última consulta del cliente: ${mensajeUsuario.slice(0, 300)}`,
+                    conversation_id: opciones.conversationId,
+                }).catch((err) => console.error("[motor] fallo al persistir escalado por respuesta no confiable:", err))
+                await persistirEstado()
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas,
+                    escaladoHumano: true,
+                    motivoEscalado: "respuesta_no_confiable",
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: tokensTotales,
+                }
+            }
+
             const mensajesFinalesSanitizados: string[] = []
             for (let i = 0; i < partes.length; i++) {
                 const parte = partes[i]
@@ -465,7 +487,7 @@ export async function ejecutarTurnoAgente(
                     permitirBro: config.permitirBro,
                     esConversacionEnCurso: esEnCurso
                 })
-                if (sanitizado.textoLimpio) {
+                if (sanitizado.textoLimpio && !pareceRespuestaNoConfiable(sanitizado.textoLimpio)) {
                     mensajesFinalesSanitizados.push(sanitizado.textoLimpio)
                 }
             }

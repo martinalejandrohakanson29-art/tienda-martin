@@ -83,6 +83,70 @@ export interface ResultadoSanitizacion {
     alertasIA: boolean
 }
 
+// ── Guardrail duro: respuestas que NO pueden llegar al cliente ────────────────
+// El modelo a veces filtra su razonamiento interno, texto en inglés, o el
+// `mensaje_para_agente` crudo de una herramienta (guía operativa, no un mensaje
+// para el cliente). Si algo de esto aparece, NO se limpia — se descarta la
+// respuesta entera y se escala a un humano (ver motor.ts).
+
+// Palabras que son inequívocamente inglés (no se cruzan con español).
+const PALABRAS_INGLES = [
+    "the", "and", "you", "your", "with", "this", "that", "for", "are", "will",
+    "should", "must", "need", "before", "after", "follow", "instruction",
+    "instructions", "require", "requires", "required", "tool", "tools", "system",
+    "answer", "customer", "already", "then", "now", "call", "please", "note",
+    "here", "there", "which", "what", "when", "cannot", "can't", "don't", "i'll",
+    "i've", "it's", "let", "me", "provide", "response", "message", "user",
+]
+
+// Frases meta / de proceso que delatan que es guía interna, no un mensaje.
+const FRASES_META_INTERNAS = [
+    /\bel sistema (requiere|necesita|me pide|exige|indica) que/i,
+    /\b(the system|i) (requires?|need|should|must|will|have to|am required)/i,
+    /\bfollow the (tool|system)/i,
+    /\bbefore answering\b/i,
+    /\b(resolver_variante|consultar_compatibilidad|consultar_catalogo_y_precios|consultar_info_negocio|escalar_a_humano|mensaje_para_agente)\b/i,
+    /\bPASO \d+\b/,
+    /CAT[ÁA]LOGO OFICIAL/i,
+    /ATENCI[ÓO]N VENDEDOR/i,
+    /REGLA (DE MOSTRADOR|COMERCIAL|ESTRICTA|DURA|DEL PROYECTO)/i,
+    /TEXTO PARA (ENVIAR|EL CLIENTE)/i,
+    /\bmensaje oficial cargado\b/i,
+    /\b(escal[áa]|escalar) (en silencio|al equipo|a un humano)\b/i,
+    /\[(silencio|dry-?run|piloto|reproceso|escalad)/i,
+    /\bPROHIBIDO\b/,
+    /\bel cliente (ya eligi|todav[ií]a no|a[uú]n no|no mencion|no dio|no aclar)/i,
+]
+
+/**
+ * ¿La respuesta parece razonamiento interno / inglés / guía de herramienta en
+ * vez de un mensaje real para el cliente? Si devuelve true, la respuesta se
+ * descarta y se escala — NO se intenta limpiar.
+ */
+export function pareceRespuestaNoConfiable(texto: string | null | undefined): boolean {
+    const t = (texto || "").trim()
+    if (!t) return false
+
+    for (const rx of FRASES_META_INTERNAS) {
+        if (rx.test(t)) return true
+    }
+
+    // Detección de inglés: 2+ palabras inequívocamente inglesas como tokens.
+    const tokens = t.toLowerCase().match(/[a-z']+/g) || []
+    const setIngles = new Set(PALABRAS_INGLES)
+    let hits = 0
+    const vistas = new Set<string>()
+    for (const tok of tokens) {
+        if (setIngles.has(tok) && !vistas.has(tok)) {
+            vistas.add(tok)
+            hits++
+            if (hits >= 2) return true
+        }
+    }
+
+    return false
+}
+
 export interface OpcionesSanitizacion {
     palabrasProhibidas?: string[]
     permitirBro?: boolean

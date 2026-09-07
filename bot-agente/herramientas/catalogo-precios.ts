@@ -93,6 +93,7 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
     nombre: string
     mensajeBienvenida: string
     fotoUrl?: string | null
+    precio?: number
 } | null> {
     const textoNorm = normalizarTexto(mensajeUsuario)
     if (!textoNorm || textoNorm.length < 5) return null
@@ -128,9 +129,9 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
 
         // 2. Revisar packs
         const packs = await prisma.$queryRaw<
-            { id: number; nombre: string; mensaje_bienvenida: string; foto_url: string | null; plantillas_bienvenida: string | null; plantillas_referral: string | null }[]
+            { id: number; nombre: string; precio: any; mensaje_bienvenida: string; foto_url: string | null; plantillas_bienvenida: string | null; plantillas_referral: string | null }[]
         >`
-            SELECT id, nombre, mensaje_bienvenida, foto_url, plantillas_bienvenida, plantillas_referral
+            SELECT id, nombre, precio, mensaje_bienvenida, foto_url, plantillas_bienvenida, plantillas_referral
             FROM chat_packs
             WHERE activo = true
         `
@@ -149,7 +150,8 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
                     id: p.id,
                     nombre: p.nombre,
                     mensajeBienvenida: p.mensaje_bienvenida,
-                    fotoUrl: p.foto_url
+                    fotoUrl: p.foto_url,
+                    precio: Number(p.precio) || 0
                 }
             }
         }

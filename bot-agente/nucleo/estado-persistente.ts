@@ -22,6 +22,12 @@ export interface EstadoConversacion {
     grupoPineado?: { id: number; nombre: string } | null
     varianteResuelta?: { packId: number; etiqueta: string; precio: number } | null
     motoConfirmada?: string | null
+    /**
+     * Pack SUELTO (kit sin grupo de variantes) que ya se le presentó al cliente
+     * con su ficha y su foto. Evita repetir la bienvenida y reenviar la imagen
+     * en los turnos siguientes. Equivalente a `grupoPineado` pero para packs.
+     */
+    packPresentado?: { id: number; nombre: string; precio: number } | null
 }
 
 const VACIO: EstadoConversacion = {}
@@ -37,10 +43,14 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 variante_etiqueta: string | null
                 variante_precio: any
                 moto_confirmada: string | null
+                pack_presentado_id: number | null
+                pack_presentado_nombre: string | null
+                pack_presentado_precio: any
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
-                   variante_etiqueta, variante_precio, moto_confirmada
+                   variante_etiqueta, variante_precio, moto_confirmada,
+                   pack_presentado_id, pack_presentado_nombre, pack_presentado_precio
             FROM chat_conversacion_estado
             WHERE clave = ${clave}
             LIMIT 1
@@ -59,7 +69,14 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                       precio: Number(f.variante_precio) || 0
                   }
                 : null,
-            motoConfirmada: f.moto_confirmada || null
+            motoConfirmada: f.moto_confirmada || null,
+            packPresentado: f.pack_presentado_id
+                ? {
+                      id: f.pack_presentado_id,
+                      nombre: f.pack_presentado_nombre || "",
+                      precio: Number(f.pack_presentado_precio) || 0
+                  }
+                : null
         }
     } catch (err) {
         console.warn("[estado] no se pudo leer chat_conversacion_estado:", (err as any)?.message)
@@ -79,7 +96,8 @@ export async function guardarEstadoConversacion(
     if (
         patch.grupoPineado === undefined &&
         patch.varianteResuelta === undefined &&
-        patch.motoConfirmada === undefined
+        patch.motoConfirmada === undefined &&
+        patch.packPresentado === undefined
     ) {
         return
     }
@@ -91,13 +109,15 @@ export async function guardarEstadoConversacion(
             varianteResuelta:
                 patch.varianteResuelta !== undefined ? patch.varianteResuelta : actual.varianteResuelta,
             motoConfirmada:
-                patch.motoConfirmada !== undefined ? patch.motoConfirmada : actual.motoConfirmada
+                patch.motoConfirmada !== undefined ? patch.motoConfirmada : actual.motoConfirmada,
+            packPresentado:
+                patch.packPresentado !== undefined ? patch.packPresentado : actual.packPresentado
         }
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -105,6 +125,9 @@ export async function guardarEstadoConversacion(
                 variante_etiqueta = EXCLUDED.variante_etiqueta,
                 variante_precio = EXCLUDED.variante_precio,
                 moto_confirmada = EXCLUDED.moto_confirmada,
+                pack_presentado_id = EXCLUDED.pack_presentado_id,
+                pack_presentado_nombre = EXCLUDED.pack_presentado_nombre,
+                pack_presentado_precio = EXCLUDED.pack_presentado_precio,
                 actualizado_en = NOW()`,
             clave,
             merged.grupoPineado?.id ?? null,
@@ -112,7 +135,10 @@ export async function guardarEstadoConversacion(
             merged.varianteResuelta?.packId ?? null,
             merged.varianteResuelta?.etiqueta ?? null,
             merged.varianteResuelta?.precio ?? null,
-            merged.motoConfirmada ?? null
+            merged.motoConfirmada ?? null,
+            merged.packPresentado?.id ?? null,
+            merged.packPresentado?.nombre ?? null,
+            merged.packPresentado?.precio ?? null
         )
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)
@@ -135,6 +161,12 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
 
     if (estado.grupoPineado?.nombre) {
         lineas.push(`- Combo ya elegido por el cliente: "${estado.grupoPineado.nombre}". No vuelvas a listar opciones ni a preguntar cuál busca.`)
+    }
+    if (estado.packPresentado?.nombre) {
+        const precio = estado.packPresentado.precio ? ` (${formatearPrecioAR(estado.packPresentado.precio)})` : ""
+        lineas.push(
+            `- Kit ya presentado al cliente: "${estado.packPresentado.nombre}"${precio}. Ya recibió la ficha completa y la foto. Si da su moto o hace una consulta puntual, confirmá corto y andá al cierre — NO repitas la ficha, la lista de "qué incluye" ni reenvíes la foto.`
+        )
     }
     if (estado.motoConfirmada) {
         lineas.push(`- Moto ya confirmada compatible: "${estado.motoConfirmada}". No la vuelvas a preguntar ni consultes compatibilidad de nuevo.`)

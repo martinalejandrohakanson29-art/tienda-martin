@@ -101,7 +101,9 @@ function extraerFotoDeBienvenida(
 
         const grupo = grupos[0]
         const pack = packs[0]
-        const yaPineadoAntes = grupo && estadoConv.grupoPineado?.id === grupo.id
+        const yaPineadoAntes =
+            (grupo && estadoConv.grupoPineado?.id === grupo.id) ||
+            (pack && estadoConv.packPresentado?.id === pack.id)
 
         if (!yaPineadoAntes) {
             const foto = grupo?.foto_url || pack?.foto_url
@@ -201,6 +203,11 @@ export async function ejecutarTurnoAgente(
 ): Promise<RespuestaAgente> {
     const inicio = Date.now()
 
+    // Clave de la memoria persistente del embudo (session_id en el simulador,
+    // conversationId en producción). Se resuelve acá arriba para que las ramas
+    // que devuelven temprano (match de plantilla) también puedan escribir estado.
+    const estadoKey = opciones.estadoKey || (opciones.conversationId != null ? String(opciones.conversationId) : undefined)
+
     // Cargar configuración editable desde base de datos
     const config = await obtenerConfiguracionAgente()
 
@@ -294,6 +301,18 @@ export async function ejecutarTurnoAgente(
                 esConversacionEnCurso: historialPrevio.length > 0
             })
 
+            // Recordar que este kit suelto ya se presentó (ficha + foto): en los
+            // turnos siguientes el modelo no repite la ficha ni se reenvía la foto.
+            if (matchPlantilla.tipo === "pack") {
+                await guardarEstadoConversacion(estadoKey, {
+                    packPresentado: {
+                        id: matchPlantilla.id,
+                        nombre: matchPlantilla.nombre,
+                        precio: matchPlantilla.precio || 0
+                    }
+                }).catch(() => {})
+            }
+
             return {
                 mensajeFinal: sanitizado.textoLimpio,
                 mensajesFinales: [sanitizado.textoLimpio],
@@ -356,7 +375,6 @@ export async function ejecutarTurnoAgente(
     // Bloques que se inyectan SOLO cuando aplican (mantienen el prompt base chico):
     //  - situaciones: reglas de casos puntuales (chat_situaciones) que pegan con este mensaje
     //  - memoria de estado: lo que ya quedó resuelto en la conversación (moto, variante...)
-    const estadoKey = opciones.estadoKey || (opciones.conversationId != null ? String(opciones.conversationId) : undefined)
     const [situaciones, estadoConv] = await Promise.all([
         detectarSituaciones(mensajeUsuario).catch(() => []),
         cargarEstadoConversacion(estadoKey)
@@ -599,6 +617,19 @@ export async function ejecutarTurnoAgente(
             const r = ej.resultado || {}
             if (ej.nombre === "consultar_catalogo_y_precios" && Array.isArray(r.grupos) && r.grupos.length === 1 && (r.packs?.length ?? 0) === 0) {
                 patchEstado.grupoPineado = { id: r.grupos[0].id, nombre: r.grupos[0].nombre }
+            }
+            // Un solo pack suelto resuelto (kit sin grupo): queda "presentado".
+            if (
+                ej.nombre === "consultar_catalogo_y_precios" &&
+                Array.isArray(r.packs) && r.packs.length === 1 &&
+                (r.grupos?.length ?? 0) === 0 &&
+                !r.packs[0].grupo_id
+            ) {
+                patchEstado.packPresentado = {
+                    id: r.packs[0].id,
+                    nombre: r.packs[0].nombre,
+                    precio: Number(r.packs[0].precio) || 0
+                }
             }
             if (ej.nombre === "resolver_variante") {
                 if (r.grupo_id && patchEstado.grupoPineado === undefined) {

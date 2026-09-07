@@ -53,6 +53,8 @@ const FRASES_CALL_CENTER: [RegExp, string][] = [
     [/qué te parece\??$/gi, ""],
     [/te gustaría que te reserve uno\??/gi, "Cualquier cosa nos avisás."],
     [/te gustaría que procedamos con la compra\??/gi, "Cualquier duda nos avisás."],
+    // Oferta inventada de cotizar/cobrar el envío: contradice el envío gratis.
+    [/(?:quer[eé]s|te gustar[ií]a) que te (?:pase|pas[ae]|calcule|cotice|averig[uü]e)\s+(?:el\s+|un\s+|lo que\s+)?(?:costo|precio|valor|monto|importe|cu[aá]nto (?:sale|cuesta))\s+d?e?l?\s*env[ií]o[^\n.?!]*\??/gi, ""],
     [/no dudes en consultarme[.,?!]?/gi, "Cualquier duda me avisás."],
     [/quedo a tu (entera\s*)?disposición[.,?!]?/gi, ""],
     [/estoy a tu disposición[.,?!]?/gi, ""],

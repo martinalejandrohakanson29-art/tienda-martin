@@ -42,10 +42,10 @@ Un punto medio moderno, robusto y limpio:
    * **Sin signos de apertura `¿` en las preguntas:** Solo signo de cierre `?` (ej: *"Decime qué modelo de moto tenés?"*).
    * **Nunca revelar que es una IA** ni hablar en tercera persona impersonal.
 
-4. **Cero riesgo para Producción:**
-   * El workflow actual en n8n continúa en producción sin interrupciones.
-   * Este agente se desarrolla y prueba en un entorno aislado dentro de la aplicación con un simulador dedicado (`/admin/chatwoot/simulador`).
-   * No se conecta a números reales hasta superar con éxito todo el banco de pruebas.
+4. **Cero riesgo para Producción** (regla original — superada a partir de Fase 6 con OK explícito de Martín, 07/09):
+   * Hasta Fase 5 el workflow de n8n siguió en producción sin interrupciones y el agente solo tocó conversaciones del piloto.
+   * En Fase 6 se hace el pasaje: bot-agente responde TODAS las conversaciones y n8n se apaga. Plan B siempre disponible (`activar-bot-agente-global.ts --off` + reactivar n8n).
+   * El simulador (`/admin/chatwoot/simulador`) y el banco de pruebas siguen siendo el entorno de prueba.
 
 5. **Simplicidad y Modularidad:**
    * Código TypeScript limpio, tipado y autocontenido.
@@ -150,9 +150,32 @@ Un punto medio moderno, robusto y limpio:
   - `chat_packs.sinonimos_variante text[]`: match determinista variante↔texto para cualquier eje (recorrido, color, mm).
   - `chat_conversacion_estado`: memoria persistente del embudo; se acabó el parseo de historial con regex (`estado-embudo.ts` eliminado).
   - Campo "sinónimos" por variante en `/admin/chatwoot/catalogo`.
-- [ ] **Fase 5: Prueba Piloto Controlada**
-  - Conexión con un número o conversación de prueba en Chatwoot (el webhook debe pasar `conversationId` en `OpcionesEjecucion`).
-  - Monitoreo de latencias y consumo de tokens.
+- [x] **Fase 5: Prueba Piloto Controlada** (06/09)
+  - Webhook real: `app/api/chatwoot/webhook/route.ts` → `lib/bot-agente-tiempo-real.ts` (`manejarMensajeEntrantePiloto` con debounce de ráfaga en Map en memoria → `procesarTurno`).
+  - Piloto acotado por la tabla `bot_agente_piloto` (activo=true); n8n queda pausado en esa conversación con nota `/bot off`.
+  - `reprocesarColaPendienteConBotAgente()` migra la cola vieja de n8n conversación por conversación.
+  - Turnos reales → `bot_agente_turnos_reales` (para inspección).
+- [ ] **Fase 6: Pasaje global (n8n → bot-agente para TODAS las conversaciones)** — código listo 07/09, activación pendiente
+  - **Estado:** el código está pusheado pero **INERTE** (`chat_config.bot_agente_global` = false). Sin activar, todo se comporta como en Fase 5.
+  - **Qué agrega el modo global** (`bot_agente_global` = true):
+    - El webhook manda TODA conversación entrante al motor nuevo (no solo `bot_agente_piloto`).
+    - **Gate de horario** en `procesarTurno`: usa `bot_horario` vía `botDentroDeHorario()` (mismo criterio que n8n). Dentro de hora → responde con la demora humana. Fuera de hora → la respuesta ya generada se difiere a `respuestas_pendientes` (origen `bot_agente`) y el despachador existente (`despacharCola`) la manda escalonada al abrir.
+    - En el webhook, con el global activo, cada mensaje entrante llama `sincronizarEstadoBot()` para reconciliar el horario y disparar ese despacho (antes lo gatillaba `/api/chatwoot/enviar` de n8n, que ya no se usa). **Requiere `horario_automatico` = true.**
+  - **Demora humana** (Fase 5.5, ya en prod inerte): `procesarTurno` espera un objetivo aleatorio en `chat_config.respuesta_delay_min_seg`–`respuesta_delay_max_seg` (default 45–75, el pasaje lo fija en 50–70) **descontando lo que ya tardó el modelo**, así el total percibido cae siempre en esa ventana. Tras la espera re-chequea Chatwoot y no pisa si contestó un humano. Cálculo puro y testeable: `calcularEsperaCadenciaHumanaMs()` en `lib/bot-agente-tiempo-real.ts`.
+  - **Scripts** (todos en `scripts/`, se corren con `npx tsx`):
+    - `activar-bot-agente-global.ts` — prende la perilla + demora 50-70s + deja horario automático prendido y reconcilia. `--off` vuelve a n8n. `--estado` inspecciona. **NO toca n8n.**
+    - `reprocesar-cola.ts` — drena `respuestas_pendientes` reprocesando cada conversación con el motor nuevo (reemplaza los borradores de n8n). `--estado`, `--forzar` (correr con el local cerrado).
+    - `responder-conversaciones.ts <id> <id> ...` — responde conversaciones puntuales con el motor (misma demora + re-chequeo). Para las que quedaron colgadas sin mensaje nuevo.
+    - `probar-demora-humana.ts` — chequeo del cálculo de la demora + dry-run read-only de punta a punta (`--conv <id>`).
+  - **Apagar n8n:** workflow "Respuestas chatwoot 2.0" (id `s7EpPTjNFy6iCclg`) — es el único activo. Desde n8n (o MCP `unpublish_workflow`). Plan B: reactivarlo + `activar-bot-agente-global.ts --off`.
+  - **Secuencia de activación (hacer cerca de abrir el local):**
+    1. Verificar que el deploy quedó sano.
+    2. `npx tsx scripts/activar-bot-agente-global.ts` → perilla ON.
+    3. Apagar workflow n8n "Respuestas chatwoot 2.0".
+    4. `npx tsx scripts/reprocesar-cola.ts` → la cola de la noche sale re-evaluada por el nuevo.
+    5. `npx tsx scripts/responder-conversaciones.ts <ids>` → conversaciones colgadas sin mensaje nuevo.
+    6. Mirar `/admin/chatwoot/chats-vivo` de cerca las primeras horas.
+  - **Riesgos conocidos:** el motor nuevo tiene menos kilómetros que n8n (ej: se contradice solo con el Kit 170/220 que no está migrado al catálogo — ofrece "alternativas" que no existen). El buffer de ráfaga vive en memoria: si el server reinicia mientras junta una ráfaga, esa ráfaga se pierde (la cola de horario lo mejora, no lo elimina). Es un cambio de golpe, no gradual.
 
 ---
 

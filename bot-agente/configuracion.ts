@@ -28,7 +28,7 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     deepseekApiKey: "",
     openrouterApiKey: "",
     proveedorActivo: "openai:gpt-5",
-    debounceSegundos: 60,
+    debounceSegundos: 15, // ventana para agrupar una ráfaga del cliente antes de responder (era 60: mucha espera; 3 en "off": partía ráfagas y las respuestas se pisaban)
     debounceActivo: true,
     respuestaDelayActivo: true,
     respuestaDelayMinSeg: 45,
@@ -68,7 +68,7 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
         const proveedorActivo = mapa.get("proveedor_activo") || CONFIG_DEFAULTS.proveedorActivo
 
         const debounceSegundosRaw = mapa.get("debounce_segundos")
-        const debounceSegundos = debounceSegundosRaw ? parseInt(debounceSegundosRaw, 10) || 60 : CONFIG_DEFAULTS.debounceSegundos
+        const debounceSegundos = debounceSegundosRaw ? parseInt(debounceSegundosRaw, 10) || 15 : CONFIG_DEFAULTS.debounceSegundos
         const debounceActivo = mapa.has("debounce_activo")
             ? mapa.get("debounce_activo") === "true"
             : CONFIG_DEFAULTS.debounceActivo

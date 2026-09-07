@@ -228,15 +228,16 @@ Un punto medio moderno, robusto y limpio:
 
 ---
 
-## 7. Manejo de Ráfagas y Debounce de Cadencia Humana (60s)
+## 7. Manejo de Ráfagas y Debounce de Cadencia Humana
 
 - **Objetivo doble:**
   1. **Evitar respuestas inmediatas sospechosas:** Un bot que responde en 1 segundo revela inmediatamente que no es un asesor humano.
   2. **Consolidar ráfagas de mensajes:** Permitir que el cliente escriba varios mensajes consecutivos (ej. 3 seguidos con consultas de producto, envíos y dudas de confianza) sin interrumpirlo a mitad de camino ni pisar respuestas.
 - **Implementación técnica:**
-  - Configuración persistente en `chat_config` (`debounce_segundos: 60`, `debounce_activo: true`).
-  - Cada mensaje entrante dentro de la ventana de 60 segundos se suma al buffer y **reinicia la cuenta regresiva**.
-  - Al cumplirse 60 segundos de silencio, los mensajes se unen mediante `\n` y se entregan en un solo turno al motor ReAct.
+  - Configuración persistente en `chat_config` (`debounce_segundos: 15`, `debounce_activo: true`). **15s** (era 60: demasiada espera para el cliente). Con `debounce_activo=false` igual se agrupan 5s — **NO menos**: con 3s las ráfagas reales de WhatsApp (mensajes 5-10s aparte) se partían en turnos separados y las respuestas se pisaban entre sí (turno A "De una!" salía y hacía `salteado` a los turnos B/C que tenían la respuesta real — conv 3579, 07/09).
+  - Cada mensaje entrante dentro de la ventana se suma al buffer y **reinicia la cuenta regresiva**.
+  - Al cumplirse la ventana de silencio, los mensajes se unen mediante `\n` y se entregan en un solo turno al motor ReAct.
+  - **Residual conocido:** si los mensajes de la ráfaga vienen con huecos MAYORES a la ventana, se siguen partiendo en turnos y el guard "no pisar una respuesta más nueva" puede tirar el turno con la mejor respuesta. El fix de verdad sería un chequeo semántico ("¿quedó una pregunta del cliente sin contestar?") — no se hizo todavía.
   - En `/admin/chatwoot/simulador`: Switch para activar/desactivar el debounce a demanda durante pruebas, contador regresivo en vivo y botón `⚡ Responder ya` para despacho anticipado.
 
 ---

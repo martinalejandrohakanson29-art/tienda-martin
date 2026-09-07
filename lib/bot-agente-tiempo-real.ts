@@ -457,7 +457,9 @@ export async function manejarMensajeEntrantePiloto(accountId: number, conversati
     if (!texto || !texto.trim()) return
 
     const config = await obtenerConfiguracionAgente().catch(() => null)
-    const debounceMs = config?.debounceActivo ? (config.debounceSegundos || 60) * 1000 : 3000
+    // Con debounce off igual agrupamos 5s: 3s partía ráfagas reales de WhatsApp
+    // en turnos separados y las respuestas se pisaban entre sí (conv 3579).
+    const debounceMs = config?.debounceActivo ? (config.debounceSegundos || 15) * 1000 : 5000
 
     const existente = buffers.get(conversationId)
     if (existente) {

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { formatearPrecioAR } from "./texto"
 
 /**
  * ESTADO PERSISTENTE DEL EMBUDO (memoria explícita, agnóstica al eje de variante)
@@ -140,7 +141,7 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
     }
     if (estado.varianteResuelta?.etiqueta) {
         const precio = estado.varianteResuelta.precio
-            ? ` ($${estado.varianteResuelta.precio.toLocaleString("es-AR")})`
+            ? ` (${formatearPrecioAR(estado.varianteResuelta.precio)})`
             : ""
         lineas.push(
             `- Variante YA resuelta: "${estado.varianteResuelta.etiqueta}"${precio}. El producto y el precio final están 100% determinados: pasá directo al cierre. No preguntes la moto, la variante ni consultes nada más.`

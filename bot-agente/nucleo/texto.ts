@@ -32,6 +32,24 @@ export function normalizarTexto(txt: string | null | undefined): string {
         .trim()
 }
 
+/**
+ * Precio en formato es-AR de la casa: `$175.000` (sin decimales, sin espacio
+ * despues del signo). `Intl.NumberFormat` con `currency: ARS` mete un espacio
+ * duro (U+00A0) entre el `$` y el numero ("$ 175.000") que en WhatsApp se ve mal
+ * y no es el estilo de Revolucion. Unico formateador de precios del proyecto.
+ */
+export function formatearPrecioAR(monto: number | null | undefined): string {
+    const n = Number(monto) || 0
+    const entero = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n)
+    return `$${entero}`
+}
+
+/** Colapsa `$ 175.000` (con espacio o nbsp tras el signo) -> `$175.000` en un texto libre. */
+export function normalizarSignoPeso(txt: string): string {
+    // `\s` en JS ya incluye el espacio duro U+00A0 que mete Intl.NumberFormat
+    return (txt || "").replace(/\$\s+(?=\d)/g, "$")
+}
+
 /** Distancia de edicion de Levenshtein (para tolerar typos de modelos de moto). */
 export function distanciaLevenshtein(a: string, b: string): number {
     if (a === b) return 0

@@ -181,6 +181,12 @@ export function sanitizarMensajeSalida(
         }
     }
 
+    // 0.b Normalizar el signo de peso: "$ 175.000" / "$ 175.000" -> "$175.000" (estilo es-AR de la casa)
+    if (/\$[\s ]+\d/.test(limpio)) {
+        limpio = limpio.replace(/\$[\s ]+(?=\d)/g, "$")
+        modificado = true
+    }
+
     // 1. Quitar signos de apertura obligatoriamente (¿ y ¡)
     if (/[¿¡]/.test(limpio)) {
         limpio = limpio.replace(/[¿¡]/g, "")

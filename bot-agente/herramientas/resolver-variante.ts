@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
-import { normalizarTexto, puntuarItemCatalogo } from "../nucleo/texto"
+import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
 import { consultarCompatibilidad } from "./compatibilidad"
 
 /**
@@ -157,7 +157,7 @@ async function motoReconocida(texto: string): Promise<boolean> {
 }
 
 function formatearPrecio(n: number): string {
-    return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
+    return formatearPrecioAR(n)
 }
 
 function palabrasEtiqueta(etiqueta: string): string[] {

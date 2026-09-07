@@ -277,14 +277,21 @@ export async function ejecutarTurnoAgente(
         }
     }
 
-    // Si es el primer mensaje de la conversación, verificar si coincide con una plantilla de anuncio de Instagram
-    if (historialPrevio.length === 0) {
+    // Match con una plantilla de anuncio de Instagram: INNEGOCIABLE — el
+    // mensaje publicitario llega tal cual del anuncio y se responde con la
+    // bienvenida oficial en automático (costo $0), SIEMPRE, no solo en el primer
+    // mensaje. Un cliente que re-clickea un anuncio (el mismo u otro producto)
+    // en medio de la charla también dispara su bienvenida.
+    {
         const { detectarPlantillaAnuncio } = await import("./herramientas/catalogo-precios")
         const matchPlantilla = await detectarPlantillaAnuncio(mensajeUsuario)
         if (matchPlantilla && matchPlantilla.mensajeBienvenida) {
             const sanitizado = sanitizarMensajeSalida(matchPlantilla.mensajeBienvenida, {
                 palabrasProhibidas: config.palabrasProhibidas,
-                permitirBro: config.permitirBro
+                permitirBro: config.permitirBro,
+                // Mid-charla: sacar el saludo inicial de la plantilla, pero el
+                // cuerpo (kit, precio, pregunta) sale igual.
+                esConversacionEnCurso: historialPrevio.length > 0
             })
 
             return {

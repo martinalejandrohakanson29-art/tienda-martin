@@ -3,7 +3,7 @@ import { guardarConversacionesEnEspejo } from "@/lib/chatwoot-chats-vivo"
 import { emitirEventoChatwoot, type EventoChatwootEnVivo } from "@/lib/chatwoot-events"
 import { calcularBotPausadoDesdeHistorial, chatwootConfig } from "@/lib/chatwoot-bot"
 import { botAgenteGlobalActivo, esConversacionPiloto, manejarMensajeEntrantePiloto } from "@/lib/bot-agente-tiempo-real"
-import { sincronizarEstadoBot } from "@/lib/chatwoot-cola"
+import { empujarCola } from "@/lib/chatwoot-cola"
 
 export const dynamic = "force-dynamic"
 
@@ -75,13 +75,16 @@ export async function POST(req: Request) {
             const textoEntrante = (mensajeEntrante?.content || "").toString().trim()
 
             if (esEntrante && esDeCliente && textoEntrante) {
+                // Cada mensaje entrante del cliente es una oportunidad de drenar
+                // la cola diferida: reconcilia el horario y, si el bot está
+                // encendido y hay pendientes, arranca el despacho. Reemplaza el
+                // gatillo que antes daba n8n vía /api/chatwoot/enviar y cubre el
+                // caso de que el flip de horario no lo agarre ningún request.
+                void empujarCola()
+
                 Promise.all([botAgenteGlobalActivo(), esConversacionPiloto(conversationId)])
                     .then(([global, piloto]) => {
                         if (!global && !piloto) return
-                        // Cada mensaje entrante reconcilia el horario y, si acaba
-                        // de abrir, dispara el despacho de la cola diferida (con
-                        // n8n apagado, /api/chatwoot/enviar ya no hace de gatillo).
-                        if (global) void sincronizarEstadoBot().catch(() => {})
                         return manejarMensajeEntrantePiloto(1, conversationId, textoEntrante)
                     })
                     .catch((err) => console.error("[webhook chatwoot] error en bot-agente:", err))

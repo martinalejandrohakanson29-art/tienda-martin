@@ -3,6 +3,7 @@ import {
     botDentroDeHorario,
     calcularBotPausadoDesdeHistorial,
     chatwootConfig,
+    chatwootFetch,
     encolarRespuesta,
     enviarImagenChatwoot,
     enviarMensajeChatwoot,
@@ -125,7 +126,7 @@ type MensajeRaw = { contenido: string; privado: boolean; saliente: boolean; crea
 
 async function traerTranscripcion(accountId: number, conversationId: number): Promise<MensajeRaw[]> {
     const { api, token } = chatwootConfig()
-    const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
+    const res = await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
         headers: { api_access_token: token },
         cache: "no-store",
     })

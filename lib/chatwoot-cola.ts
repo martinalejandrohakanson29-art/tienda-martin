@@ -48,10 +48,36 @@ export type ResultadoDespacho = {
 // El servidor corre en un solo proceso (mismo supuesto que el store del resumen
 // en PDF), así que este flag alcanza para no despachar la misma cola dos veces
 // en paralelo — por ejemplo si alguien apreta ON dos veces seguidas.
-let despachando = false
+//
+// Se guarda el MOMENTO en que se tomó, no un booleano: si un envío se cuelga
+// (fetch sin respuesta) el `finally` nunca corre y el flag quedaba pegado en
+// true para siempre, matando la cola hasta un redeploy (pasó el 07/09). Pasado
+// `DESPACHO_MAX_MS` asumimos que ese run murió y dejamos arrancar otro.
+const DESPACHO_MAX_MS = 5 * 60 * 1000
+let despachandoDesde: number | null = null
+
+function despachoVivo(): boolean {
+    return despachandoDesde !== null && Date.now() - despachandoDesde < DESPACHO_MAX_MS
+}
 
 export function despachoEnCurso() {
-    return despachando
+    return despachoVivo()
+}
+
+/**
+ * Solo `despacharCola` pone filas en `enviando`. Si acá no hay ningún despacho
+ * vivo, toda fila en `enviando` es de un run que murió (proceso reiniciado o
+ * envío colgado): vuelve a `pendiente` para que se reintente en orden.
+ */
+async function recuperarFilasTrabadas(): Promise<void> {
+    try {
+        const n = await prisma.$executeRaw`
+            UPDATE respuestas_pendientes SET estado = 'pendiente' WHERE estado = 'enviando'
+        `
+        if (Number(n) > 0) console.warn(`[cola] ${n} fila(s) recuperadas de 'enviando' trabado`)
+    } catch (error) {
+        console.error("[cola] no se pudieron recuperar filas trabadas:", error)
+    }
 }
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -79,9 +105,16 @@ async function reclamarSiguiente(): Promise<RespuestaPendiente | null> {
 }
 
 export async function despacharCola(opciones: { forzar?: boolean } = {}): Promise<ResultadoDespacho> {
-    if (despachando) return { yaCorria: true, enviados: 0, descartados: 0, errores: 0 }
+    if (despachoVivo()) return { yaCorria: true, enviados: 0, descartados: 0, errores: 0 }
+    if (despachandoDesde !== null) {
+        console.warn(`[cola] el despacho anterior no cerró en ${DESPACHO_MAX_MS}ms; se asume muerto y se arranca otro`)
+    }
 
-    despachando = true
+    despachandoDesde = Date.now()
+    // Antes de reclamar la primera fila: rescatar las que quedaron en `enviando`
+    // de un run que murió (si llegamos acá, no hay despacho vivo).
+    await recuperarFilasTrabadas()
+
     const resultado: ResultadoDespacho = { enviados: 0, descartados: 0, errores: 0 }
     // Una sola consulta a Chatwoot por conversación por corrida.
     const estadoPorConversacion = new Map<string, EstadoConversacionDesde>()
@@ -194,7 +227,7 @@ export async function despacharCola(opciones: { forzar?: boolean } = {}): Promis
             }
         }
     } finally {
-        despachando = false
+        despachandoDesde = null
     }
 
     return resultado
@@ -222,4 +255,24 @@ export async function sincronizarEstadoBot(): Promise<EstadoBot> {
     }
     const { cambio, ...estado } = resultado
     return estado
+}
+
+/**
+ * Empujón oportunista a la cola: reconcilia el horario y, si el bot está
+ * encendido y hay algo pendiente sin un despacho vivo, lo arranca. Se llama
+ * desde el webhook con CADA mensaje entrante del cliente — reemplaza al ping
+ * que antes hacía n8n vía /api/chatwoot/enviar y cubre el caso de que el flip
+ * de horario no lo haya agarrado ningún request en vuelo (pasó el 07/09).
+ */
+export async function empujarCola(): Promise<void> {
+    try {
+        const { encendido } = await sincronizarEstadoBot()
+        if (!encendido || despachoEnCurso()) return
+        const filas = await prisma.$queryRaw<{ n: bigint }[]>`
+            SELECT count(*)::bigint n FROM respuestas_pendientes WHERE estado IN ('pendiente', 'enviando')
+        `
+        if (Number(filas[0]?.n ?? 0) > 0) despacharColaEnSegundoPlano()
+    } catch (error) {
+        console.error("[cola] empujarCola falló:", error)
+    }
 }

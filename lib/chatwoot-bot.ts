@@ -57,6 +57,19 @@ export function chatwootConfig() {
 }
 
 /**
+ * `fetch` contra Chatwoot con timeout duro. Sin esto una conexión colgada
+ * congela para siempre a quien la espera; y si el que espera es el bucle del
+ * despachador de la cola (la app corre en un solo proceso), corta TODOS los
+ * envíos hasta un redeploy. Pasó el 07/09: la fila 1274 quedó en `enviando` y
+ * la cola no drenó más durante horas.
+ */
+const CHATWOOT_FETCH_TIMEOUT_MS = Number(process.env.CHATWOOT_FETCH_TIMEOUT_MS || 15000)
+
+export async function chatwootFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    return fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(CHATWOOT_FETCH_TIMEOUT_MS) })
+}
+
+/**
  * Token de un agente humano (no el del bot) para que la app pueda responder
  * las notas privadas de escalado en nombre del equipo. Tiene que ser una
  * identidad de Chatwoot distinta al usuario Bot: el nodo "¿Es respuesta de mi
@@ -239,7 +252,7 @@ export async function enviarMensajeChatwoot(params: {
     if (!token) throw new Error("Falta CHATWOOT_API_TOKEN en el entorno de la app")
 
     const url = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
-    const res = await fetch(url, {
+    const res = await chatwootFetch(url, {
         method: "POST",
         headers: { api_access_token: token, "Content-Type": "application/json" },
         body: JSON.stringify({ content: params.content, message_type: "outgoing" }),
@@ -268,7 +281,7 @@ export async function enviarMensajeManualChatwoot(params: {
     if (!token) throw new Error("Falta token de Chatwoot en el entorno de la app")
 
     const url = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
-    const res = await fetch(url, {
+    const res = await chatwootFetch(url, {
         method: "POST",
         headers: { api_access_token: token, "Content-Type": "application/json" },
         body: JSON.stringify({ content: params.content, message_type: "outgoing", private: false }),
@@ -334,7 +347,7 @@ export async function enviarImagenChatwoot(params: {
     form.append("attachments[]", new Blob([bytes], { type: contentType }), `kit.${extension}`)
 
     const chatwootUrl = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
-    const res = await fetch(chatwootUrl, {
+    const res = await chatwootFetch(chatwootUrl, {
         method: "POST",
         headers: { api_access_token: token },
         body: form,
@@ -365,7 +378,7 @@ export async function enviarNotaPrivadaChatwoot(params: {
     if (!token) throw new Error("Falta CHATWOOT_ADMIN_API_TOKEN en el entorno de la app")
 
     const url = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
-    const res = await fetch(url, {
+    const res = await chatwootFetch(url, {
         method: "POST",
         headers: { api_access_token: token, "Content-Type": "application/json" },
         body: JSON.stringify({ content: params.content, message_type: "outgoing", private: true }),
@@ -414,7 +427,7 @@ export async function estadoConversacionDesde(
     if (!token) return { humanoRespondio: false, botRespondio: false }
 
     try {
-        const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
+        const res = await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
             headers: { api_access_token: token },
             cache: "no-store",
         })
@@ -468,7 +481,7 @@ export async function calcularBotPausadoDesdeHistorial(
     if (!token) return null
 
     try {
-        const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
+        const res = await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
             headers: { api_access_token: token },
             cache: "no-store",
         })
@@ -552,7 +565,7 @@ export async function getMensajesConversacion(
 
     // no-store: sin esto Next 14 sirve el hilo desde el Data Cache y el panel en
     // vivo nunca ve los mensajes nuevos al hacer polling.
-    const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
+    const res = await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
         headers: { api_access_token: token },
         cache: "no-store",
     })
@@ -630,7 +643,7 @@ export async function marcarConversacionLeidaEnChatwoot(
     const { api, token } = chatwootConfig()
     if (!token) return
     try {
-        await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/update_last_seen`, {
+        await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}/update_last_seen`, {
             method: "POST",
             headers: { api_access_token: token, "Content-Type": "application/json" },
             body: JSON.stringify({}),
@@ -697,7 +710,7 @@ export async function telefonoDeConversacion(
     if (!token) return null
 
     try {
-        const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}`, {
+        const res = await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}`, {
             headers: { api_access_token: token },
             cache: "no-store",
         })

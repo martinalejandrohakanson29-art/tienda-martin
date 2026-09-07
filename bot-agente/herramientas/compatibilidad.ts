@@ -506,17 +506,16 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
 
                 const lineasGuia = [
                     `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}`,
-                    `ESTADO: Moto compatible confirmada. Falta definir la variante para cotizar con precisión.`,
-                    `- Pregunta inicial para consultar la variante: "${pLimpia}"`
+                    `Falta saber la variante (el recorrido) para cotizar. Seguí la charla con el cliente sobre esto, con tu voz:`,
+                    pLimpia
                 ]
 
                 if (reintentoLimpio) {
-                    lineasGuia.push(`- GUÍA TÉCNICA DE TALLER (SI EL CLIENTE DUDA, PREGUNTA CÓMO SABER O DICE "NO SÉ"):`)
-                    lineasGuia.push(`  Explicá amablemente cómo revisarlo usando este tip técnico oficial:`)
-                    lineasGuia.push(`  "${reintentoLimpio}"`)
+                    lineasGuia.push(`Si el cliente no sabe o pregunta cómo darse cuenta, explicale con tu voz:`)
+                    lineasGuia.push(reintentoLimpio)
                 }
 
-                lineasGuia.push(`- Si el cliente ya había indicado la variante en turnos previos: confirmá el precio directo y ofrecé coordinar la compra sin volver a preguntar.`)
+                lineasGuia.push(`Si el cliente ya había indicado la variante antes, confirmá el precio directo sin volver a preguntar.`)
 
                 return {
                     encontrado: true,

@@ -485,7 +485,34 @@ export async function ejecutarTurnoAgente(
             // la guía cruda de una herramienta, NO se manda nada dudoso al
             // cliente — se escala a un humano y silencio total.
             if (pareceRespuestaNoConfiable(contenido)) {
-                console.warn("[motor] respuesta no confiable (posible fuga de razonamiento/inglés), escalando:", contenido.slice(0, 200))
+                console.warn("[motor] respuesta no confiable (posible fuga de razonamiento/inglés):", contenido.slice(0, 200))
+
+                // Red de seguridad: si alguna herramienta de este turno dejó una
+                // `pregunta_directa` (la pregunta_variante lista para enviar),
+                // mandamos ESA en vez de quedarnos mudos + escalar.
+                const preguntaDirecta = herramientasEjecutadas
+                    .map((e) => e.resultado?.pregunta_directa)
+                    .find((p): p is string => typeof p === "string" && p.trim().length > 0)
+
+                if (preguntaDirecta && !pareceRespuestaNoConfiable(preguntaDirecta)) {
+                    const s = sanitizarMensajeSalida(preguntaDirecta, {
+                        palabrasProhibidas: config.palabrasProhibidas,
+                        permitirBro: config.permitirBro,
+                        esConversacionEnCurso: historialPrevio.length > 0,
+                    })
+                    if (s.textoLimpio) {
+                        await persistirEstado()
+                        return {
+                            mensajeFinal: s.textoLimpio,
+                            mensajesFinales: [s.textoLimpio],
+                            herramientasEjecutadas,
+                            escaladoHumano: false,
+                            latenciaMs: Date.now() - inicio,
+                            tokensUsados: tokensTotales,
+                        }
+                    }
+                }
+
                 await escalarAHumano({
                     motivo: "respuesta_no_confiable",
                     resumen_consulta: `El bot generó una respuesta sospechosa (posible fuga de instrucciones internas). Última consulta del cliente: ${mensajeUsuario.slice(0, 300)}`,

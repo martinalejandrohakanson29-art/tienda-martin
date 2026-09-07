@@ -436,6 +436,33 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        id: "caso-32-no-filtrar-guia-interna",
+        titulo: "No filtrar la guía interna de la herramienta al cliente (fuga conv 3034)",
+        mensajeCliente: "El cilindro es negro",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola como va! el combo de TAPA CDI + CILINDRO 120 + corona de regalo.\nRecorrido corto $175.000 y largo $189.000, envío gratis!\nA qué moto se lo querés poner?"
+            },
+            { rol: "user", contenido: "Buenos días tengo una Zanella zb 110 lt" },
+            { rol: "assistant", contenido: "Genial, le va bien a tu moto. Sabés si tu moto es recorrido corto o largo?" },
+            { rol: "user", contenido: "Cómo me doy cuenta eso??" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Repro conv 3034 (07/09): el bot mandó al cliente TEXTUAL la guía de
+            // resolver_variante ("Fijate el contrato: tenes que preguntarle
+            // exactamente ..."). Prohibido que aparezca cualquier palabra meta;
+            // debe explicar cómo mirar el recorrido con voz propia.
+            patronRespuesta: /^(?![\s\S]*(contrato|exactamente esto|preguntale al cliente|seg[uú][ií] la gu[ií]a|mensaje_para_agente|gu[ií]a t[eé]cnica de taller|para el (vendedor|agente)))[\s\S]*(corto|largo|recorrido|cilindro|corona|diente)/i,
+            descripcionEsperada:
+                "Con 'no sé cómo me fijo', debe explicar la guía técnica (color del cilindro / dientes de la corona) con su propia voz, SIN citar ninguna instrucción interna."
+        }
+    },
+    {
         id: "caso-28-moto-incompatible-informa-y-cierra",
         titulo: "Moto incompatible: informa y cierra, sin inventar alternativas ni repreguntar la moto",
         mensajeCliente: "a una wave nf",

@@ -116,6 +116,18 @@ const FRASES_META_INTERNAS = [
     /\[(silencio|dry-?run|piloto|reproceso|escalad)/i,
     /\bPROHIBIDO\b/,
     /\bel cliente (ya eligi|todav[ií]a no|a[uú]n no|no mencion|no dio|no aclar)/i,
+    // Fuga de la guía interna en español: el modelo NARRA la instrucción en vez
+    // de ejecutarla ("Fijate el contrato: tenes que preguntarle exactamente...").
+    /\b(fijate|seg[uú][ií]|revis[áa]|respet[áa]|mir[áa])\s+(en\s+)?(el|la|este|esta)\s+(contrato|gu[ií]a|instrucci[oó]n|pauta|consigna)\b/i,
+    /\bcontrato de grounding\b/i,
+    /\b(el|seg[uú]n el|este)\s+contrato\s+(dice|indica|pide|exige|me pide)/i,
+    /\b(ten[eé]s|tengo|deb[eo]|hay)\s+que\s+(preguntar|decir|explicar|responder|contestar)(le|selo)\b/i,
+    /\b(pregunt|explic|dec|contest)[aá](le|selo)?\s+(exactamente|textual(mente)?|tal\s+cual|literal(mente)?)\b/i,
+    /\bgu[ií]a t[eé]cnica( de taller)?\b/i,
+    /\bpregunta[_ ](inicial|variante)\b/i,
+    /(^|\n|\.\s)\s*(nota|mensaje|texto|gu[ií]a|instrucci[oó]n|indicaci[oó]n)?\s*para\s+(el\s+|un\s+)?(agente|vendedor|equipo)\b/i,
+    /\bel\s+(paso|estado)\s+(del\s+embudo|actual\s+del\s+embudo)\b/i,
+    /\bno\s+(le\s+)?vuelvas\s+a\s+preguntar\b/i,
 ]
 
 /**

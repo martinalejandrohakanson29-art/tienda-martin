@@ -43,6 +43,12 @@ export interface ResultadoResolverVariante {
     motivo?: string
     /** Moto que quedó CONFIRMADA compatible en este paso (para la memoria de estado). */
     moto_confirmada?: string
+    /**
+     * Pregunta lista para enviar tal cual al cliente (la `pregunta_variante` del
+     * grupo). Red de seguridad: si el modelo filtra la guía interna en vez de
+     * redactar, el motor manda ESTA en lugar de quedarse mudo.
+     */
+    pregunta_directa?: string
     mensaje_para_agente: string
 }
 
@@ -325,7 +331,8 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 moto_confirmada: confirmadaCompatible
                     ? (args.modelo_moto || compat.modelo_moto_detectado)
                     : undefined,
-                mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta definir la variante. Preguntale/explicale exactamente esto: "${guia}"`
+                pregunta_directa: guia,
+                mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta la variante (el recorrido). Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}`
             }
         }
 
@@ -338,7 +345,8 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             encontrado: true,
             resuelta: false,
             grupo_id: grupo.id,
-            mensaje_para_agente: `TODAVIA NO SE LA VARIANTE. Preguntale al cliente exactamente esto: "${guia}"`
+            pregunta_directa: guia,
+            mensaje_para_agente: `Todavía falta saber la variante. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}`
         }
     } catch (err: any) {
         console.error("Error en resolverVariante:", err)

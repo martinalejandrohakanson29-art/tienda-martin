@@ -345,7 +345,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 encontrado: false,
                 packs: [],
                 grupos: [],
-                mensaje_para_agente: `No se encontró ningún kit activo con el término '${args.termino_busqueda || ""}'. Si el cliente pide una pieza que no está en el catálogo, indica que no la tenemos o escala al equipo.`
+                mensaje_para_agente: `No hubo match en el catálogo para '${args.termino_busqueda || ""}'. OJO: esto NO significa que no lo vendamos — puede ser un problema de cómo se escribió la búsqueda o un producto real que todavía no está cargado. PROHIBIDO decirle al cliente "no lo tenemos", "no figura en el catálogo" o "no existe". Si tenés dudas de a qué producto se refiere, probá otra búsqueda más simple (ej: solo el número de cilindrada). Si sigue sin aparecer, ejecutá escalar_a_humano con motivo 'producto_no_encontrado' y guardá silencio.`
             }
         }
 

@@ -20,6 +20,14 @@ export function normalizarTexto(txt: string | null | undefined): string {
         .normalize("NFD")
         .replace(RX_DIACRITICOS, "")
         .replace(/[^a-z0-9\s]/g, " ")
+        // "170cc" / "kit170cc" / "220 cc" -> ".. 170 cc": el numero pegado a
+        // "cc" no matchea la cilindrada del catalogo y el kit "170cc" del
+        // anuncio de Instagram caia en "no se encontro".
+        .replace(/(\d+)\s*cc\b/g, "$1 cc")
+        // "kit170" / "zb110" -> "kit 170" / "zb 110": separa letra pegada a un
+        // numero de 2-4 digitos (cilindrada). No toca "s2" (1 letra), "x3m"
+        // (numero de 1 digito) ni "cb125f" (el numero no cierra en \b).
+        .replace(/\b([a-z]{2,})(\d{2,4})\b/g, "$1 $2")
         .replace(/\s+/g, " ")
         .trim()
 }

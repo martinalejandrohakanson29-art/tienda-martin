@@ -11,6 +11,10 @@ export interface ConfiguracionAgente {
     proveedorActivo?: string
     debounceSegundos: number
     debounceActivo: boolean
+    /** Demora deliberada antes de enviar la respuesta, para simular una persona escribiendo (no una respuesta automática instantánea). */
+    respuestaDelayActivo: boolean
+    respuestaDelayMinSeg: number
+    respuestaDelayMaxSeg: number
 }
 
 export const CONFIG_DEFAULTS: ConfiguracionAgente = {
@@ -23,7 +27,10 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     openrouterApiKey: "",
     proveedorActivo: "openai:gpt-4o-mini",
     debounceSegundos: 60,
-    debounceActivo: true
+    debounceActivo: true,
+    respuestaDelayActivo: true,
+    respuestaDelayMinSeg: 45,
+    respuestaDelayMaxSeg: 75
 }
 
 /**
@@ -63,6 +70,17 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             ? mapa.get("debounce_activo") === "true"
             : CONFIG_DEFAULTS.debounceActivo
 
+        const respuestaDelayActivo = mapa.has("respuesta_delay_activo")
+            ? mapa.get("respuesta_delay_activo") === "true"
+            : CONFIG_DEFAULTS.respuestaDelayActivo
+        const parseSegPositivo = (clave: string, def: number) => {
+            const n = parseInt(mapa.get(clave) || "", 10)
+            return Number.isFinite(n) && n >= 0 ? n : def
+        }
+        let respuestaDelayMinSeg = parseSegPositivo("respuesta_delay_min_seg", CONFIG_DEFAULTS.respuestaDelayMinSeg)
+        let respuestaDelayMaxSeg = parseSegPositivo("respuesta_delay_max_seg", CONFIG_DEFAULTS.respuestaDelayMaxSeg)
+        if (respuestaDelayMaxSeg < respuestaDelayMinSeg) respuestaDelayMaxSeg = respuestaDelayMinSeg
+
         return {
             tonoEstilo,
             palabrasProhibidas,
@@ -73,7 +91,10 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             openrouterApiKey,
             proveedorActivo,
             debounceSegundos,
-            debounceActivo
+            debounceActivo,
+            respuestaDelayActivo,
+            respuestaDelayMinSeg,
+            respuestaDelayMaxSeg
         }
     } catch (err) {
         console.error("Error al leer chat_config, usando valores por defecto:", err)

@@ -303,6 +303,33 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        id: "caso-29-variante-post-combo-historial-sucio",
+        titulo: "Elige variante con historial sucio (mini-charla vieja + combo con precios) y ráfaga repetida",
+        mensajeCliente: "Recorrido corto quiero\nPara 110\nUna gilera",
+        historial: [
+            { rol: "user", contenido: "Para 110" },
+            { rol: "assistant", contenido: "Para una 110, que marca y modelo es?" },
+            { rol: "user", contenido: "Una gilera" },
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "El combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["resolver_variante"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Reproducción exacta de conv 2218 (06/09): con este historial el bot
+            // respondió "Confirmame: Recorrido corto ($175.000) o Recorrido largo
+            // ($189.000)?" DOS veces antes de cerrar. Debe cerrar en el primer turno.
+            patronRespuesta: /^(?![\s\S]*189\.000)[\s\S]*175\.000/,
+            descripcionEsperada:
+                "Aun con historial ruidoso, 'recorrido corto' cierra en $175.000 vía resolver_variante. Prohibido repreguntar las dos opciones."
+        }
+    },
+    {
         id: "caso-25-universal-moto-real-sigue",
         titulo: "Combo de recorrido universal + 110 real (NO escala, pasa a preguntar el recorrido)",
         mensajeCliente: "para una Brava Nevada 110",
@@ -367,12 +394,16 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             }
         ],
         resultadoEsperado: {
-            debeLlamarHerramientas: ["resolver_variante"],
             debeEscalarHumano: false,
             debeGuardarSilencio: false,
-            patronRespuesta: /no (le )?(entra|va|anda)|incompat|modific|cárter|carter|alesar/i,
+            // Debe (a) mencionar la incompatibilidad y (b) NO contener ningún "?"
+            // -- un "?" implica que volvió a preguntar la moto o se ofreció a
+            // "buscar opciones compatibles" (el bug real de conv 3497). Da igual
+            // si llega por resolver_variante o consultar_compatibilidad: desde el
+            // fix del 06/09 ambas devuelven la misma pauta de cierre.
+            patronRespuesta: /^(?![\s\S]*\?)(?=[\s\S]*(no (le )?(entra|va|anda)|incompat|modific|c[aá]rter|alesar))/i,
             descripcionEsperada:
-                "La Wave NF está cargada como incompatible con ese combo. Debe avisar el problema con respeto y cerrar corto. NO debe ofrecer 'otra opción' que no exista ni volver a preguntar qué moto tiene (ya la dijo)."
+                "La Wave NF está cargada como incompatible con ese combo. Debe avisar el problema con respeto y cerrar corto, sin ningún signo de pregunta: NO ofrecer 'otra opción' ni volver a preguntar qué moto tiene (ya la dijo)."
         }
     }
 ]

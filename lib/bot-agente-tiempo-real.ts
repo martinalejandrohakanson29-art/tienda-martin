@@ -24,6 +24,25 @@ type BufferConversacion = {
 
 const buffers = new Map<number, BufferConversacion>()
 
+const dormirMs = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * Demora deliberada para que la respuesta no salga instantánea y parezca escrita
+ * por una persona. Se elige un objetivo aleatorio en [min, max] segundos y se
+ * descuenta lo que ya tardó el turno (modelo + herramientas), así el tiempo
+ * total percibido por el cliente cae siempre dentro de esa ventana.
+ */
+async function esperarCadenciaHumana(inicioTurnoMs: number) {
+    const config = await obtenerConfiguracionAgente().catch(() => null)
+    if (!config || !config.respuestaDelayActivo) return
+    const min = config.respuestaDelayMinSeg * 1000
+    const max = config.respuestaDelayMaxSeg * 1000
+    const objetivo = min + Math.random() * Math.max(0, max - min)
+    const transcurrido = Date.now() - inicioTurnoMs
+    const restante = Math.min(objetivo - transcurrido, max)
+    if (restante > 0) await dormirMs(restante)
+}
+
 export async function esConversacionPiloto(conversationId: number): Promise<boolean> {
     try {
         const filas = await prisma.$queryRaw<{ activo: boolean }[]>`
@@ -174,6 +193,42 @@ async function procesarTurno(accountId: number, conversationId: number) {
         }
 
         if (!respuesta.mensajeFinal) return
+
+        // Cadencia humana: demora deliberada para no responder al instante.
+        await esperarCadenciaHumana(inicio)
+
+        // Durante la espera pudo contestar un humano del equipo (o llegar un
+        // mensaje nuevo que reinició el debounce). Si el hilo real ya tiene una
+        // respuesta saliente más nueva, se descarta sin pisar.
+        const transcripcionPostEspera = await traerTranscripcion(accountId, conversationId).catch(() => transcripcion)
+        if (transcripcionPostEspera.length > 0 && transcripcionPostEspera[transcripcionPostEspera.length - 1].saliente) {
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: respuesta.mensajeFinal,
+                escaladoHumano: false,
+                herramientas: respuesta.herramientasEjecutadas,
+                latenciaMs: Date.now() - inicio,
+                resultadoEnvio: "salteado",
+                detalleEnvio: "Apareció una respuesta más nueva en Chatwoot durante la demora de cadencia humana",
+            })
+            return
+        }
+        if (buffers.has(conversationId)) {
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: respuesta.mensajeFinal,
+                escaladoHumano: false,
+                herramientas: respuesta.herramientasEjecutadas,
+                latenciaMs: Date.now() - inicio,
+                resultadoEnvio: "salteado",
+                detalleEnvio: "Llegó un mensaje nuevo del cliente durante la demora; se recalcula en el próximo turno",
+            })
+            return
+        }
 
         try {
             await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })

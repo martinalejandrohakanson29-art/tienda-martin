@@ -236,7 +236,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 variante_pack_id: v.id,
                 etiqueta: v.etiqueta,
                 precio: v.precio,
-                mensaje_para_agente: `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente y ofrecé coordinar la compra. NO preguntes la moto, la variante ni nada más.`
+                mensaje_para_agente: `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente. No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
             }
         }
         if (hits.length > 1) {

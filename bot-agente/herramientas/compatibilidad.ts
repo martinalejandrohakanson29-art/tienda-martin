@@ -497,7 +497,7 @@ REGLA DE MOSTRADOR (PASO 1 DEL EMBUDO - IDENTIFICAR EL COMBO):
                         compatible: true,
                         detalle: mejorMatch.detalle,
                         mensaje_para_agente: `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}
-VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirmale directamente que le va perfecto en ${args.variante_elegida} y ofrecé coordinar la venta.`
+VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirmale directamente que le va perfecto en ${args.variante_elegida}. Si preguntó algo más en el mismo mensaje, respondé eso también antes de cerrar.`
                     }
                 }
 
@@ -534,7 +534,7 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
                 compatible: mejorMatch.compatible,
                 detalle: mejorMatch.detalle,
                 mensaje_para_agente: mejorMatch.compatible
-                    ? `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}. Cerrá natural ("Cualquier cosa avisanos y coordinamos").`
+                    ? `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""} Confirmáselo corto al cliente, con tu voz. Si preguntó algo más en el mismo mensaje (envío, demora, pago...), respondé eso también antes de cerrar.`
                     : [
                           `NO ES COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Motivo: ${mejorMatch.detalle}.` : ""}`,
                           `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,

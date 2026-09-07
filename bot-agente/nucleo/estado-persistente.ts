@@ -165,7 +165,7 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
     if (estado.packPresentado?.nombre) {
         const precio = estado.packPresentado.precio ? ` (${formatearPrecioAR(estado.packPresentado.precio)})` : ""
         lineas.push(
-            `- Kit ya presentado al cliente: "${estado.packPresentado.nombre}"${precio}. Ya recibió la ficha completa y la foto. Si da su moto o hace una consulta puntual, confirmá corto y andá al cierre — NO repitas la ficha, la lista de "qué incluye" ni reenvíes la foto.`
+            `- Kit ya presentado al cliente: "${estado.packPresentado.nombre}"${precio}. Ya recibió la ficha completa, el precio y la foto. Si da su moto o hace una consulta puntual, confirmá corto — NO repitas la ficha, la lista de "qué incluye", el precio ya dado ni reenvíes la foto. Contestá lo que preguntó antes de cerrar.`
         )
     }
     if (estado.motoConfirmada) {
@@ -176,7 +176,7 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
             ? ` (${formatearPrecioAR(estado.varianteResuelta.precio)})`
             : ""
         lineas.push(
-            `- Variante YA resuelta: "${estado.varianteResuelta.etiqueta}"${precio}. El producto y el precio final están 100% determinados: pasá directo al cierre. No preguntes la moto, la variante ni consultes nada más.`
+            `- Variante YA resuelta: "${estado.varianteResuelta.etiqueta}"${precio}. El producto y el precio final están 100% determinados. No vuelvas a preguntar la moto ni la variante, ni re-consultes lo ya resuelto. Contestá lo que el cliente haya preguntado y cerrá.`
         )
     }
 

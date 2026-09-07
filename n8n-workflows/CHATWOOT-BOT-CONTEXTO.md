@@ -1,5 +1,10 @@
 # Bot de WhatsApp (Chatwoot + n8n) — contexto completo
 
+> ⚠️ **HISTÓRICO desde 2026-09-07.** El workflow n8n "Respuestas chatwoot 2.0" está **apagado**.
+> El bot de WhatsApp ahora es el motor **bot-agente** (código TypeScript, `bot-agente/`), cuya
+> constitución es `bot-agente/FILOSOFIA-Y-ROADMAP.md`. Este documento queda como referencia del
+> sistema n8n viejo (para plan B o para consultar lógica de negocio histórica).
+
 > Este documento reemplaza toda la documentación dispersa anterior (auditorías de
 > `workflow_mateo`, notas de migración, etc.). Están en el historial de git si hace falta
 > desenterrar algo puntual, pero para entender el estado actual **alcanza con este archivo**.

@@ -290,9 +290,16 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeLlamarHerramientas: ["resolver_variante"],
             debeEscalarHumano: false,
             debeGuardarSilencio: false,
-            patronRespuesta: /\$\s?\d|\d{3}\.\d{3}/,
+            // Regression del bug real 06/09 (conv 2218/3456): "recorrido corto"
+            // matcheaba las DOS variantes a la vez por la palabra "recorrido"
+            // compartida en ambas etiquetas, quedaba "ambiguo" y repetia la
+            // pregunta con los dos precios juntos. El patron exige el precio de
+            // la variante corta (175.000) y prohíbe que aparezca el de la larga
+            // (189.000) en la misma respuesta -- si vuelve a preguntar ambas
+            // opciones, este check tiene que fallar.
+            patronRespuesta: /^(?![\s\S]*189\.000)[\s\S]*175\.000/,
             descripcionEsperada:
-                "El cliente ya eligió la variante: debe llamar a resolver_variante, cerrar con el precio de esa variante y NO volver a pedir la moto."
+                "El cliente ya eligió la variante: debe llamar a resolver_variante, cerrar SOLO con el precio de esa variante (175.000) y NO volver a pedir la moto ni repetir las dos opciones."
         }
     },
     {

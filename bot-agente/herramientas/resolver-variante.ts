@@ -160,12 +160,35 @@ function formatearPrecio(n: number): string {
     return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
 }
 
-/** Devuelve las variantes cuyo sinónimo/etiqueta aparece en el texto del cliente. */
+function palabrasEtiqueta(etiqueta: string): string[] {
+    return normalizarTexto(etiqueta).split(" ").filter((w) => w.length >= 3)
+}
+
+/**
+ * Devuelve las variantes cuyo sinónimo/etiqueta aparece en el texto del cliente.
+ *
+ * Las palabras de la etiqueta que se repiten en MÁS DE UNA variante del mismo
+ * grupo (ej. "Recorrido" en "Recorrido corto" y "Recorrido largo") no sirven
+ * para discriminar: si se usan igual que las palabras únicas, un cliente que
+ * dice "recorrido corto" termina matcheando corto Y largo a la vez (por el
+ * "recorrido" suelto) y el sistema lo trata como ambiguo. Se excluyen del
+ * fallback por etiqueta -- el match sigue funcionando por `sinonimos_variante`
+ * o por la palabra que sí distingue (ej. "corto").
+ */
 function matchearVariantes(texto: string, variantes: GrupoVariantes["variantes"]) {
     const t = normalizarTexto(texto)
     if (!t) return []
+
+    const conteoPalabras = new Map<string, number>()
+    for (const v of variantes) {
+        for (const w of new Set(palabrasEtiqueta(v.etiqueta))) {
+            conteoPalabras.set(w, (conteoPalabras.get(w) || 0) + 1)
+        }
+    }
+
     return variantes.filter((v) => {
-        const claves = [...v.sinonimos, ...normalizarTexto(v.etiqueta).split(" ").filter((w) => w.length >= 3)]
+        const palabrasPropias = palabrasEtiqueta(v.etiqueta).filter((w) => conteoPalabras.get(w) === 1)
+        const claves = [...v.sinonimos, ...palabrasPropias]
         return claves.some((c) => c.length >= 2 && new RegExp(`(^|\\s)${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(t))
     })
 }

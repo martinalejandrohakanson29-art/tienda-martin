@@ -67,7 +67,13 @@ export async function POST(req: Request) {
         // bot-agente: responde las conversaciones en modo global (todas) o, si el
         // global está apagado, solo las marcadas en `bot_agente_piloto`. n8n debe
         // estar apagado cuando el global está prendido, para no duplicar.
-        // Fire-and-forget: no debe demorar ni tumbar la respuesta al webhook.
+        //
+        // OJO: esto se AWAITEA antes de responder el webhook. Un `void promise`
+        // acá no es confiable: Next puede cerrar el contexto del request y dejar
+        // sin ejecutar las continuaciones async (por eso el piloto no producía
+        // turnos y la cola no drenaba). El trabajo pesado (`procesarTurno`) sí
+        // corre después vía setTimeout — el server es un proceso vivo — pero el
+        // buffer hay que dejarlo registrado antes de devolver la respuesta.
         if (eventoNombre === "message_created" && conversationId > 0) {
             const mensajeEntrante = body.messages?.[0] || body
             const esEntrante = mensajeEntrante?.message_type === 0 || mensajeEntrante?.message_type === "incoming"
@@ -75,19 +81,22 @@ export async function POST(req: Request) {
             const textoEntrante = (mensajeEntrante?.content || "").toString().trim()
 
             if (esEntrante && esDeCliente && textoEntrante) {
-                // Cada mensaje entrante del cliente es una oportunidad de drenar
-                // la cola diferida: reconcilia el horario y, si el bot está
-                // encendido y hay pendientes, arranca el despacho. Reemplaza el
-                // gatillo que antes daba n8n vía /api/chatwoot/enviar y cubre el
-                // caso de que el flip de horario no lo agarre ningún request.
-                void empujarCola()
+                try {
+                    // Cada mensaje entrante del cliente es una oportunidad de
+                    // drenar la cola diferida (reemplaza el gatillo que antes
+                    // daba n8n vía /api/chatwoot/enviar).
+                    await empujarCola()
 
-                Promise.all([botAgenteGlobalActivo(), esConversacionPiloto(conversationId)])
-                    .then(([global, piloto]) => {
-                        if (!global && !piloto) return
-                        return manejarMensajeEntrantePiloto(1, conversationId, textoEntrante)
-                    })
-                    .catch((err) => console.error("[webhook chatwoot] error en bot-agente:", err))
+                    const [global, piloto] = await Promise.all([
+                        botAgenteGlobalActivo(),
+                        esConversacionPiloto(conversationId),
+                    ])
+                    if (global || piloto) {
+                        await manejarMensajeEntrantePiloto(1, conversationId, textoEntrante)
+                    }
+                } catch (err) {
+                    console.error("[webhook chatwoot] error en bot-agente:", err)
+                }
             }
         }
 

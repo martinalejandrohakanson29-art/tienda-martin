@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaLevenshtein, puntuarItemCatalogo } from "../nucleo/texto"
+import { resolverMoto, listarCandidatos } from "../nucleo/motos"
 
 export interface ArgsCompatibilidad {
     modelo_moto: string
@@ -13,6 +14,16 @@ export interface ResultadoCompatibilidad {
     modelo_moto_detectado?: string
     kit?: string
     compatible?: boolean
+    /**
+     * Nivel de confianza de la resolucion de la moto:
+     *  - undefined / "firme": match confiable, `compatible` es una respuesta real.
+     *  - "parcial": el cliente dio un dato (una cilindrada) que no cierra con
+     *    ningun modelo conocido, o nombro una familia con varios modelos. NO se
+     *    confirma nada; el motor NO escala solo por esto — la IA repregunta con
+     *    los `candidatos`.
+     */
+    confianza?: "firme" | "parcial"
+    candidatos?: string[]
     detalle?: string | null
     mensaje_para_agente: string
 }
@@ -271,6 +282,49 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             return {
                 encontrado: false,
                 mensaje_para_agente: "No hay registros de compatibilidad cargados en el sistema."
+            }
+        }
+
+        // ─── OPCIÓN 3: resolver la moto CON confianza antes de puntuar ──────────
+        // Si el cliente fue más específico que el catálogo (dio una cilindrada
+        // que no consta) o nombró una familia con varios modelos, NO confirmamos
+        // nada: devolvemos los candidatos para que la IA repregunte con contexto.
+        const resol = await resolverMoto(args.modelo_moto).catch(() => null)
+        if (resol && resol.confianza === "ambigua") {
+            const familiaTokens = normalizarTexto(args.modelo_moto)
+                .split(" ")
+                .filter((w) => w.length >= 3 && isNaN(Number(w)))
+            // Estado de cada modelo de la familia PARA ESTE kit (si hay filas).
+            const estadoFilas: string[] = []
+            const vistos = new Set<string>()
+            for (const reg of registros) {
+                const coincideId = args.kit_nombre_o_id && reg.kit_id && String(reg.kit_id) === String(args.kit_nombre_o_id).trim()
+                if (!coincideId && !coincideKitInteligente(args.kit_nombre_o_id, reg.kit, reg.contexto_extra || undefined)) continue
+                const regNorm = normalizarTexto(reg.modelo_moto)
+                if (!familiaTokens.some((t) => regNorm.includes(t))) continue
+                if (vistos.has(regNorm)) continue
+                vistos.add(regNorm)
+                estadoFilas.push(`  • ${reg.modelo_moto}: ${reg.compatible ? "COMPATIBLE" : "NO compatible"}${reg.detalle ? ` (${reg.detalle})` : ""}`)
+            }
+
+            const lineas = [
+                `NO CONFIRMES COMPATIBILIDAD TODAVÍA. La moto que dijo el cliente ("${args.modelo_moto}") no resuelve a un modelo único y firme.`,
+                resol.detalle ? `Motivo: ${resol.detalle}` : "",
+                resol.candidatos.length ? `Modelos que sí tengo cargados de esa familia: ${listarCandidatos(resol.candidatos)}.` : "",
+                estadoFilas.length ? `Estado de compatibilidad conocido para este kit:\n${estadoFilas.join("\n")}` : "",
+                `QUÉ HACER:`,
+                `- Si en el historial el cliente ya aclaró exactamente cuál de esos modelos tiene, volvé a llamar consultar_compatibilidad con ese modelo exacto (ej: "Motomel Blitz 110").`,
+                `- Si no lo aclaró, preguntale con naturalidad cuál de esos modelos es (ej: "Tenés la 110 o la 125?").`,
+                `- Si el cliente insiste con un modelo/cilindrada que no está en la lista de arriba, ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio.`,
+                `- NUNCA afirmes que le va (ni que no le va) sin uno de esos modelos confirmado.`,
+            ].filter(Boolean)
+
+            return {
+                encontrado: true,
+                confianza: "parcial",
+                candidatos: resol.candidatos.map((c) => c.nombre_completo),
+                kit: args.kit_nombre_o_id,
+                mensaje_para_agente: lineas.join("\n"),
             }
         }
 

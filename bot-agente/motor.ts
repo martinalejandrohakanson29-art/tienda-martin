@@ -552,7 +552,11 @@ export async function ejecutarTurnoAgente(
 
                 // 2. REGLA DETERMINISTA DE ORO: Si consultó compatibilidad y NO se encontró,
                 //    se escala en silencio Y se persiste el pendiente linkeado a la conversación.
-                if (call.function.name === "consultar_compatibilidad" && ejecucion.resultado?.encontrado === false) {
+                if (
+                    call.function.name === "consultar_compatibilidad" &&
+                    ejecucion.resultado?.encontrado === false &&
+                    ejecucion.resultado?.confianza !== "parcial"
+                ) {
                     escaladoHumano = true
                     const moto = ejecucion.argumentos?.modelo_moto || "desconocida"
                     motivoEscalado = `moto_no_registrada: ${moto}`

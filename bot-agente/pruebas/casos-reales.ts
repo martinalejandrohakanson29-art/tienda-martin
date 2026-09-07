@@ -382,6 +382,31 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        id: "caso-30-cilindrada-inexistente-repregunta",
+        titulo: "Cliente da una cilindrada que no existe para esa familia (Blitz 150) — repregunta, no confirma",
+        mensajeCliente: "para una blitz 150",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola! El combo incluye Cilindro 120, Carburador CG 125, Codo de admisión y Filtro.\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000\nPara qué moto lo buscás?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // No existe la Motomel Blitz 150 (es 110 china o 125 otro motor). El
+            // bot NO debe confirmar "le va" ni pasar a preguntar el recorrido: la
+            // resolución de la moto es ambigua -> debe repreguntar cuál Blitz.
+            // Prohibido cualquier "le va" / "compatible" / "perfecto" en la
+            // respuesta; debe haber un "?" (repregunta).
+            patronRespuesta: /^(?![\s\S]*(le va|compatible|perfecto|recorrido corto o))[\s\S]*\?/i,
+            descripcionEsperada:
+                "La resolución de 'blitz 150' es ambigua (no consta una Blitz 150). El bot debe repreguntar cuál modelo de Blitz tiene (110 o 125), sin confirmar compatibilidad ni escalar."
+        }
+    },
+    {
         id: "caso-28-moto-incompatible-informa-y-cierra",
         titulo: "Moto incompatible: informa y cierra, sin inventar alternativas ni repreguntar la moto",
         mensajeCliente: "a una wave nf",

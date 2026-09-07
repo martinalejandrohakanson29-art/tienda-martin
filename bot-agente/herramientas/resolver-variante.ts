@@ -248,6 +248,24 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 motoReconocida(args.modelo_moto)
             ])
 
+            // La moto no resuelve a un modelo firme (cilindrada que no consta,
+            // familia con varios modelos). NO confirmamos ni escalamos: la IA
+            // repregunta cuál modelo con los candidatos.
+            if (compat.confianza === "parcial") {
+                return {
+                    encontrado: true,
+                    resuelta: false,
+                    grupo_id: grupo.id,
+                    mensaje_para_agente: [
+                        `NO CONFIRMES NADA de "${args.modelo_moto}" todavía: no resuelve a un modelo único.`,
+                        compat.candidatos?.length ? `Modelos posibles: ${compat.candidatos.join(" / ")}.` : "",
+                        `Si el cliente ya dijo cuál tiene, volvé a llamar resolver_variante con ese modelo exacto.`,
+                        `Si no, preguntale con naturalidad cuál de esos modelos es.`,
+                        `Si insiste con uno que no está en esa lista, ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio.`,
+                    ].filter(Boolean).join("\n"),
+                }
+            }
+
             // Incompatible SOLO si la moto es un modelo reconocido: para una moto
             // inventada/desconocida no afirmamos "no te va", se escala.
             if (compat.encontrado && compat.compatible === false && reconocida) {

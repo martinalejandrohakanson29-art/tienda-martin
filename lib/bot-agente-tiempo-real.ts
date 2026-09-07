@@ -182,6 +182,14 @@ async function procesarTurno(accountId: number, conversationId: number) {
     const mensajeUsuario = mensajesDelTurno.join("\n")
     const inicio = Date.now()
 
+    // El webhook dejó una fila en `bot_agente_entrantes_pendientes` al recibir
+    // el mensaje (antes de este trabajo async). Se borra cuando este turno lo
+    // atiende de verdad (respondió, escaló, o alguien más contestó). Si el
+    // proceso se cae antes de eso, la fila queda y el barrido la recupera.
+    // NO se borra si: local cerrado (espera la apertura) o llegó una ráfaga
+    // nueva (la maneja el próximo turno).
+    let pendienteResuelto = false
+
     // Si llega un mensaje nuevo del cliente mientras este turno estaba en vuelo,
     // `manejarMensajeEntrantePiloto` crea un buffer nuevo. En vez de tirar los
     // mensajes que este turno ya tenía (se perdían: el turno siguiente arrancaba
@@ -194,22 +202,15 @@ async function procesarTurno(accountId: number, conversationId: number) {
 
     try {
         // Local cerrado: NO se llama al modelo y NO se encola una respuesta por
-        // mensaje. Solo se marca la conversación; al abrir el local,
-        // `responderPendientesDeAperturaBotAgente()` reconstruye el hilo completo
-        // y responde UNA sola vez. Así se corta la lluvia de mensajes desfasados
-        // que salía cuando cada mensaje de la noche encolaba su propia respuesta
-        // y el despachador las mandaba todas juntas (convs 3528 / 3565 / 2900).
+        // mensaje. La fila de `bot_agente_entrantes_pendientes` (la puso el
+        // webhook) queda tal cual; al abrir el local, `atenderEntrantesPendientes()`
+        // reconstruye el hilo completo y responde UNA sola vez. Así se corta la
+        // lluvia de mensajes desfasados que salía cuando cada mensaje de la
+        // noche encolaba su propia respuesta (convs 3528 / 3565 / 2900).
         const dentroDeHorario = await botDentroDeHorario().catch(() => true)
         if (!dentroDeHorario) {
-            await prisma.$executeRaw`
-                INSERT INTO bot_agente_pendiente_apertura
-                    (conversation_id, account_id, primer_mensaje_en, ultimo_mensaje_en, actualizado_en)
-                VALUES (${conversationId}, ${accountId}, now(), now(), now())
-                ON CONFLICT (conversation_id) DO UPDATE
-                SET ultimo_mensaje_en = now(), actualizado_en = now()
-            `.catch((err) =>
-                console.error("[bot-agente-tiempo-real] no se pudo marcar pendiente de apertura:", err)
-            )
+            // Defensivo por si el webhook no llegó a registrarlo.
+            await marcarEntrantePendiente(accountId, conversationId)
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -219,7 +220,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 herramientas: [],
                 latenciaMs: Date.now() - inicio,
                 resultadoEnvio: "encolado",
-                detalleEnvio: "Local cerrado: se responde consolidado al abrir (bot_agente_pendiente_apertura)",
+                detalleEnvio: "Local cerrado: se responde consolidado al abrir",
             })
             return
         }
@@ -239,6 +240,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 resultadoEnvio: "salteado",
                 detalleEnvio: "Bot en pausa para esta conversación (/bot off o un humano del equipo se hizo cargo)",
             })
+            pendienteResuelto = true
             return
         }
 
@@ -260,6 +262,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 resultadoEnvio: "salteado",
                 detalleEnvio: "Ya hay una respuesta mas nueva en Chatwoot (humano o bot) cuando se iba a contestar",
             })
+            pendienteResuelto = true
             return
         }
 
@@ -296,10 +299,16 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 resultadoEnvio: "encolado",
                 detalleEnvio: "Escalado a humano en silencio",
             })
+            pendienteResuelto = true
             return
         }
 
-        if (!respuesta.mensajeFinal) return
+        if (!respuesta.mensajeFinal) {
+            // El motor decidió no decir nada (y no escaló): es una decisión, no
+            // un error — se da por atendido para no reintentarlo en loop.
+            pendienteResuelto = true
+            return
+        }
 
         // Cadencia humana: demora deliberada para no responder al instante.
         await esperarCadenciaHumana(inicio)
@@ -320,6 +329,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 resultadoEnvio: "salteado",
                 detalleEnvio: "Apareció una respuesta más nueva en Chatwoot durante la demora de cadencia humana",
             })
+            pendienteResuelto = true
             return
         }
         if (buffers.has(conversationId)) {
@@ -351,6 +361,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 resultadoEnvio: "salteado",
                 detalleEnvio: "El bot quedó en pausa durante la demora de cadencia humana (/bot off o un humano se hizo cargo)",
             })
+            pendienteResuelto = true
             return
         }
 
@@ -372,6 +383,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 latenciaMs: Date.now() - inicio,
                 resultadoEnvio: "enviado",
             })
+            pendienteResuelto = true
         } catch (err: any) {
             console.error("[bot-agente-tiempo-real] fallo el envio a Chatwoot:", err)
             await registrarTurno({
@@ -400,7 +412,40 @@ async function procesarTurno(accountId: number, conversationId: number) {
             resultadoEnvio: "error",
             detalleEnvio: err.message || String(err),
         })
+        // NO se marca resuelto: la fila queda y el barrido reintenta (con tope).
+    } finally {
+        // Se atendió (respondió / escaló / alguien más contestó / silencio
+        // deliberado): borrar la fila del webhook. El guard por `ultimo_mensaje_en`
+        // evita pisar una ráfaga nueva que entró durante este turno.
+        if (pendienteResuelto) {
+            await prisma.$executeRaw`
+                DELETE FROM bot_agente_entrantes_pendientes
+                WHERE conversation_id = ${conversationId}
+                  AND ultimo_mensaje_en <= ${new Date(inicio)}
+            `.catch((err) =>
+                console.error("[bot-agente-tiempo-real] no se pudo borrar entrante pendiente:", err)
+            )
+        }
     }
+}
+
+/**
+ * Registro DURABLE de un mensaje entrante, ANTES de arrancar el trabajo async.
+ * El webhook lo llama con cada mensaje del cliente que rutea al motor. Si el
+ * proceso se cae antes de responder (deploy, crash) la fila queda y el barrido
+ * `atenderEntrantesPendientes()` la recupera. `procesarTurno` la borra al
+ * atenderla (guard por `ultimo_mensaje_en` para no pisar una ráfaga nueva).
+ */
+export async function marcarEntrantePendiente(accountId: number, conversationId: number): Promise<void> {
+    await prisma.$executeRaw`
+        INSERT INTO bot_agente_entrantes_pendientes
+            (conversation_id, account_id, primer_mensaje_en, ultimo_mensaje_en, actualizado_en)
+        VALUES (${conversationId}, ${accountId}, now(), now(), now())
+        ON CONFLICT (conversation_id) DO UPDATE
+        SET ultimo_mensaje_en = now(), actualizado_en = now()
+    `.catch((err) =>
+        console.error("[bot-agente-tiempo-real] no se pudo marcar entrante pendiente:", err)
+    )
 }
 
 /**
@@ -436,54 +481,57 @@ const VENTANA_24HS_MARGEN_MS = 23 * 60 * 60 * 1000
 const ESPERA_ENTRE_CONVERSACIONES_MS = 6000
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-// --- Pasada de APERTURA -----------------------------------------------------
+// --- Barrido de ENTRANTES PENDIENTES ----------------------------------------
 // Se guarda el MOMENTO en que arrancó (no un booleano) para que un run colgado
 // no bloquee para siempre -- mismo patrón que `despachandoDesde` en la cola.
-const APERTURA_MAX_MS = 5 * 60 * 1000
-let aperturaEnCursoDesde: number | null = null
-const aperturaEnCurso = () =>
-    aperturaEnCursoDesde !== null && Date.now() - aperturaEnCursoDesde < APERTURA_MAX_MS
+const BARRIDO_MAX_MS = 5 * 60 * 1000
+// Grace: no tocar filas más nuevas que esto -- un turno vivo (modelo + demora
+// humana 50-70s) puede tardar ~2 min; recién pasado ese margen asumimos que
+// murió y hay que recuperarlo.
+const BARRIDO_GRACE_MS = 4 * 60 * 1000
+let barridoDesde: number | null = null
+const barridoEnCurso = () => barridoDesde !== null && Date.now() - barridoDesde < BARRIDO_MAX_MS
 
-/** Dispara la pasada de apertura sin bloquear a quien la gatilló (webhook, cola). */
-export function responderPendientesDeAperturaEnSegundoPlano() {
-    void responderPendientesDeAperturaBotAgente().catch((err) =>
-        console.error("[bot-agente-tiempo-real] falló la pasada de apertura:", err)
+/** Dispara el barrido sin bloquear a quien lo gatilló (webhook, cola, setInterval). */
+export function atenderEntrantesPendientesEnSegundoPlano() {
+    void atenderEntrantesPendientes().catch((err) =>
+        console.error("[bot-agente-tiempo-real] falló el barrido de entrantes pendientes:", err)
     )
 }
 
 /**
- * Pasada de APERTURA: cuando el local abre, responde UNA sola vez cada
- * conversación que escribió con el local CERRADO (tabla
- * `bot_agente_pendiente_apertura`, poblada por `procesarTurno` fuera de
- * horario). Reconstruye el hilo real desde Chatwoot, genera una única respuesta
- * con el motor y la manda (o escala en silencio). Escalonado entre
- * conversaciones para que se lea como "abrió el local y se puso a contestar".
+ * BARRIDO de entrantes pendientes: recorre `bot_agente_entrantes_pendientes`
+ * (la puebla el webhook con cada mensaje del cliente; `procesarTurno` borra la
+ * fila cuando atendió). Las filas que sobreviven al grace de 4 min son:
+ *   - conversaciones que escribieron con el local CERRADO (esperan la apertura),
+ *   - turnos que murieron en vuelo (deploy de Coolify, crash) y Chatwoot ya no
+ *     reintenta porque recibió el 200 del webhook (conv 3575, 07/09).
+ * Por cada una reconstruye el hilo desde Chatwoot y responde UNA sola vez
+ * (o escala en silencio). Escalonado entre conversaciones.
  *
- * Reemplaza el viejo camino "generá y encolá una respuesta por cada mensaje de
- * la noche" que terminaba largando 3-6 mensajes desfasados de una (convs 3528 /
- * 3565 / 2900).
- *
- * Se dispara oportunista: desde el webhook con cada mensaje entrante y desde
- * `sincronizarEstadoBot` cuando el horario automático acaba de abrir. Se
- * auto-protege: no hace nada fuera de horario (salvo `forzar`), ni con otra
- * pasada en curso, ni con la tabla vacía.
+ * Se dispara oportunista: webhook con cada mensaje entrante, `sincronizarEstadoBot`
+ * al abrir el local, un `setInterval` cada 3 min, y a mano con
+ * `scripts/atender-pendientes.ts`. Se auto-protege: no hace nada fuera de
+ * horario (salvo `forzar`), ni con otro barrido en curso, ni sin filas vencidas.
  */
-export async function responderPendientesDeAperturaBotAgente(
+export async function atenderEntrantesPendientes(
     opciones: { forzar?: boolean } = {}
 ): Promise<void> {
-    if (aperturaEnCurso()) return
+    if (barridoEnCurso()) return
     if (!opciones.forzar && !(await botDentroDeHorario().catch(() => false))) return
 
+    const graceCutoff = new Date(Date.now() - (opciones.forzar ? 0 : BARRIDO_GRACE_MS))
     const filas = await prisma.$queryRaw<
         { conversation_id: bigint; account_id: bigint; intentos: number }[]
     >`
         SELECT conversation_id, account_id, intentos
-        FROM bot_agente_pendiente_apertura
+        FROM bot_agente_entrantes_pendientes
+        WHERE ultimo_mensaje_en <= ${graceCutoff}
         ORDER BY primer_mensaje_en ASC
     `
     if (filas.length === 0) return
 
-    aperturaEnCursoDesde = Date.now()
+    barridoDesde = Date.now()
     try {
         let primera = true
         for (const fila of filas) {
@@ -492,9 +540,9 @@ export async function responderPendientesDeAperturaBotAgente(
 
             const quitarFila = async () => {
                 await prisma.$executeRaw`
-                    DELETE FROM bot_agente_pendiente_apertura WHERE conversation_id = ${conversationId}
+                    DELETE FROM bot_agente_entrantes_pendientes WHERE conversation_id = ${conversationId}
                 `.catch((e) =>
-                    console.error(`[apertura] no se pudo borrar la fila de conv ${conversationId}:`, e.message)
+                    console.error(`[entrantes-pendientes] no se pudo borrar la fila de conv ${conversationId}:`, e.message)
                 )
             }
 
@@ -502,19 +550,19 @@ export async function responderPendientesDeAperturaBotAgente(
             primera = false
 
             try {
-                // Corte anti-loop: si esta conversación ya falló 3 pasadas, se
+                // Corte anti-loop: si esta conversación ya falló 3 barridos, se
                 // saca de la cola y se escala para que la vea un humano.
                 if (fila.intentos >= 3) {
                     await escalarAHumano({
-                        motivo: "consolidacion_apertura_fallida",
-                        resumen_consulta: `[apertura] conv ${conversationId}: ${fila.intentos} intentos fallidos`,
+                        motivo: "entrante_pendiente_sin_resolver",
+                        resumen_consulta: `[entrantes-pendientes] conv ${conversationId}: ${fila.intentos} intentos fallidos`,
                         conversation_id: conversationId,
                     }).catch(() => {})
                     await quitarFila()
                     continue
                 }
                 await prisma.$executeRaw`
-                    UPDATE bot_agente_pendiente_apertura
+                    UPDATE bot_agente_entrantes_pendientes
                     SET intentos = intentos + 1, actualizado_en = now()
                     WHERE conversation_id = ${conversationId}
                 `
@@ -542,7 +590,7 @@ export async function responderPendientesDeAperturaBotAgente(
                         herramientas: [],
                         latenciaMs: 0,
                         resultadoEnvio: "salteado",
-                        detalleEnvio: "Apertura: ventana de 24hs de WhatsApp cerrada, requiere plantilla o que el cliente vuelva a escribir",
+                        detalleEnvio: "Barrido: ventana de 24hs de WhatsApp cerrada, requiere plantilla o que el cliente vuelva a escribir",
                     })
                     await quitarFila()
                     continue
@@ -576,10 +624,10 @@ export async function responderPendientesDeAperturaBotAgente(
 
                 if (respuesta.escaladoHumano) {
                     await escalarAHumano({
-                        motivo: respuesta.motivoEscalado || "escalado_apertura",
-                        resumen_consulta: `[apertura consolidada] ${mensajeUsuario.slice(0, 300)}`,
+                        motivo: respuesta.motivoEscalado || "escalado_barrido_entrantes",
+                        resumen_consulta: `[barrido entrantes pendientes] ${mensajeUsuario.slice(0, 300)}`,
                         conversation_id: conversationId,
-                    }).catch((err) => console.error("[apertura] fallo al persistir escalado:", err))
+                    }).catch((err) => console.error("[entrantes-pendientes] fallo al persistir escalado:", err))
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -590,7 +638,7 @@ export async function responderPendientesDeAperturaBotAgente(
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
                         resultadoEnvio: "encolado",
-                        detalleEnvio: "Apertura: escalado a humano en silencio",
+                        detalleEnvio: "Barrido: escalado a humano en silencio",
                     })
                     await quitarFila()
                     continue
@@ -606,7 +654,7 @@ export async function responderPendientesDeAperturaBotAgente(
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
                         resultadoEnvio: "salteado",
-                        detalleEnvio: "Apertura: el motor no devolvió mensaje ni escalado",
+                        detalleEnvio: "Barrido: el motor no devolvió mensaje ni escalado",
                     })
                     await quitarFila()
                     continue
@@ -616,7 +664,7 @@ export async function responderPendientesDeAperturaBotAgente(
                     await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })
                     if (respuesta.fotoUrl) {
                         await enviarImagenChatwoot({ accountId, conversationId, fotoUrl: respuesta.fotoUrl }).catch(
-                            (err) => console.error("[apertura] no se pudo mandar la foto:", err)
+                            (err) => console.error("[entrantes-pendientes] no se pudo mandar la foto:", err)
                         )
                     }
                     await registrarTurno({
@@ -629,11 +677,11 @@ export async function responderPendientesDeAperturaBotAgente(
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
                         resultadoEnvio: "enviado",
-                        detalleEnvio: "Apertura: respuesta consolidada del hilo completo",
+                        detalleEnvio: "Barrido: respuesta consolidada del hilo completo",
                     })
                     await quitarFila()
                 } catch (err: any) {
-                    console.error(`[apertura] fallo el envío a Chatwoot en conv ${conversationId}:`, err)
+                    console.error(`[entrantes-pendientes] fallo el envío a Chatwoot en conv ${conversationId}:`, err)
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -646,16 +694,25 @@ export async function responderPendientesDeAperturaBotAgente(
                         resultadoEnvio: "error",
                         detalleEnvio: err.message || String(err),
                     })
-                    // NO se borra la fila: se reintenta en la próxima pasada (hasta 3).
+                    // NO se borra la fila: se reintenta en el próximo barrido (hasta 3).
                 }
             } catch (err: any) {
-                console.error(`[apertura] error procesando conv ${conversationId}:`, err)
-                // La fila queda para reintento en la próxima pasada.
+                console.error(`[entrantes-pendientes] error procesando conv ${conversationId}:`, err)
+                // La fila queda para reintento en el próximo barrido.
             }
         }
     } finally {
-        aperturaEnCursoDesde = null
+        barridoDesde = null
     }
+}
+
+// Barrido periódico: recupera conversaciones cuyo turno murió a mitad de camino
+// (deploy, crash) aunque no llegue tráfico nuevo que lo dispare. Idempotente y
+// con lock propio; `unref` para no mantener vivo el proceso por sí solo.
+if (typeof setInterval === "function" && !(globalThis as any).__botAgenteBarridoInterval) {
+    const t = setInterval(() => atenderEntrantesPendientesEnSegundoPlano(), 3 * 60 * 1000)
+    if (typeof (t as any).unref === "function") (t as any).unref()
+    ;(globalThis as any).__botAgenteBarridoInterval = t
 }
 
 export type ResultadoReprocesoConv = {

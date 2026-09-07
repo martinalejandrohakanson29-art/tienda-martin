@@ -175,7 +175,7 @@ Un punto medio moderno, robusto y limpio:
   - **Scripts** (todos en `scripts/`, se corren con `npx tsx`):
     - `activar-bot-agente-global.ts` — prende la perilla + demora 50-70s + deja horario automático prendido y reconcilia. `--off` vuelve a n8n. `--estado` inspecciona (ahora lista las conversaciones de piloto activas, que arrastran un `/bot off` viejo). `--reactivar-piloto` les manda `/bot on` y las desmarca (correr tras revisar que ningún humano las agarró de verdad). **NO toca n8n.**
     - `reprocesar-cola.ts` — drena `respuestas_pendientes` reprocesando cada conversación con el motor nuevo (reemplaza los borradores de n8n). `--estado`, `--forzar` (correr con el local cerrado).
-    - `responder-apertura.ts` — dispara a mano la pasada de apertura (Fase 7). `--estado` lista la cola, `--forzar` saltea el gate de horario.
+    - `atender-pendientes.ts` — dispara a mano el barrido de entrantes pendientes (Fase 7 / 7.1). `--estado` lista, `--forzar` saltea horario + grace.
     - `responder-conversaciones.ts <id> <id> ...` — responde conversaciones puntuales con el motor (misma demora + re-chequeo). Para las que quedaron colgadas sin mensaje nuevo.
     - `probar-demora-humana.ts` — chequeo del cálculo de la demora + dry-run read-only de punta a punta (`--conv <id>`).
   - **Apagar n8n:** workflow "Respuestas chatwoot 2.0" (id `s7EpPTjNFy6iCclg`) — es el único activo. Desde n8n (o MCP `unpublish_workflow`). Plan B: reactivarlo + `activar-bot-agente-global.ts --off`.
@@ -199,14 +199,19 @@ Un punto medio moderno, robusto y limpio:
 
 - [x] **Fase 7: Consolidación de ráfagas fuera de horario ("regeneración a la apertura")** — 07/09
   - **Problema:** con el local cerrado, cada mensaje entrante del cliente que se salía de la ventana de debounce (60s) disparaba su propio `procesarTurno` → su propia llamada al LLM → su propia fila en `respuestas_pendientes` (`origen: bot_agente`). Al abrir, `despacharCola` las mandaba TODAS seguidas (2s entre partes) → el cliente recibía 3-6 mensajes desfasados y contradictorios, generados en momentos distintos con contexto parcial (un turno preguntaba la moto que el siguiente ya daba por sabida). Detectado en las convs **3528** (+5493425486263), **3565** (+5491128156286) y **2900** (+5493513230494) — domingo 07/09, local cerrado todo el día.
-  - **Solución:** fuera de horario el bot **no llama al modelo ni encola nada**. `procesarTurno`, apenas detecta `!botDentroDeHorario()`, hace `INSERT ... ON CONFLICT` en la tabla nueva **`bot_agente_pendiente_apertura`** (`n8n-workflows/bot-agente-pendiente-apertura.sql`) y corta. Cuando el local abre, `responderPendientesDeAperturaBotAgente()` (`lib/bot-agente-tiempo-real.ts`) hace **una** pasada: por cada conversación reconstruye el hilo completo desde Chatwoot y genera **una sola** respuesta, escalonadas 6s entre conversaciones. Si en el medio contestó un humano / se pasó la ventana de 24hs / hay `/bot off` → borra la fila y sigue. Lock de módulo (muerto a los 5min, patrón `despachandoDesde`). Corte anti-loop a los 3 intentos → escala con motivo `consolidacion_apertura_fallida`.
-  - **Disparadores** (todos se auto-protegen: fuera de horario / lock tomado / tabla vacía = no-op):
-    - webhook, tras cada mensaje entrante → `responderPendientesDeAperturaEnSegundoPlano()`.
-    - `sincronizarEstadoBot` (cola.ts), cuando el horario automático acaba de abrir (import dinámico).
-    - `scripts/responder-apertura.ts` a mano (`--forzar` saltea el gate de horario, `--estado` lista).
-  - **Fix chico de la misma raíz, dentro de horario:** si llega un mensaje nuevo mientras un turno está en vuelo, los mensajes de ese turno se **devuelven al frente del buffer nuevo** (`devolverMensajesSiHayRafagaNueva`) en vez de perderse — antes el turno siguiente arrancaba solo con el mensaje nuevo y el/los primero(s) se caían.
-  - **`respuestas_pendientes` / `despacharCola` quedan intactos** para la cola legacy de n8n. Las filas `origen='bot_agente'` encoladas ANTES de este deploy se drenan como siempre (transición de una sola vez; si molestan: `UPDATE respuestas_pendientes SET estado='descartado' WHERE origen='bot_agente' AND estado='pendiente'`).
-  - **Sigue dependiendo de que el horario esté bien cargado** (`bot_horario` + `horario_automatico=true`): si `botDentroDeHorario()` diera falso siempre, todo iría a la tabla y no saldría nunca. Válvula: `responder-apertura.ts --forzar`.
+  - **Solución:** fuera de horario el bot **no llama al modelo ni encola nada**. El webhook marca la conversación en **`bot_agente_entrantes_pendientes`** (ver abajo, Fase 7.1) y `procesarTurno` corta. Cuando el local abre, `atenderEntrantesPendientes()` (`lib/bot-agente-tiempo-real.ts`) hace **una** pasada: por cada conversación reconstruye el hilo completo desde Chatwoot y genera **una sola** respuesta, escalonadas 6s. Si contestó un humano / se pasó la ventana de 24hs / hay `/bot off` → borra la fila y sigue. Lock de módulo (muerto a los 5min). Corte anti-loop a los 3 intentos → escala.
+  - **Fix chico de la misma raíz, dentro de horario:** si llega un mensaje nuevo mientras un turno está en vuelo, los mensajes de ese turno se **devuelven al frente del buffer nuevo** (`devolverMensajesSiHayRafagaNueva`) en vez de perderse.
+  - **`respuestas_pendientes` / `despacharCola` quedan intactos** para la cola legacy de n8n. Las filas `origen='bot_agente'` viejas se drenan como siempre (si molestan: `UPDATE respuestas_pendientes SET estado='descartado' WHERE origen='bot_agente' AND estado='pendiente'`).
+
+- [x] **Fase 7.1: Recuperación de mensajes que se pierden en un deploy/crash** — 07/09
+  - **Problema:** el webhook responde 200 a Chatwoot y recién después (async, en memoria) corre el modelo + la demora de 50-70s. Si Coolify reinicia el contenedor en esos ~2 min, el trabajo se evapora y **Chatwoot no reintenta**. Conv **3575** (+5493718506927): "Recorrido corto" cayó justo durante el deploy de `87f222f` y quedó sin respuesta, sin rastro.
+  - **Solución:** el mismo mecanismo de Fase 7, generalizado. Tabla renombrada `bot_agente_pendiente_apertura` → **`bot_agente_entrantes_pendientes`** (`n8n-workflows/bot-agente-entrantes-pendientes.sql`). El **webhook** hace `marcarEntrantePendiente()` (upsert) con CADA mensaje del cliente, ANTES del trabajo async. `procesarTurno` **borra la fila** cuando atendió (guard por `ultimo_mensaje_en` para no pisar una ráfaga nueva). El barrido `atenderEntrantesPendientes()` recoge lo que sobrevive al **grace de 4 min** (un turno vivo tarda hasta ~2): local cerrado (espera apertura) o turno muerto (lo recupera ya).
+  - **Disparadores** (auto-protegidos: fuera de horario salvo `--forzar` / lock / nada vencido = no-op):
+    - webhook, tras cada mensaje entrante → `atenderEntrantesPendientesEnSegundoPlano()`.
+    - `sincronizarEstadoBot` (cola.ts) al abrir el local (import dinámico).
+    - **`setInterval` cada 3 min** en `lib/bot-agente-tiempo-real.ts` (`unref`, dedup por `globalThis`) — cubre el caso "no llega tráfico nuevo que lo dispare".
+    - `scripts/atender-pendientes.ts` a mano (`--estado` lista, `--forzar` saltea horario + grace).
+  - **Sigue dependiendo de `bot_horario` bien cargado + `horario_automatico=true`.** Válvula: `atender-pendientes.ts --forzar`.
 
 ---
 

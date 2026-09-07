@@ -730,8 +730,8 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 | Tabla | Para qué | SQL de origen |
 |---|---|---|
 | `bot_estado`, `bot_horario` | Botón ON/OFF + horario automático semanal | `bot-onoff.sql`, `bot-horario.sql` |
-| `respuestas_pendientes` | Cola de mensajes cuando el bot está apagado (o fuera de horario) — **cola legacy de n8n**; el bot-agente 2.0 ya no escribe acá (ver `bot_agente_pendiente_apertura`) | `bot-onoff.sql` |
-| `bot_agente_pendiente_apertura` | Conversaciones que escribieron con el local CERRADO: el bot-agente NO genera nada de noche, marca acá y al abrir responde UNA vez consolidada (Fase 7) | `bot-agente-pendiente-apertura.sql` |
+| `respuestas_pendientes` | Cola de mensajes cuando el bot está apagado (o fuera de horario) — **cola legacy de n8n**; el bot-agente 2.0 ya no escribe acá (ver `bot_agente_entrantes_pendientes`) | `bot-onoff.sql` |
+| `bot_agente_entrantes_pendientes` | Mensajes del cliente SIN responder: el webhook los marca acá antes del trabajo async, `procesarTurno` los borra al atender. El barrido `atenderEntrantesPendientes()` recupera lo que quedó — local cerrado (responde al abrir) o turno muerto en un deploy/crash (Fase 7 / 7.1) | `bot-agente-entrantes-pendientes.sql` |
 | `bot_numeros_exceptuados` | Teléfonos que siguen respondiéndose en vivo con el bot apagado (números de prueba) | `bot-numeros-exceptuados.sql` |
 | `bot_conversacion_lock` | Lock por teléfono, no procesar 2 mensajes en simultáneo | `lock-conversacion.sql` |
 | `kits_publicidad` | Kits publicitados: plantilla exacta, precio, envío, detalle | (histórico, sin `.sql` propio) |

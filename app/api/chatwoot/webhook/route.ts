@@ -6,7 +6,8 @@ import {
     botAgenteGlobalActivo,
     esConversacionPiloto,
     manejarMensajeEntrantePiloto,
-    responderPendientesDeAperturaEnSegundoPlano,
+    marcarEntrantePendiente,
+    atenderEntrantesPendientesEnSegundoPlano,
 } from "@/lib/bot-agente-tiempo-real"
 import { empujarCola } from "@/lib/chatwoot-cola"
 
@@ -106,14 +107,20 @@ export async function POST(req: Request) {
                         esConversacionPiloto(conversationId),
                     ])
                     if (global || piloto) {
+                        // Registro DURABLE antes de arrancar el trabajo async: si
+                        // el proceso se cae (deploy de Coolify, crash) el mensaje
+                        // no se pierde -- el barrido lo recupera. `procesarTurno`
+                        // borra esta fila cuando lo atiende.
+                        await marcarEntrantePendiente(1, conversationId)
                         await manejarMensajeEntrantePiloto(1, conversationId, textoEntrante)
                     }
 
-                    // Si el local acaba de abrir, responder consolidado (UNA vez)
-                    // las conversaciones que escribieron con el local cerrado. En
-                    // segundo plano: no demora la respuesta al webhook. Se
-                    // auto-protege (fuera de horario / lock / tabla vacía = no-op).
-                    responderPendientesDeAperturaEnSegundoPlano()
+                    // Barrido de entrantes pendientes: conversaciones que
+                    // escribieron con el local cerrado (se responden al abrir) o
+                    // turnos que murieron en vuelo. En segundo plano: no demora la
+                    // respuesta al webhook. Se auto-protege (fuera de horario /
+                    // lock / nada vencido = no-op).
+                    atenderEntrantesPendientesEnSegundoPlano()
                 } catch (err) {
                     console.error("[webhook chatwoot] error en bot-agente:", err)
                 }

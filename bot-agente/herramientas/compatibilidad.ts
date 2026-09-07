@@ -478,7 +478,13 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
                 detalle: mejorMatch.detalle,
                 mensaje_para_agente: mejorMatch.compatible
                     ? `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}. Cerrá natural ("Cualquier cosa avisanos y coordinamos").`
-                    : `CONFIRMADO: NO ES COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Motivo: ${mejorMatch.detalle}` : ""}`
+                    : [
+                          `NO ES COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Motivo: ${mejorMatch.detalle}.` : ""}`,
+                          `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,
+                          `- NO ofrezcas otros combos ni "alternativas" ni te ofrezcas a "buscar opciones compatibles": no tenés ninguna confirmada por el sistema.`,
+                          `- NO le vuelvas a preguntar la moto (ya te la dijo).`,
+                          `- Cerrá corto (ej: "Cualquier otra cosa que necesites, avisame.").`
+                      ].join("\n")
             }
         }
 

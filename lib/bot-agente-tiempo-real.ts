@@ -27,19 +27,33 @@ const buffers = new Map<number, BufferConversacion>()
 const dormirMs = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /**
- * Demora deliberada para que la respuesta no salga instantánea y parezca escrita
- * por una persona. Se elige un objetivo aleatorio en [min, max] segundos y se
- * descuenta lo que ya tardó el turno (modelo + herramientas), así el tiempo
- * total percibido por el cliente cae siempre dentro de esa ventana.
+ * Cálculo puro (testeable) de cuántos ms falta esperar para que la respuesta no
+ * salga instantánea y parezca escrita por una persona: se elige un objetivo
+ * aleatorio en [min, max] segundos y se descuenta lo que ya tardó el turno
+ * (modelo + herramientas), así el total percibido por el cliente cae siempre
+ * dentro de esa ventana. Nunca espera más que `maxSeg` ni menos que 0.
  */
+export function calcularEsperaCadenciaHumanaMs(
+    minSeg: number,
+    maxSeg: number,
+    transcurridoMs: number,
+    rnd: number = Math.random()
+): number {
+    const min = Math.max(0, minSeg) * 1000
+    const max = Math.max(min, maxSeg * 1000)
+    const objetivo = min + Math.max(0, Math.min(1, rnd)) * (max - min)
+    return Math.max(0, Math.min(objetivo - Math.max(0, transcurridoMs), max))
+}
+
+/** Aplica la demora deliberada leyendo la config de `chat_config`. */
 async function esperarCadenciaHumana(inicioTurnoMs: number) {
     const config = await obtenerConfiguracionAgente().catch(() => null)
     if (!config || !config.respuestaDelayActivo) return
-    const min = config.respuestaDelayMinSeg * 1000
-    const max = config.respuestaDelayMaxSeg * 1000
-    const objetivo = min + Math.random() * Math.max(0, max - min)
-    const transcurrido = Date.now() - inicioTurnoMs
-    const restante = Math.min(objetivo - transcurrido, max)
+    const restante = calcularEsperaCadenciaHumanaMs(
+        config.respuestaDelayMinSeg,
+        config.respuestaDelayMaxSeg,
+        Date.now() - inicioTurnoMs
+    )
     if (restante > 0) await dormirMs(restante)
 }
 

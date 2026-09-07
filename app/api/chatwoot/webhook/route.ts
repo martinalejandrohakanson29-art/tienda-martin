@@ -2,7 +2,12 @@ import { NextResponse } from "next/server"
 import { guardarConversacionesEnEspejo } from "@/lib/chatwoot-chats-vivo"
 import { emitirEventoChatwoot, type EventoChatwootEnVivo } from "@/lib/chatwoot-events"
 import { calcularBotPausadoDesdeHistorial, chatwootConfig } from "@/lib/chatwoot-bot"
-import { botAgenteGlobalActivo, esConversacionPiloto, manejarMensajeEntrantePiloto } from "@/lib/bot-agente-tiempo-real"
+import {
+    botAgenteGlobalActivo,
+    esConversacionPiloto,
+    manejarMensajeEntrantePiloto,
+    responderPendientesDeAperturaEnSegundoPlano,
+} from "@/lib/bot-agente-tiempo-real"
 import { empujarCola } from "@/lib/chatwoot-cola"
 
 export const dynamic = "force-dynamic"
@@ -103,6 +108,12 @@ export async function POST(req: Request) {
                     if (global || piloto) {
                         await manejarMensajeEntrantePiloto(1, conversationId, textoEntrante)
                     }
+
+                    // Si el local acaba de abrir, responder consolidado (UNA vez)
+                    // las conversaciones que escribieron con el local cerrado. En
+                    // segundo plano: no demora la respuesta al webhook. Se
+                    // auto-protege (fuera de horario / lock / tabla vacía = no-op).
+                    responderPendientesDeAperturaEnSegundoPlano()
                 } catch (err) {
                     console.error("[webhook chatwoot] error en bot-agente:", err)
                 }

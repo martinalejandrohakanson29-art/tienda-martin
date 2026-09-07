@@ -252,6 +252,13 @@ export async function sincronizarEstadoBot(): Promise<EstadoBot> {
     const resultado = await sincronizarHorarioAutomatico()
     if (resultado.cambio && resultado.encendido) {
         despacharColaEnSegundoPlano()
+        // El local acaba de abrir: además de la cola legacy, responder
+        // consolidadas las conversaciones que escribieron con el local cerrado
+        // (motor bot-agente). Import dinámico para no acoplar la cola genérica
+        // con el motor (que arrastra todo el agente).
+        void import("@/lib/bot-agente-tiempo-real")
+            .then((m) => m.responderPendientesDeAperturaEnSegundoPlano())
+            .catch((err) => console.error("[cola] no se pudo disparar la pasada de apertura:", err))
     }
     const { cambio, ...estado } = resultado
     return estado

@@ -4,7 +4,6 @@ import {
     calcularBotPausadoDesdeHistorial,
     chatwootConfig,
     chatwootFetch,
-    encolarRespuesta,
     enviarImagenChatwoot,
     enviarMensajeChatwoot,
     enviarNotaPrivadaChatwoot,
@@ -179,10 +178,52 @@ async function procesarTurno(accountId: number, conversationId: number) {
     buffers.delete(conversationId)
     if (!buffer || buffer.mensajes.length === 0) return
 
-    const mensajeUsuario = buffer.mensajes.join("\n")
+    const mensajesDelTurno = buffer.mensajes
+    const mensajeUsuario = mensajesDelTurno.join("\n")
     const inicio = Date.now()
 
+    // Si llega un mensaje nuevo del cliente mientras este turno estaba en vuelo,
+    // `manejarMensajeEntrantePiloto` crea un buffer nuevo. En vez de tirar los
+    // mensajes que este turno ya tenía (se perdían: el turno siguiente arrancaba
+    // solo con el mensaje nuevo), los devolvemos al frente del buffer nuevo para
+    // que el próximo turno los procese todos juntos.
+    const devolverMensajesSiHayRafagaNueva = () => {
+        const nuevo = buffers.get(conversationId)
+        if (nuevo) nuevo.mensajes.unshift(...mensajesDelTurno)
+    }
+
     try {
+        // Local cerrado: NO se llama al modelo y NO se encola una respuesta por
+        // mensaje. Solo se marca la conversación; al abrir el local,
+        // `responderPendientesDeAperturaBotAgente()` reconstruye el hilo completo
+        // y responde UNA sola vez. Así se corta la lluvia de mensajes desfasados
+        // que salía cuando cada mensaje de la noche encolaba su propia respuesta
+        // y el despachador las mandaba todas juntas (convs 3528 / 3565 / 2900).
+        const dentroDeHorario = await botDentroDeHorario().catch(() => true)
+        if (!dentroDeHorario) {
+            await prisma.$executeRaw`
+                INSERT INTO bot_agente_pendiente_apertura
+                    (conversation_id, account_id, primer_mensaje_en, ultimo_mensaje_en, actualizado_en)
+                VALUES (${conversationId}, ${accountId}, now(), now(), now())
+                ON CONFLICT (conversation_id) DO UPDATE
+                SET ultimo_mensaje_en = now(), actualizado_en = now()
+            `.catch((err) =>
+                console.error("[bot-agente-tiempo-real] no se pudo marcar pendiente de apertura:", err)
+            )
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: null,
+                escaladoHumano: false,
+                herramientas: [],
+                latenciaMs: Date.now() - inicio,
+                resultadoEnvio: "encolado",
+                detalleEnvio: "Local cerrado: se responde consolidado al abrir (bot_agente_pendiente_apertura)",
+            })
+            return
+        }
+
         // El equipo puede sacar al bot de esta charla (switch de
         // /admin/chatwoot/chats-vivo -> `/bot off`, o una respuesta pública de un
         // humano). En modo global ya no está n8n para respetarlo: lo hacemos acá.
@@ -260,34 +301,6 @@ async function procesarTurno(accountId: number, conversationId: number) {
 
         if (!respuesta.mensajeFinal) return
 
-        // Fuera del horario comercial: mismo criterio que n8n -- la respuesta ya
-        // está generada, pero el mensaje que ve el cliente se difiere. Queda en
-        // `respuestas_pendientes` y el despachador la manda escalonada al abrir.
-        const dentroDeHorario = await botDentroDeHorario().catch(() => true)
-        if (!dentroDeHorario) {
-            await encolarRespuesta({
-                accountId,
-                conversationId,
-                contacto: null,
-                contenido: respuesta.mensajeFinal,
-                origen: "bot_agente",
-                fotoUrl: respuesta.fotoUrl,
-            }).catch((err) => console.error("[bot-agente-tiempo-real] no se pudo encolar fuera de horario:", err))
-            await registrarTurno({
-                conversationId,
-                accountId,
-                mensajeCliente: mensajeUsuario,
-                respuestaBot: respuesta.mensajeFinal,
-                fotoUrl: respuesta.fotoUrl,
-                escaladoHumano: false,
-                herramientas: respuesta.herramientasEjecutadas,
-                latenciaMs: Date.now() - inicio,
-                resultadoEnvio: "encolado",
-                detalleEnvio: "Fuera del horario comercial: se manda al abrir el local",
-            })
-            return
-        }
-
         // Cadencia humana: demora deliberada para no responder al instante.
         await esperarCadenciaHumana(inicio)
 
@@ -310,6 +323,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
             return
         }
         if (buffers.has(conversationId)) {
+            devolverMensajesSiHayRafagaNueva()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -421,6 +435,228 @@ const VENTANA_24HS_MARGEN_MS = 23 * 60 * 60 * 1000
 
 const ESPERA_ENTRE_CONVERSACIONES_MS = 6000
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// --- Pasada de APERTURA -----------------------------------------------------
+// Se guarda el MOMENTO en que arrancó (no un booleano) para que un run colgado
+// no bloquee para siempre -- mismo patrón que `despachandoDesde` en la cola.
+const APERTURA_MAX_MS = 5 * 60 * 1000
+let aperturaEnCursoDesde: number | null = null
+const aperturaEnCurso = () =>
+    aperturaEnCursoDesde !== null && Date.now() - aperturaEnCursoDesde < APERTURA_MAX_MS
+
+/** Dispara la pasada de apertura sin bloquear a quien la gatilló (webhook, cola). */
+export function responderPendientesDeAperturaEnSegundoPlano() {
+    void responderPendientesDeAperturaBotAgente().catch((err) =>
+        console.error("[bot-agente-tiempo-real] falló la pasada de apertura:", err)
+    )
+}
+
+/**
+ * Pasada de APERTURA: cuando el local abre, responde UNA sola vez cada
+ * conversación que escribió con el local CERRADO (tabla
+ * `bot_agente_pendiente_apertura`, poblada por `procesarTurno` fuera de
+ * horario). Reconstruye el hilo real desde Chatwoot, genera una única respuesta
+ * con el motor y la manda (o escala en silencio). Escalonado entre
+ * conversaciones para que se lea como "abrió el local y se puso a contestar".
+ *
+ * Reemplaza el viejo camino "generá y encolá una respuesta por cada mensaje de
+ * la noche" que terminaba largando 3-6 mensajes desfasados de una (convs 3528 /
+ * 3565 / 2900).
+ *
+ * Se dispara oportunista: desde el webhook con cada mensaje entrante y desde
+ * `sincronizarEstadoBot` cuando el horario automático acaba de abrir. Se
+ * auto-protege: no hace nada fuera de horario (salvo `forzar`), ni con otra
+ * pasada en curso, ni con la tabla vacía.
+ */
+export async function responderPendientesDeAperturaBotAgente(
+    opciones: { forzar?: boolean } = {}
+): Promise<void> {
+    if (aperturaEnCurso()) return
+    if (!opciones.forzar && !(await botDentroDeHorario().catch(() => false))) return
+
+    const filas = await prisma.$queryRaw<
+        { conversation_id: bigint; account_id: bigint; intentos: number }[]
+    >`
+        SELECT conversation_id, account_id, intentos
+        FROM bot_agente_pendiente_apertura
+        ORDER BY primer_mensaje_en ASC
+    `
+    if (filas.length === 0) return
+
+    aperturaEnCursoDesde = Date.now()
+    try {
+        let primera = true
+        for (const fila of filas) {
+            const conversationId = Number(fila.conversation_id)
+            const accountId = Number(fila.account_id)
+
+            const quitarFila = async () => {
+                await prisma.$executeRaw`
+                    DELETE FROM bot_agente_pendiente_apertura WHERE conversation_id = ${conversationId}
+                `.catch((e) =>
+                    console.error(`[apertura] no se pudo borrar la fila de conv ${conversationId}:`, e.message)
+                )
+            }
+
+            if (!primera) await dormir(ESPERA_ENTRE_CONVERSACIONES_MS)
+            primera = false
+
+            try {
+                // Corte anti-loop: si esta conversación ya falló 3 pasadas, se
+                // saca de la cola y se escala para que la vea un humano.
+                if (fila.intentos >= 3) {
+                    await escalarAHumano({
+                        motivo: "consolidacion_apertura_fallida",
+                        resumen_consulta: `[apertura] conv ${conversationId}: ${fila.intentos} intentos fallidos`,
+                        conversation_id: conversationId,
+                    }).catch(() => {})
+                    await quitarFila()
+                    continue
+                }
+                await prisma.$executeRaw`
+                    UPDATE bot_agente_pendiente_apertura
+                    SET intentos = intentos + 1, actualizado_en = now()
+                    WHERE conversation_id = ${conversationId}
+                `
+
+                const transcripcion = await traerTranscripcion(accountId, conversationId)
+                if (transcripcion.length === 0) {
+                    await quitarFila()
+                    continue
+                }
+
+                const ultimo = transcripcion[transcripcion.length - 1]
+                if (ultimo.saliente) {
+                    // Ya contestó un humano o el bot mientras tanto.
+                    await quitarFila()
+                    continue
+                }
+
+                if (Date.now() - ultimo.creadoEn > VENTANA_24HS_MARGEN_MS) {
+                    await registrarTurno({
+                        conversationId,
+                        accountId,
+                        mensajeCliente: ultimo.contenido,
+                        respuestaBot: null,
+                        escaladoHumano: false,
+                        herramientas: [],
+                        latenciaMs: 0,
+                        resultadoEnvio: "salteado",
+                        detalleEnvio: "Apertura: ventana de 24hs de WhatsApp cerrada, requiere plantilla o que el cliente vuelva a escribir",
+                    })
+                    await quitarFila()
+                    continue
+                }
+
+                if (await debeCallarsePorPausaHumana(accountId, conversationId)) {
+                    await quitarFila()
+                    continue
+                }
+
+                let cortIdx = transcripcion.length - 1
+                while (cortIdx >= 0 && !transcripcion[cortIdx].saliente) cortIdx--
+                const historialPrevio: MensajeChat[] = transcripcion.slice(0, cortIdx + 1).map((m) => ({
+                    rol: m.saliente ? "assistant" : "user",
+                    contenido: m.contenido,
+                }))
+                const mensajeUsuario = transcripcion
+                    .slice(cortIdx + 1)
+                    .map((m) => m.contenido)
+                    .join("\n")
+                if (!mensajeUsuario.trim()) {
+                    await quitarFila()
+                    continue
+                }
+
+                const inicio = Date.now()
+                const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
+                    conversationId,
+                    estadoKey: String(conversationId),
+                })
+
+                if (respuesta.escaladoHumano) {
+                    await escalarAHumano({
+                        motivo: respuesta.motivoEscalado || "escalado_apertura",
+                        resumen_consulta: `[apertura consolidada] ${mensajeUsuario.slice(0, 300)}`,
+                        conversation_id: conversationId,
+                    }).catch((err) => console.error("[apertura] fallo al persistir escalado:", err))
+                    await registrarTurno({
+                        conversationId,
+                        accountId,
+                        mensajeCliente: mensajeUsuario,
+                        respuestaBot: null,
+                        escaladoHumano: true,
+                        motivoEscalado: respuesta.motivoEscalado,
+                        herramientas: respuesta.herramientasEjecutadas,
+                        latenciaMs: Date.now() - inicio,
+                        resultadoEnvio: "encolado",
+                        detalleEnvio: "Apertura: escalado a humano en silencio",
+                    })
+                    await quitarFila()
+                    continue
+                }
+
+                if (!respuesta.mensajeFinal) {
+                    await registrarTurno({
+                        conversationId,
+                        accountId,
+                        mensajeCliente: mensajeUsuario,
+                        respuestaBot: null,
+                        escaladoHumano: false,
+                        herramientas: respuesta.herramientasEjecutadas,
+                        latenciaMs: Date.now() - inicio,
+                        resultadoEnvio: "salteado",
+                        detalleEnvio: "Apertura: el motor no devolvió mensaje ni escalado",
+                    })
+                    await quitarFila()
+                    continue
+                }
+
+                try {
+                    await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })
+                    if (respuesta.fotoUrl) {
+                        await enviarImagenChatwoot({ accountId, conversationId, fotoUrl: respuesta.fotoUrl }).catch(
+                            (err) => console.error("[apertura] no se pudo mandar la foto:", err)
+                        )
+                    }
+                    await registrarTurno({
+                        conversationId,
+                        accountId,
+                        mensajeCliente: mensajeUsuario,
+                        respuestaBot: respuesta.mensajeFinal,
+                        fotoUrl: respuesta.fotoUrl,
+                        escaladoHumano: false,
+                        herramientas: respuesta.herramientasEjecutadas,
+                        latenciaMs: Date.now() - inicio,
+                        resultadoEnvio: "enviado",
+                        detalleEnvio: "Apertura: respuesta consolidada del hilo completo",
+                    })
+                    await quitarFila()
+                } catch (err: any) {
+                    console.error(`[apertura] fallo el envío a Chatwoot en conv ${conversationId}:`, err)
+                    await registrarTurno({
+                        conversationId,
+                        accountId,
+                        mensajeCliente: mensajeUsuario,
+                        respuestaBot: respuesta.mensajeFinal,
+                        fotoUrl: respuesta.fotoUrl,
+                        escaladoHumano: false,
+                        herramientas: respuesta.herramientasEjecutadas,
+                        latenciaMs: Date.now() - inicio,
+                        resultadoEnvio: "error",
+                        detalleEnvio: err.message || String(err),
+                    })
+                    // NO se borra la fila: se reintenta en la próxima pasada (hasta 3).
+                }
+            } catch (err: any) {
+                console.error(`[apertura] error procesando conv ${conversationId}:`, err)
+                // La fila queda para reintento en la próxima pasada.
+            }
+        }
+    } finally {
+        aperturaEnCursoDesde = null
+    }
+}
 
 export type ResultadoReprocesoConv = {
     conversationId: number

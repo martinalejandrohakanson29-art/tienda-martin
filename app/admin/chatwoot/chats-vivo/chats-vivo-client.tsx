@@ -6,6 +6,9 @@ import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, Gr
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
+    activarPilotoBotAgenteChatVivo,
+    desactivarPilotoBotAgenteChatVivo,
+    estaEnPilotoBotAgenteChatVivo,
     crearNotaRapida,
     enviarMensajeComposerChatVivo,
     forzarSincronizacionChatsVivo,
@@ -604,6 +607,10 @@ export function ChatsVivoClient({
     const [togglingDestacado, setTogglingDestacado] = useState<number | null>(null)
     const [resolviendo, setResolviendo] = useState<number | null>(null)
 
+    // Piloto controlado del motor nuevo (bot-agente) por conversación puntual.
+    const [pilotoActivo, setPilotoActivo] = useState<Record<number, boolean>>({})
+    const [togglingPiloto, setTogglingPiloto] = useState<number | null>(null)
+
     // Selectores rápidos arriba del hilo: "Enviar info de kit" y "Notas rápidas"
     const [kitsRapidos, setKitsRapidos] = useState<KitEnvioRapido[] | null>(null)
     const [notasRapidas, setNotasRapidas] = useState<NotaRapida[] | null>(null)
@@ -1197,6 +1204,41 @@ export function ChatsVivoClient({
             })
         } finally {
             setTogglingDestacado(null)
+        }
+    }
+
+    useEffect(() => {
+        if (!seleccionada || seleccionada.id in pilotoActivo) return
+        estaEnPilotoBotAgenteChatVivo(seleccionada.id)
+            .then((activo) => setPilotoActivo((prev) => ({ ...prev, [seleccionada.id]: activo })))
+            .catch(() => {})
+    }, [seleccionada?.id])
+
+    const handleTogglePiloto = async (conversationId: number, activoActual: boolean) => {
+        setTogglingPiloto(conversationId)
+        try {
+            if (activoActual) {
+                await desactivarPilotoBotAgenteChatVivo(conversationId)
+                setPilotoActivo((prev) => ({ ...prev, [conversationId]: false }))
+            } else {
+                await activarPilotoBotAgenteChatVivo(conversationId)
+                setPilotoActivo((prev) => ({ ...prev, [conversationId]: true }))
+                // Activar el piloto pausa a n8n (/bot off): reflejarlo también en el switch de arriba.
+                setPanel((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              conversaciones: prev.conversaciones.map((c) =>
+                                  c.id === conversationId ? { ...c, botPausado: true } : c
+                              ),
+                          }
+                        : prev
+                )
+            }
+        } catch (err) {
+            alert("Error al cambiar el piloto de bot-agente: " + (err instanceof Error ? err.message : "Error desconocido"))
+        } finally {
+            setTogglingPiloto(null)
         }
     }
 
@@ -1839,6 +1881,30 @@ export function ChatsVivoClient({
                                             </span>
                                         </div>
                                     </div>
+
+                                    {/* Piloto controlado del motor nuevo (bot-agente) para esta conversación */}
+                                    <button
+                                        type="button"
+                                        disabled={togglingPiloto === seleccionada.id}
+                                        onClick={() => handleTogglePiloto(seleccionada.id, Boolean(pilotoActivo[seleccionada.id]))}
+                                        title={
+                                            pilotoActivo[seleccionada.id]
+                                                ? "Esta conversación la responde el motor NUEVO (bot-agente). Clic para devolvérsela a n8n."
+                                                : "Clic para que esta conversación puntual la responda el motor NUEVO (bot-agente) en vez de n8n."
+                                        }
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border shadow-sm text-[11px] font-semibold transition-colors ${
+                                            pilotoActivo[seleccionada.id]
+                                                ? "bg-violet-600 text-white border-violet-600"
+                                                : "bg-white text-slate-500 border-slate-200 hover:border-violet-300"
+                                        } ${togglingPiloto === seleccionada.id ? "opacity-60 cursor-wait" : ""}`}
+                                    >
+                                        {togglingPiloto === seleccionada.id ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                            <span>🧪</span>
+                                        )}
+                                        {pilotoActivo[seleccionada.id] ? "Piloto bot-agente ON" : "Piloto bot-agente"}
+                                    </button>
 
                                     <a
                                         href={`${chatwootUrl}/app/accounts/1/conversations/${seleccionada.id}`}

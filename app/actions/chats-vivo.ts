@@ -107,6 +107,36 @@ export async function cambiarEstadoBotChatVivo(
     return { success: true, botPausado }
 }
 
+/**
+ * Piloto controlado del motor nuevo (bot-agente): activa/desactiva que ESA
+ * conversación puntual la responda bot-agente en vez de n8n. Reusa el mismo
+ * /bot off / /bot on de arriba para pausar a n8n en esa charla.
+ */
+export async function activarPilotoBotAgenteChatVivo(conversationId: number): Promise<{ success: boolean }> {
+    const session = await requireAdmin()
+    const quien = (session?.user as any)?.username || "admin"
+    const { activarPilotoBotAgente } = await import("@/lib/bot-agente-tiempo-real")
+    await activarPilotoBotAgente(conversationId, ACCOUNT_ID, quien)
+    await actualizarBotPausadoEnEspejo(conversationId, true)
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true }
+}
+
+export async function desactivarPilotoBotAgenteChatVivo(conversationId: number): Promise<{ success: boolean }> {
+    await requireAdmin()
+    const { desactivarPilotoBotAgente } = await import("@/lib/bot-agente-tiempo-real")
+    await desactivarPilotoBotAgente(conversationId, ACCOUNT_ID)
+    await actualizarBotPausadoEnEspejo(conversationId, false)
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true }
+}
+
+export async function estaEnPilotoBotAgenteChatVivo(conversationId: number): Promise<boolean> {
+    await requireAdmin()
+    const { esConversacionPiloto } = await import("@/lib/bot-agente-tiempo-real")
+    return esConversacionPiloto(conversationId)
+}
+
 /** Marca o desmarca una conversación como destacada (estrella/favorito). */
 export async function toggleDestacadoChatVivo(
     conversationId: number,

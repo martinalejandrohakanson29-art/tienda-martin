@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { guardarConversacionesEnEspejo } from "@/lib/chatwoot-chats-vivo"
 import { emitirEventoChatwoot, type EventoChatwootEnVivo } from "@/lib/chatwoot-events"
 import { calcularBotPausadoDesdeHistorial, chatwootConfig } from "@/lib/chatwoot-bot"
+import { esConversacionPiloto, manejarMensajeEntrantePiloto } from "@/lib/bot-agente-tiempo-real"
 
 export const dynamic = "force-dynamic"
 
@@ -60,6 +61,24 @@ export async function POST(req: Request) {
 
         if (esActividadNueva && conversacion && conversacion.id) {
             await guardarConversacionesEnEspejo([conversacion])
+        }
+
+        // Piloto controlado de bot-agente: solo para conversaciones marcadas a
+        // mano en `bot_agente_piloto` (n8n ya esta pausado ahi via /bot off).
+        // Fire-and-forget: no debe demorar ni tumbar la respuesta al webhook.
+        if (eventoNombre === "message_created" && conversationId > 0) {
+            const mensajeEntrante = body.messages?.[0] || body
+            const esEntrante = mensajeEntrante?.message_type === 0 || mensajeEntrante?.message_type === "incoming"
+            const esDeCliente = !mensajeEntrante?.private && mensajeEntrante?.sender?.type === "contact"
+            const textoEntrante = (mensajeEntrante?.content || "").toString().trim()
+
+            if (esEntrante && esDeCliente && textoEntrante) {
+                esConversacionPiloto(conversationId)
+                    .then((activo) => {
+                        if (activo) return manejarMensajeEntrantePiloto(1, conversationId, textoEntrante)
+                    })
+                    .catch((err) => console.error("[webhook chatwoot] error en piloto bot-agente:", err))
+            }
         }
 
         // Si vino un mensaje en el webhook, armar el objeto para emitir en vivo al cliente

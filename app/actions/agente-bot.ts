@@ -12,6 +12,20 @@ import {
 } from "@/bot-agente/configuracion"
 
 import { prisma } from "@/lib/prisma"
+import { reprocesarColaPendienteConBotAgente, type ResultadoReprocesoConv } from "@/lib/bot-agente-tiempo-real"
+
+/**
+ * Toma toda la cola vieja de `respuestas_pendientes` (generada por n8n) y la
+ * reprocesa/responde con bot-agente: reconstruye cada conversacion real desde
+ * Chatwoot, genera la respuesta con el motor nuevo, la manda (o escala en
+ * silencio), descarta las filas viejas y deja la conversacion en piloto para
+ * que los mensajes siguientes tambien los conteste bot-agente.
+ */
+export async function reprocesarColaBotAgenteAction(): Promise<ResultadoReprocesoConv[]> {
+    const session = await requireAdmin()
+    const username = (session?.user as any)?.username || "admin"
+    return reprocesarColaPendienteConBotAgente(username)
+}
 
 export async function enviarMensajeSimulador(
     mensaje: string,

@@ -28,6 +28,15 @@ const ORIGEN_SALUDO_GENERICO = "saludo_generico_2_0"
 const ESPERA_ENTRE_PARTES_MS = Number(process.env.BOT_COLA_ESPERA_PARTE_MS || 2000)
 const ESPERA_ENTRE_CONVERSACIONES_MS = Number(process.env.BOT_COLA_ESPERA_CONVERSACION_MS || 6000)
 
+// WhatsApp solo acepta texto libre dentro de las 24hs desde el ultimo mensaje
+// del cliente; pasado eso, Chatwoot devuelve "24-hour customer service window
+// is closed" y el mensaje queda en `failed` sin llegar. Encontrado en el
+// piloto del 06/09 reprocesando la cola vieja: 14 de 18 fallaron por esto. En
+// vez de gastar el intento (y dejar la fila en `error` como si fuera un
+// problema nuestro), se descarta apenas se detecta para que quede claro que
+// hace falta una plantilla aprobada o que el cliente vuelva a escribir.
+const VENTANA_24HS_MARGEN_MS = 23 * 60 * 60 * 1000
+
 export type ResultadoDespacho = {
     yaCorria?: boolean
     enviados: number
@@ -116,6 +125,16 @@ export async function despacharCola(opciones: { forzar?: boolean } = {}): Promis
                     SET estado = 'descartado', motivo = 'Contestó alguien del equipo en esa conversación'
                     WHERE conversation_id = ${fila.conversation_id}
                       AND estado IN ('pendiente', 'enviando')
+                `
+                resultado.descartados += Number(descartadas)
+                continue
+            }
+
+            if (Date.now() - fila.creado_en.getTime() > VENTANA_24HS_MARGEN_MS) {
+                const descartadas = await prisma.$executeRaw`
+                    UPDATE respuestas_pendientes
+                    SET estado = 'descartado', motivo = 'Ventana de 24hs de WhatsApp cerrada (mas de 23hs desde que se genero). Requiere plantilla aprobada o que el cliente vuelva a escribir.'
+                    WHERE id = ${fila.id}
                 `
                 resultado.descartados += Number(descartadas)
                 continue

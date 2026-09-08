@@ -227,3 +227,43 @@ export function quitarPreguntaDeMotoFinal(texto: string | null | undefined): str
     // manda tal cual (que no salga nada lo decide el motor, no este helper).
     return recortado.length > 0 ? recortado : original
 }
+
+/**
+ * Líneas de la ráfaga que NO forman parte de la plantilla publicitaria.
+ *
+ * El cliente que clickea un anuncio manda la plantilla exacta y, uno o dos
+ * segundos después, su pregunta real ("cuánto vale", "hacen envíos a Santiago
+ * del Estero?"). El debounce las junta en un solo texto y el matcher de
+ * plantillas usa `includes`, así que la ráfaga entera daba match y el motor
+ * contestaba SOLO la bienvenida oficial: la pregunta de envío quedaba sin
+ * respuesta (convs 2977 y 3657, 08/09).
+ *
+ * Devuelve "" cuando no sobra nada que valga un turno (solo la plantilla, un
+ * "?" suelto o un saludo).
+ */
+const SALUDOS_SUELTOS = new Set([
+    "hola", "holis", "buenas", "buen dia", "buenas tardes", "buenas noches",
+    "hey", "que tal", "como va", "como andas", "como estas", "hola buenas"
+])
+
+export function restoFueraDePlantilla(
+    mensajeUsuario: string | null | undefined,
+    plantillaNormalizada: string | null | undefined
+): string {
+    const plantillaNorm = (plantillaNormalizada || "").trim()
+    if (!plantillaNorm) return ""
+
+    const restantes = (mensajeUsuario || "")
+        .split(/\n+/)
+        .filter((linea) => {
+            const norm = normalizarTexto(linea)
+            if (norm.length < 3) return false // "?", "ok", vacío
+            if (SALUDOS_SUELTOS.has(norm)) return false
+            // La línea es (o está contenida en) la plantilla del anuncio.
+            return !(plantillaNorm.includes(norm) || norm.includes(plantillaNorm))
+        })
+        .map((linea) => linea.trim())
+
+    const resto = restantes.join("\n").trim()
+    return normalizarTexto(resto).length >= 4 ? resto : ""
+}

@@ -175,6 +175,8 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
     mensajeBienvenida: string
     fotoUrl?: string | null
     precio?: number
+    /** Texto normalizado de la plantilla que dio el match (para separar el resto de la ráfaga). */
+    plantillaNormalizada?: string
 } | null> {
     const textoNorm = normalizarTexto(mensajeUsuario)
     if (!textoNorm || textoNorm.length < 5) return null
@@ -193,17 +195,20 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
             const normBienv = normalizarTexto(g.plantillas_bienvenida || "")
             const normRef = normalizarTexto(g.plantillas_referral || "")
 
-            if (
-                (normBienv && (textoNorm === normBienv || textoNorm.includes(normBienv) || normBienv.includes(textoNorm))) ||
-                (normRef && (textoNorm === normRef || textoNorm.includes(normRef) || normRef.includes(textoNorm)))
-            ) {
+            const matcheaBienv =
+                !!normBienv && (textoNorm === normBienv || textoNorm.includes(normBienv) || normBienv.includes(textoNorm))
+            const matcheaRef =
+                !!normRef && (textoNorm === normRef || textoNorm.includes(normRef) || normRef.includes(textoNorm))
+
+            if (matcheaBienv || matcheaRef) {
                 return {
                     esPlantilla: true,
                     tipo: "grupo",
                     id: g.id,
                     nombre: g.nombre,
                     mensajeBienvenida: g.mensaje_bienvenida,
-                    fotoUrl: g.foto_url
+                    fotoUrl: g.foto_url,
+                    plantillaNormalizada: matcheaBienv ? normBienv : normRef
                 }
             }
         }
@@ -221,10 +226,12 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
             const normBienv = normalizarTexto(p.plantillas_bienvenida || "")
             const normRef = normalizarTexto(p.plantillas_referral || "")
 
-            if (
-                (normBienv && (textoNorm === normBienv || textoNorm.includes(normBienv) || normBienv.includes(textoNorm))) ||
-                (normRef && (textoNorm === normRef || textoNorm.includes(normRef) || normRef.includes(textoNorm)))
-            ) {
+            const matcheaBienv =
+                !!normBienv && (textoNorm === normBienv || textoNorm.includes(normBienv) || normBienv.includes(textoNorm))
+            const matcheaRef =
+                !!normRef && (textoNorm === normRef || textoNorm.includes(normRef) || normRef.includes(textoNorm))
+
+            if (matcheaBienv || matcheaRef) {
                 return {
                     esPlantilla: true,
                     tipo: "pack",
@@ -232,7 +239,8 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
                     nombre: p.nombre,
                     mensajeBienvenida: p.mensaje_bienvenida,
                     fotoUrl: p.foto_url,
-                    precio: Number(p.precio) || 0
+                    precio: Number(p.precio) || 0,
+                    plantillaNormalizada: matcheaBienv ? normBienv : normRef
                 }
             }
         }

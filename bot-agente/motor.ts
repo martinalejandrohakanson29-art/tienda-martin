@@ -5,7 +5,7 @@ import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
 import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
-import { quitarPreguntaDeMotoFinal } from "./nucleo/texto"
+import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla } from "./nucleo/texto"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
@@ -488,25 +488,82 @@ export async function ejecutarTurnoAgente(
                 }).catch(() => {})
             }
 
+            const infoMatch: HerramientaEjecutadaInfo = {
+                nombre: "match_plantilla_publicidad",
+                argumentos: {
+                    tipo: matchPlantilla.tipo,
+                    id: matchPlantilla.id,
+                    nombre: matchPlantilla.nombre
+                },
+                resultado: {
+                    match_directo: true,
+                    origen: "anuncio_instagram",
+                    mensaje_para_agente: `Match directo con la plantilla de anuncio de '${matchPlantilla.nombre}'. Se entrega la bienvenida oficial del catálogo instantáneamente (costo \$0).`
+                }
+            }
+
+            // El cliente casi nunca manda SOLO la plantilla: uno o dos segundos
+            // después llega su pregunta real ("cuánto vale", "hacen envíos a
+            // Santiago del Estero?") y el debounce las junta en una sola ráfaga.
+            // Como el matcher usa `includes`, esa ráfaga entera daba match y el
+            // turno terminaba acá: la pregunta quedaba sin responder (convs 2977
+            // y 3657, 08/09). Ahora la bienvenida sale igual (letra exacta, foto,
+            // costo $0) y el resto se resuelve en un turno normal, que ya ve el
+            // kit como presentado y no repite la ficha.
+            const resto = restoFueraDePlantilla(mensajeUsuario, matchPlantilla.plantillaNormalizada)
+
+            if (resto) {
+                const turnoResto = await ejecutarTurnoAgente(
+                    resto,
+                    [
+                        ...historialPrevio,
+                        { rol: "user", contenido: mensajeUsuario },
+                        { rol: "assistant", contenido: textoFinal }
+                    ],
+                    opciones
+                )
+
+                // El resto escaló (dato que no tenemos): el pendiente ya está en la
+                // bandeja del equipo, pero el cliente igual tiene que recibir la
+                // bienvenida del anuncio que clickeó. Los escalados "duros"
+                // (pide humano, reclamo, insulto) ni llegan acá: los corta el
+                // detector determinista sobre la ráfaga completa, más arriba.
+                if (turnoResto.escaladoHumano) {
+                    if (!turnoResto.escaladoPersistido) {
+                        await escalarAHumano({
+                            motivo: turnoResto.motivoEscalado || "otro",
+                            resumen_consulta: `Consulta que vino junto con la plantilla del anuncio: ${resto.slice(0, 300)}`,
+                            conversation_id: opciones.conversationId
+                        }).catch((err) => console.error("[motor] fallo al persistir escalado del resto de la ráfaga:", err))
+                    }
+                    return {
+                        mensajeFinal: textoFinal,
+                        mensajesFinales: [textoFinal],
+                        fotoUrl: matchPlantilla.fotoUrl || undefined,
+                        herramientasEjecutadas: [infoMatch, ...(turnoResto.herramientasEjecutadas || [])],
+                        escaladoHumano: false,
+                        latenciaMs: Date.now() - inicio,
+                        tokensUsados: turnoResto.tokensUsados
+                    }
+                }
+
+                return {
+                    ...turnoResto,
+                    mensajeFinal: [textoFinal, turnoResto.mensajeFinal]
+                        .filter(Boolean)
+                        .join("\n\n---\n\n"),
+                    mensajesFinales: [textoFinal, ...(turnoResto.mensajesFinales || [])],
+                    fotoUrl: matchPlantilla.fotoUrl || turnoResto.fotoUrl || undefined,
+                    herramientasEjecutadas: [infoMatch, ...(turnoResto.herramientasEjecutadas || [])],
+                    latenciaMs: Date.now() - inicio
+                }
+            }
+
             return {
                 mensajeFinal: textoFinal,
                 mensajesFinales: [textoFinal],
                 fotoUrl: matchPlantilla.fotoUrl || undefined,
-                herramientasEjecutadas: [
-                    {
-                        nombre: "match_plantilla_publicidad",
-                        argumentos: {
-                            tipo: matchPlantilla.tipo,
-                            id: matchPlantilla.id,
-                            nombre: matchPlantilla.nombre
-                        },
-                        resultado: {
-                            match_directo: true,
-                            origen: "anuncio_instagram",
-                            mensaje_para_agente: `Match directo con la plantilla de anuncio de '${matchPlantilla.nombre}'. Se entrega la bienvenida oficial del catálogo instantáneamente (costo \$0).`
-                        }
-                    }
-                ],
+                herramientasEjecutadas: [infoMatch],
                 escaladoHumano: false,
                 latenciaMs: Date.now() - inicio,
                 tokensUsados: { prompt: 0, completion: 0, total: 0 }

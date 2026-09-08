@@ -2,13 +2,14 @@ import { MensajeChat, RespuestaAgente, HerramientaEjecutadaInfo, LlamadaHerramie
 import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
     formatearMemoriaEstado,
+    unirTemas,
     EstadoConversacion
 } from "./nucleo/estado-persistente"
 
@@ -535,6 +536,13 @@ export async function ejecutarTurnoAgente(
                 }
             }
 
+            // Lo que el bot ya dijo textualmente antes en esta charla. Sirve para
+            // no repetir oraciones enteras (los ejemplos del prompt se usaban
+            // como plantilla y salían idénticos dos mensajes seguidos).
+            const dichoPorElBot = historialPrevio
+                .filter((m) => m.rol === "assistant" && m.contenido)
+                .map((m) => m.contenido)
+
             const mensajesFinalesSanitizados: string[] = []
             for (let i = 0; i < partes.length; i++) {
                 const parte = partes[i]
@@ -544,8 +552,13 @@ export async function ejecutarTurnoAgente(
                     permitirBro: config.permitirBro,
                     esConversacionEnCurso: esEnCurso
                 })
-                if (sanitizado.textoLimpio && !pareceRespuestaNoConfiable(sanitizado.textoLimpio)) {
-                    mensajesFinalesSanitizados.push(sanitizado.textoLimpio)
+                // Los globos ya emitidos en este mismo turno también cuentan.
+                const sinRepetidos = quitarOracionesYaDichas(sanitizado.textoLimpio, [
+                    ...dichoPorElBot,
+                    ...mensajesFinalesSanitizados
+                ])
+                if (sinRepetidos && !pareceRespuestaNoConfiable(sinRepetidos)) {
+                    mensajesFinalesSanitizados.push(sinRepetidos)
                 }
             }
 
@@ -576,7 +589,14 @@ export async function ejecutarTurnoAgente(
         for (const call of llamadasTools) {
             try {
                 const ejecucion = await ejecutarHerramienta(call.function.name, call.function.arguments, {
-                    conversationId: opciones.conversationId
+                    conversationId: opciones.conversationId,
+                    // Lo ya contestado antes en esta charla + lo contestado en
+                    // los pasos previos de ESTE turno (una ráfaga puede tocar
+                    // el mismo tema dos veces).
+                    temasYaRespondidos: [
+                        ...(estadoConv.temasRespondidos || []),
+                        ...(patchEstado.temasRespondidos || [])
+                    ]
                 })
                 herramientasEjecutadas.push(ejecucion)
 
@@ -676,6 +696,11 @@ export async function ejecutarTurnoAgente(
             }
             if (ej.nombre === "consultar_compatibilidad" && r.compatible === true && r.modelo_moto_detectado) {
                 patchEstado.motoConfirmada = r.modelo_moto_detectado
+            }
+            // Tema de negocio efectivamente entregado: queda anotado para que el
+            // turno siguiente no vuelva a volcar el mismo bloque (conv 3561).
+            if (ej.nombre === "consultar_info_negocio" && r.encontrado === true && r.tema) {
+                patchEstado.temasRespondidos = unirTemas(patchEstado.temasRespondidos, [r.tema])
             }
         }
 

@@ -9,11 +9,25 @@ export interface CasoPrueba {
     titulo: string
     mensajeCliente: string
     historial?: { rol: "user" | "assistant"; contenido: string }[]
+    /**
+     * Estado persistente a sembrar antes de correr el caso (lo que el motor
+     * habría guardado en turnos anteriores). Sin esto no se pueden probar las
+     * reglas que dependen de la memoria — por ejemplo que un tema de negocio
+     * ya contestado no se vuelva a volcar entero.
+     */
+    estadoInicial?: {
+        motoConfirmada?: string
+        packPresentado?: { id: number; nombre: string; precio: number }
+        grupoPineado?: { id: number; nombre: string }
+        temasRespondidos?: string[]
+    }
     resultadoEsperado: {
         debeLlamarHerramientas?: string[]
         debeEscalarHumano?: boolean
         debeGuardarSilencio?: boolean
         patronRespuesta?: RegExp
+        /** El mensaje NO debe matchear esto (repeticiones, datos no pedidos...). */
+        patronProhibido?: RegExp
         descripcionEsperada: string
     }
 }
@@ -485,6 +499,67 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             patronRespuesta: /^(?![\s\S]*\?)(?=[\s\S]*(no (le )?(entra|va|anda)|incompat|modific|c[aá]rter|alesar))/i,
             descripcionEsperada:
                 "La Wave NF está cargada como incompatible con ese combo. Debe avisar el problema con respeto y cerrar corto, sin ningún signo de pregunta: NO ofrecer 'otra opción' ni volver a preguntar qué moto tiene (ya la dijo)."
+        }
+    },
+    {
+        // Conv 3561 (07/09), turnos 297 y 300. El cliente preguntó "cuánto tarda
+        // en llegar", se le volcó TODO el bloque de envíos (incluido el cadete de
+        // Córdoba capital, que él no había pedido); al aclarar que es de Villa
+        // Dolores, el bot volvió a llamar la misma herramienta, recibió el mismo
+        // bloque literal y lo repitió entero, con el mismo cierre palabra por
+        // palabra. Este caso fija que eso no vuelva a pasar.
+        id: "caso-33-envio-ya-contestado-no-se-repite",
+        titulo: "Aclaración sobre un tema ya contestado: no se re-vuelca el bloque de envíos",
+        mensajeCliente: "Nono yo soy de villa dolores Córdoba",
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 },
+            motoConfirmada: "motomel s2 190 cc",
+            temasRespondidos: ["envios"]
+        },
+        historial: [
+            { rol: "user", contenido: "Cuánto tarda en llegar" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Lo despachamos por Andreani a domicilio y demora 4 a 6 días hábiles.\n\nSi sos de Córdoba capital, podemos coordinar con un cadete según la zona.\n\nEl envío es gratis y se despacha después del pago.\n\nLe va bien bro, cualquier cosa avisanos y coordinamos."
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // No puede volver a recitar la demora ni el cierre que ya usó.
+            patronProhibido: /(4 a 6 d[ií]as|cualquier cosa avisanos y coordinamos|se despacha despu[eé]s del pago)/i,
+            descripcionEsperada:
+                "El cliente solo está corrigiendo de dónde es. El tema 'envios' ya se le contestó (memoria de estado): debe acusar el dato nuevo en un renglón, sin repetir la demora, ni el pago previo, ni el mismo cierre."
+        }
+    },
+    {
+        // Conv 3561 (07/09), turno 270. La ráfaga "Un Motomel s2" + "Hay q
+        // modificar sigueñal?" se partió en dos turnos concurrentes: se contestó
+        // la moto y la pregunta del cigüeñal se generó y se descartó — el cliente
+        // nunca tuvo respuesta. Con el debounce de 15s la ráfaga llega unida, así
+        // que el motor tiene que contestar LAS DOS cosas en un turno.
+        id: "caso-34-rafaga-moto-mas-duda-tecnica",
+        titulo: "Ráfaga: moto + duda técnica del kit — no se puede perder ninguna",
+        mensajeCliente: "Un Motomel s2\nHay q modificar sigueñal o es el mismo recorrido?",
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        historial: [
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\nel kit incluye:\n✅cilindro con piston, aros y perno, y tambien la junta de tapa y de base\n✅leva de calle de 7.80\n\nno precisa modificaciones.\nHacemos envios a todo el pais\n\nA que moto se lo queres poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Tiene que aparecer la respuesta al cigüeñal / recorrido, que es la
+            // parte que en producción se perdió.
+            patronRespuesta: /(cig[uü]e[nñ]al|recorrido|no (hace falta|precisa|necesit)|sin modificar)/i,
+            descripcionEsperada:
+                "Debe confirmar la compatibilidad con la Motomel S2 Y contestar que no hay que modificar el cigüeñal. Perder la segunda pregunta es el fallo que se está cubriendo."
         }
     }
 ]

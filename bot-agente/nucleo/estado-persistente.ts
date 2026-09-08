@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { formatearPrecioAR } from "./texto"
+import { formatearPrecioAR, normalizarTexto } from "./texto"
 
 /**
  * ESTADO PERSISTENTE DEL EMBUDO (memoria explícita, agnóstica al eje de variante)
@@ -28,9 +28,38 @@ export interface EstadoConversacion {
      * en los turnos siguientes. Equivalente a `grupoPineado` pero para packs.
      */
     packPresentado?: { id: number; nombre: string; precio: number } | null
+    /**
+     * Temas de negocio (`info_negocio.tema`) que YA se le contestaron al cliente
+     * en esta conversación: "envios", "ubicacion", "medios de pago"...
+     *
+     * Es el antídoto contra el volcado repetido: `consultar_info_negocio` devolvía
+     * el bloque oficial entero en cada turno sin saber si ya se había dicho, y el
+     * modelo lo re-emitía porque la guía de la herramienta le gana a la regla de
+     * "no repitas" del prompt. Con esta lista la herramienta cambia su guía y el
+     * bloque MEMORIA DE ESTADO lo recuerda.
+     */
+    temasRespondidos?: string[]
 }
 
 const VACIO: EstadoConversacion = {}
+
+/** Clave canónica de un tema para comparar sin duplicar por mayúsculas/acentos. */
+export function normalizarTema(tema: string): string {
+    return normalizarTexto(tema)
+}
+
+/** Une temas sin duplicados, preservando el orden en que se fueron respondiendo. */
+export function unirTemas(previos: string[] | null | undefined, nuevos: string[]): string[] {
+    const salida: string[] = []
+    const vistos = new Set<string>()
+    for (const t of [...(previos || []), ...nuevos]) {
+        const clave = normalizarTema(t)
+        if (!clave || vistos.has(clave)) continue
+        vistos.add(clave)
+        salida.push(clave)
+    }
+    return salida
+}
 
 export async function cargarEstadoConversacion(clave?: string): Promise<EstadoConversacion> {
     if (!clave) return { ...VACIO }
@@ -46,11 +75,13 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 pack_presentado_id: number | null
                 pack_presentado_nombre: string | null
                 pack_presentado_precio: any
+                temas_respondidos: string[] | null
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
                    variante_etiqueta, variante_precio, moto_confirmada,
-                   pack_presentado_id, pack_presentado_nombre, pack_presentado_precio
+                   pack_presentado_id, pack_presentado_nombre, pack_presentado_precio,
+                   COALESCE(temas_respondidos, '{}') AS temas_respondidos
             FROM chat_conversacion_estado
             WHERE clave = ${clave}
             LIMIT 1
@@ -76,7 +107,8 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                       nombre: f.pack_presentado_nombre || "",
                       precio: Number(f.pack_presentado_precio) || 0
                   }
-                : null
+                : null,
+            temasRespondidos: f.temas_respondidos || []
         }
     } catch (err) {
         console.warn("[estado] no se pudo leer chat_conversacion_estado:", (err as any)?.message)
@@ -97,7 +129,8 @@ export async function guardarEstadoConversacion(
         patch.grupoPineado === undefined &&
         patch.varianteResuelta === undefined &&
         patch.motoConfirmada === undefined &&
-        patch.packPresentado === undefined
+        patch.packPresentado === undefined &&
+        patch.temasRespondidos === undefined
     ) {
         return
     }
@@ -111,13 +144,16 @@ export async function guardarEstadoConversacion(
             motoConfirmada:
                 patch.motoConfirmada !== undefined ? patch.motoConfirmada : actual.motoConfirmada,
             packPresentado:
-                patch.packPresentado !== undefined ? patch.packPresentado : actual.packPresentado
+                patch.packPresentado !== undefined ? patch.packPresentado : actual.packPresentado,
+            // Los temas se ACUMULAN (nunca se pisan): lo que ya se contestó no
+            // se "des-contesta" en un turno posterior.
+            temasRespondidos: unirTemas(actual.temasRespondidos, patch.temasRespondidos || [])
         }
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -128,6 +164,7 @@ export async function guardarEstadoConversacion(
                 pack_presentado_id = EXCLUDED.pack_presentado_id,
                 pack_presentado_nombre = EXCLUDED.pack_presentado_nombre,
                 pack_presentado_precio = EXCLUDED.pack_presentado_precio,
+                temas_respondidos = EXCLUDED.temas_respondidos,
                 actualizado_en = NOW()`,
             clave,
             merged.grupoPineado?.id ?? null,
@@ -138,7 +175,8 @@ export async function guardarEstadoConversacion(
             merged.motoConfirmada ?? null,
             merged.packPresentado?.id ?? null,
             merged.packPresentado?.nombre ?? null,
-            merged.packPresentado?.precio ?? null
+            merged.packPresentado?.precio ?? null,
+            merged.temasRespondidos ?? []
         )
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)
@@ -177,6 +215,11 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
             : ""
         lineas.push(
             `- Variante YA resuelta: "${estado.varianteResuelta.etiqueta}"${precio}. El producto y el precio final están 100% determinados. No vuelvas a preguntar la moto ni la variante, ni re-consultes lo ya resuelto. Contestá lo que el cliente haya preguntado y cerrá.`
+        )
+    }
+    if (estado.temasRespondidos && estado.temasRespondidos.length > 0) {
+        lineas.push(
+            `- Temas que YA le contestaste en esta charla: ${estado.temasRespondidos.join(", ")}. Si el cliente vuelve a tocar uno de esos temas sin preguntar nada nuevo (te da un dato, aclara, corrige), NO re-expliques ese tema: ni el mismo texto, ni reformulado con otras palabras, ni "resumido". Respondé en UN renglón, natural, diciéndole qué significa ese dato para él (que llega igual, que no cambia nada, que queda anotado). Solo si hace una pregunta nueva sobre el tema, contestá esa pregunta y nada más.`
         )
     }
 

@@ -237,7 +237,8 @@ Un punto medio moderno, robusto y limpio:
   - Configuración persistente en `chat_config` (`debounce_segundos: 15`, `debounce_activo: true`). **15s** (era 60: demasiada espera para el cliente). Con `debounce_activo=false` igual se agrupan 5s — **NO menos**: con 3s las ráfagas reales de WhatsApp (mensajes 5-10s aparte) se partían en turnos separados y las respuestas se pisaban entre sí (turno A "De una!" salía y hacía `salteado` a los turnos B/C que tenían la respuesta real — conv 3579, 07/09).
   - Cada mensaje entrante dentro de la ventana se suma al buffer y **reinicia la cuenta regresiva**.
   - Al cumplirse la ventana de silencio, los mensajes se unen mediante `\n` y se entregan en un solo turno al motor ReAct.
-  - **Residual conocido:** si los mensajes de la ráfaga vienen con huecos MAYORES a la ventana, se siguen partiendo en turnos y el guard "no pisar una respuesta más nueva" puede tirar el turno con la mejor respuesta. El fix de verdad sería un chequeo semántico ("¿quedó una pregunta del cliente sin contestar?") — no se hizo todavía.
+  - **Candado por conversación (07/09):** `turnosEnVuelo` garantiza **un solo turno a la vez por conversación**. Antes, una ráfaga partida en dos turnos corría en paralelo: los dos generaban respuesta, el segundo veía un saliente más nuevo y **se tiraba a la basura** — la pregunta del cliente quedaba sin contestar (conv 3561: "Un Motomel s2" + "Hay q modificar sigueñal?" a 24s; se contestó la moto, la del cigüeñal se perdió). Medido: **19 respuestas descartadas así en 3 días**. Ahora el lote espera y se procesa cuando el historial ya incluye la respuesta anterior, así el modelo contesta lo que falta.
+  - **Reencolado en vez de descarte:** cuando la respuesta se descarta porque apareció un saliente más nuevo, se mira **quién** lo mandó (`delBot`, vía `sender.id` vs `CHATWOOT_BOT_USER_ID`). Si fue el propio bot, el lote se **reencola** (tope `MAX_REENCOLADOS = 1`) para responder lo que falta. Si fue un humano del equipo, se descarta: el equipo se hizo cargo.
   - En `/admin/chatwoot/simulador`: Switch para activar/desactivar el debounce a demanda durante pruebas, contador regresivo en vivo y botón `⚡ Responder ya` para despacho anticipado.
 
 ---
@@ -250,6 +251,8 @@ El bot de n8n murió de **explosión combinatoria**: un nodo (o un párrafo) por
 |---|---|---|
 | Precios, stock, compatibilidad, políticas | Base de datos (`chat_packs`, `chat_combo_compatibilidad`, `info_negocio`...) | una fila / editar la fila |
 | Qué hacer en cada paso del embudo | El `mensaje_para_agente` que devuelve cada herramienta (ya sabe el paso) | editar el builder de esa tool + su caso en el banco |
+| Info institucional (envíos, pagos, ubicación, garantía) | Fila en `info_negocio`, partida en párrafos = **hechos** | editar la fila; la tool entrega hechos numerados, no un guion |
+| "Ya le contesté este tema, no se lo repitas" | `chat_conversacion_estado.temas_respondidos` → bloque `MEMORIA DE ESTADO` | nada: el motor lo anota solo cuando la tool entrega el tema |
 | Casos situacionales (descuento, mayorista, "sos un bot?", comprobante, jailbreak...) | Tabla `chat_situaciones` (`/admin/chatwoot/situaciones`) | **un INSERT / una fila** |
 | Resolver qué variante lleva el cliente (corto/largo, color, mm, cualquier eje futuro) | Herramienta `resolver_variante` + `chat_packs.sinonimos_variante` | **cargar los sinónimos de la variante nueva, cero código** |
 | "Ya confirmé el combo / la moto / la variante, no repreguntar" | `chat_conversacion_estado` + `nucleo/estado-persistente.ts` → bloque `MEMORIA DE ESTADO` | nada: el motor lo escribe solo con lo que devuelven las tools |
@@ -267,5 +270,23 @@ Notas sobre el banco:
 - Corre contra el motor real + la DB real + el modelo configurado, así que hay algo de varianza de modelo turno a turno (sobre todo en mensajes multi-intento). Los casos afirman lo estructural (escaló / guardó silencio / qué herramientas llamó), no la redacción exacta.
 - Cada fix de un bug nuevo va con su caso en `casos-reales.ts`.
 - Se corre desde `/admin/chatwoot/simulador` → pestaña "Banco de pruebas", o `npx tsx` con un harness (ver `scratch/banco.ts` de referencia).
+- Un caso puede **sembrar estado** (`estadoInicial`) para probar reglas que dependen de la memoria, y afirmar en **negativo** (`patronProhibido`) — por ejemplo "no puede volver a recitar la demora de envío".
+- Las piezas puras (dedup de oraciones, partido en hechos, unión de temas, cadencia humana) tienen pruebas sin costo de API: `node scratch/probar-mejoras.cjs`. Correr eso primero: es instantáneo y gratis.
+
+---
+
+## 9. La trampa a vigilar: el determinismo se muda, no desaparece
+
+Diagnóstico del 07/09 sobre la conv 3561. El prompt efectivamente no creció, pero las reglas se habían repartido en **cuatro** fuentes que se inyectan en el mismo turno y compiten entre sí: `prompts/sistema.ts`, el `mensaje_para_agente` de cada tool, `chat_situaciones` y `MEMORIA DE ESTADO`. Dos consecuencias medidas:
+
+1. **La guía de la tool le gana al prompt.** `sistema.ts` dice "no repitas info que ya diste", pero también "seguí la guía de cada herramienta al pie"; la tool decía "redactá basándote estrictamente en este dato". El modelo obedeció a la tool y repitió el bloque de envíos entero dos mensajes seguidos.
+2. **Los ejemplos de tono se usaban como plantilla.** El cierre "Le va bien bro, cualquier cosa avisanos y coordinamos." salía textual porque estaba escrito textual en el prompt.
+
+Reglas que salieron de ahí:
+
+- **Una tool devuelve DATOS, no un libreto.** Si el `mensaje_para_agente` contiene una redacción lista para copiar, el modelo la va a copiar. Entregá hechos numerados + **una** regla de qué hacer con ellos. Ver `construirGuiaInfoNegocio()` como forma canónica.
+- **Una tool que no ve la conversación no puede decidir qué decir.** Lo que el modelo ya dijo lo sabe el motor (estado persistente), y se le inyecta a la tool por `ContextoEjecucion` — nunca por un argumento que el modelo pueda falsear.
+- **Los ejemplos del prompt son registro, no frases.** Van con la prohibición explícita de copiarlos palabra por palabra, y la repetición literal la corta el sanitizador (`quitarOracionesYaDichas`), que es higiene de texto y no una regla de negocio.
+- **Cuando un fix "obvio" sería un párrafo nuevo en el prompt, casi siempre el bug real está en otro lado.** Acá el duplicado de envíos no era un problema de redacción: era que la herramienta no tenía memoria.
 
 

@@ -1,6 +1,6 @@
 import { ejecutarTurnoAgente, OpcionesEjecucion } from "../motor"
 import { MensajeChat } from "../tipos"
-import { limpiarEstadoConversacion } from "../nucleo/estado-persistente"
+import { limpiarEstadoConversacion, guardarEstadoConversacion } from "../nucleo/estado-persistente"
 import { CASOS_PRUEBA_REALES, CasoPrueba } from "./casos-reales"
 
 /**
@@ -62,6 +62,9 @@ async function evaluarCaso(caso: CasoPrueba, opciones: OpcionesEjecucion): Promi
     const estadoKey = `banco:${caso.id}`
     try {
         await limpiarEstadoConversacion(estadoKey)
+        if (caso.estadoInicial) {
+            await guardarEstadoConversacion(estadoKey, caso.estadoInicial)
+        }
         const resp = await ejecutarTurnoAgente(caso.mensajeCliente, historialToChat(caso.historial), {
             ...opciones,
             estadoKey
@@ -99,6 +102,12 @@ async function evaluarCaso(caso: CasoPrueba, opciones: OpcionesEjecucion): Promi
         if (esperado.patronRespuesta) {
             if (!resp.mensajeFinal || !esperado.patronRespuesta.test(resp.mensajeFinal)) {
                 fallos.push(`patronRespuesta no matchea: ${esperado.patronRespuesta}`)
+            }
+        }
+
+        if (esperado.patronProhibido && resp.mensajeFinal) {
+            if (esperado.patronProhibido.test(resp.mensajeFinal)) {
+                fallos.push(`patronProhibido apareció en la respuesta: ${esperado.patronProhibido}`)
             }
         }
 

@@ -145,6 +145,33 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
     }
 }
 
+/**
+ * Kit SUELTO (pack sin grupo de variantes) que matchea el nombre pedido.
+ * Mismo umbral de puntaje que `cargarGrupo` para no inventar matches.
+ */
+async function cargarPackSuelto(combo: string): Promise<{ id: number; nombre: string; precio: number } | null> {
+    const comboTrim = (combo || "").trim()
+    if (!comboTrim) return null
+
+    const packs = await prisma.$queryRaw<{ id: number; nombre: string; precio: any }[]>`
+        SELECT id, nombre, precio
+        FROM chat_packs
+        WHERE activo = true AND grupo_id IS NULL
+    `
+    if (!packs || packs.length === 0) return null
+
+    if (/^\d+$/.test(comboTrim)) {
+        const porId = packs.find((p) => p.id === Number(comboTrim))
+        if (porId) return { id: porId.id, nombre: porId.nombre, precio: Number(porId.precio) || 0 }
+    }
+
+    const scored = packs
+        .map((p) => ({ p, score: puntuarItemCatalogo(comboTrim, p.nombre) }))
+        .sort((a, b) => b.score - a.score)
+    if (!scored[0] || scored[0].score < 30) return null
+    return { id: scored[0].p.id, nombre: scored[0].p.nombre, precio: Number(scored[0].p.precio) || 0 }
+}
+
 /** ¿El texto del cliente contiene un modelo de moto que el sistema reconoce? */
 async function motoReconocida(texto: string): Promise<boolean> {
     const t = normalizarTexto(texto)
@@ -209,11 +236,28 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         const clienteNoSabe = !!args.cliente_no_sabe || RX_NO_SABE.test(normalizarTexto(args.mensaje_cliente || ""))
         const grupo = await cargarGrupo(args.combo || "")
         if (!grupo) {
+            // Puede no ser un grupo sino un KIT SUELTO (sin variantes): el Kit
+            // 170 y el Dakar 200 son packs con `grupo_id NULL`. Antes caían en
+            // "no identifiqué ese combo" — con el nombre exacto que emite el
+            // propio catálogo — y la guía mandaba re-consultar el catálogo, lo
+            // que metía 1.500 caracteres de ficha y reglas en el contexto para
+            // responder una pregunta técnica (conv 3561, pregunta del cigüeñal).
+            const suelto = await cargarPackSuelto(args.combo || "")
+            if (suelto) {
+                return {
+                    encontrado: true,
+                    resuelta: true,
+                    variante_pack_id: suelto.id,
+                    etiqueta: suelto.nombre,
+                    precio: suelto.precio,
+                    mensaje_para_agente: `SIN VARIANTES: "${suelto.nombre}" es uno solo, ${formatearPrecio(suelto.precio)} con envío gratis. No hay ninguna variante que preguntar ni definir. NO vuelvas a consultar el catálogo por esto. Contestá directamente lo que el cliente preguntó.`
+                }
+            }
             return {
                 encontrado: false,
                 resuelta: false,
                 mensaje_para_agente:
-                    "No identifiqué ese combo en el catálogo. Volvé a llamar a consultar_catalogo_y_precios para ubicarlo antes de resolver la variante."
+                    "No identifiqué ese combo. No re-consultes el catálogo por esto: si el cliente hizo una pregunta que podés responder con lo que ya sabés de la charla, respondela; si es una duda técnica sin dato, escalá."
             }
         }
         if (grupo.variantes.length === 0) {

@@ -20,6 +20,13 @@ export const definicionesHerramientas: DefinicionHerramienta[] = Object.values(t
 export interface ContextoEjecucion {
     /** ID de la conversación de Chatwoot: el motor lo inyecta, el LLM no lo ve. */
     conversationId?: number
+    /**
+     * Temas de negocio ya contestados en esta conversación (del estado
+     * persistente). El motor lo inyecta; el LLM no lo ve ni lo puede falsear.
+     * Hace que `consultar_info_negocio` sepa que no tiene que volver a volcar
+     * el bloque entero.
+     */
+    temasYaRespondidos?: string[]
 }
 
 /**
@@ -51,6 +58,12 @@ export async function ejecutarHerramienta(
     // escalado para que el pendiente quede linkeado a la conversación real.
     if (nombre === "escalar_a_humano" && contexto.conversationId != null && argsParsed.conversation_id == null) {
         argsParsed.conversation_id = contexto.conversationId
+    }
+
+    // Idem: qué temas de negocio ya se contestaron lo sabe el motor (estado
+    // persistente), no el modelo. Sin esto la herramienta re-vuelca el bloque.
+    if (nombre === "consultar_info_negocio") {
+        argsParsed.__temas_ya_respondidos = contexto.temasYaRespondidos || []
     }
 
     const resultado = await ejecutor.ejecutar(argsParsed)

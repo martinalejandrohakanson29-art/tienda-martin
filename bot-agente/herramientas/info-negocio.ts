@@ -1,14 +1,48 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import { normalizarTexto } from "../nucleo/texto"
+
+/**
+ * HERRAMIENTA `consultar_info_negocio` — DEVUELVE DATOS, NO UN GUION
+ * ------------------------------------------------------------------
+ * Antes devolvía el párrafo oficial completo del tema envuelto en la orden
+ * "Redacta con naturalidad basándote estrictamente en este dato". Dos efectos
+ * medidos en producción (conv 3561, 07/09):
+ *   1. Volcaba TODO el bloque aunque el cliente hubiera preguntado una sola
+ *      cosa ("cuánto tarda en llegar" -> le contestó demora + cadete en
+ *      Córdoba capital + que se despacha después del pago).
+ *   2. Al no saber que ya lo había dicho, en el turno siguiente devolvía el
+ *      MISMO bloque literal y el modelo lo repetía entero — la guía de la
+ *      herramienta le gana a la regla "no repitas" del prompt.
+ *
+ * Ahora: el dato oficial se parte en HECHOS numerados (los párrafos que ya
+ * carga Martín) y se entregan como fuente, no como libreto. La selección de
+ * cuál aplica la hace el modelo (es lo que sabe hacer), guiada por una sola
+ * regla y por la pregunta textual del cliente. Y si el tema ya se contestó en
+ * esta conversación, la guía cambia entera: "no repitas, contestá el matiz".
+ *
+ * No crece: un tema nuevo es una fila en `info_negocio`, cero código.
+ */
 
 export interface ArgsInfoNegocio {
     tema: "envios" | "ubicacion" | "medios_de_pago" | "horarios" | "garantia" | "general" | string
+    /** Lo que preguntó el cliente, textual. Permite contestar solo eso. */
+    pregunta_cliente?: string
+    /**
+     * Inyectado por el motor (NO por el modelo): temas de negocio que ya se le
+     * contestaron a este cliente en esta conversación.
+     */
+    __temas_ya_respondidos?: string[]
 }
 
 export interface ResultadoInfoNegocio {
     encontrado: boolean
     tema: string
     respuesta_oficial?: string
+    /** Los párrafos del dato oficial, separados. Para el inspector. */
+    hechos?: string[]
+    /** true si este tema ya se le había contestado antes en esta charla. */
+    ya_respondido?: boolean
     mensaje_para_agente: string
 }
 
@@ -23,11 +57,65 @@ export const definicionInfoNegocio: DefinicionHerramienta = {
                 tema: {
                     type: "string",
                     description: "El tema a consultar. Ejemplos: 'envios', 'ubicacion', 'pagos', 'horarios', 'garantia' (para dudas de seguridad, estafa o confianza de compra)."
+                },
+                pregunta_cliente: {
+                    type: "string",
+                    description: "Textual, lo que preguntó o dijo el cliente sobre este tema. Sirve para contestarle solo eso y no volcarle toda la política."
                 }
             },
             required: ["tema"]
         }
     }
+}
+
+/**
+ * Parte el dato oficial en hechos independientes. Martín ya los carga separados
+ * por renglón en blanco en `info_negocio.respuesta`; si no hay separación, el
+ * dato entero es un solo hecho.
+ */
+export function partirEnHechos(respuesta: string): string[] {
+    const partes = (respuesta || "")
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+    return partes.length > 0 ? partes : [(respuesta || "").trim()].filter(Boolean)
+}
+
+/**
+ * Arma la guía del turno. Es la ÚNICA regla que la herramienta impone; todo lo
+ * demás que entrega son datos.
+ */
+export function construirGuiaInfoNegocio(params: {
+    tema: string
+    hechos: string[]
+    preguntaCliente?: string
+    yaRespondido: boolean
+}): string {
+    const { tema, hechos, preguntaCliente, yaRespondido } = params
+    const listado = hechos.map((h, i) => `[${i + 1}] ${h}`).join("\n")
+    const dijo = preguntaCliente?.trim()
+        ? `\nEl cliente dijo, textual: "${preguntaCliente.trim()}"`
+        : ""
+
+    if (yaRespondido) {
+        return [
+            `OJO: el tema ${tema.toUpperCase()} YA se lo contestaste antes en esta conversación.`,
+            "",
+            `Los datos oficiales siguen siendo estos (fuente, no libreto):`,
+            listado,
+            dijo,
+            "",
+            "REGLA DE ESTE TURNO: NO repitas lo que ya le dijiste. Contestá SOLO el matiz nuevo que trae (en un renglón). Si no trae nada nuevo, un acuse corto y natural alcanza."
+        ].filter((l) => l !== null).join("\n")
+    }
+
+    return [
+        `DATOS OFICIALES SOBRE ${tema.toUpperCase()} (son la verdad; el formato NO es un guion para recitar):`,
+        listado,
+        dijo,
+        "",
+        "REGLA DE ESTE TURNO: contestá con TUS palabras SOLO el dato que responde lo que preguntó, en 1 o 2 renglones. Los demás datos son contexto tuyo: no los menciones si no los pidió."
+    ].join("\n")
 }
 
 export function calcularContextoHorarioCordoba(fechaReferencia: Date = new Date()): {
@@ -145,7 +233,16 @@ export async function consultarInfoNegocio(args: ArgsInfoNegocio): Promise<Resul
 
         if (candidato) {
             const esHorario = candidato.tema.toLowerCase().includes("horario") || temaBuscado.includes("horario")
-            let mensajeAgente = `INFORMACIÓN OFICIAL SOBRE ${candidato.tema.toUpperCase()}:\n"${candidato.respuesta}"\n(Redacta con naturalidad basándote estrictamente en este dato).`
+            const hechos = partirEnHechos(candidato.respuesta)
+            const yaRespondido = (args.__temas_ya_respondidos || []).some(
+                (t) => normalizarTexto(t) === normalizarTexto(candidato!.tema)
+            )
+            let mensajeAgente = construirGuiaInfoNegocio({
+                tema: candidato.tema,
+                hechos,
+                preguntaCliente: args.pregunta_cliente,
+                yaRespondido
+            })
 
             if (esHorario) {
                 const contexto = calcularContextoHorarioCordoba()
@@ -167,6 +264,8 @@ INSTRUCCIÓN VITAL PARA EL VENDEDOR (UBICARSE EN TIEMPO Y ESPACIO ACTUAL):
                 encontrado: true,
                 tema: candidato.tema,
                 respuesta_oficial: candidato.respuesta,
+                hechos,
+                ya_respondido: yaRespondido,
                 mensaje_para_agente: mensajeAgente
             }
         }

@@ -23,9 +23,30 @@ import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
 type BufferConversacion = {
     mensajes: string[]
     timer: NodeJS.Timeout
+    /**
+     * Veces que este lote se reencoló porque, al ir a mandarlo, el propio bot ya
+     * había contestado otra cosa. Tope para no entrar en loop.
+     */
+    reencolados?: number
 }
 
 const buffers = new Map<number, BufferConversacion>()
+
+/**
+ * Conversaciones con un turno EN VUELO (modelo + herramientas + demora humana:
+ * hasta ~2 min). Sin este candado, una ráfaga partida en dos turnos corría en
+ * paralelo, ambos generaban respuesta y el segundo se descartaba al ver que ya
+ * había un saliente más nuevo — la pregunta del cliente quedaba sin contestar.
+ * Pasó en la conv 3561 (07/09): "Un Motomel s2" + "Hay q modificar sigueñal?"
+ * en 24 segundos; se contestó la moto y la del cigüeñal se tiró a la basura.
+ */
+const turnosEnVuelo = new Set<number>()
+
+/** Cuánto esperar para reintentar cuando la conversación tiene un turno en vuelo. */
+const ESPERA_TURNO_EN_VUELO_MS = 10_000
+
+/** Tope de reencolados por lote (mejor un mensaje sin contestar que un loop). */
+const MAX_REENCOLADOS = 1
 
 const dormirMs = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -121,10 +142,17 @@ export async function desactivarPilotoBotAgente(conversationId: number, accountI
     `
 }
 
-type MensajeRaw = { contenido: string; privado: boolean; saliente: boolean; creadoEn: number }
+type MensajeRaw = {
+    contenido: string
+    privado: boolean
+    saliente: boolean
+    creadoEn: number
+    /** true si lo mandó el usuario Bot de Chatwoot (no un humano del equipo). */
+    delBot: boolean
+}
 
 async function traerTranscripcion(accountId: number, conversationId: number): Promise<MensajeRaw[]> {
-    const { api, token } = chatwootConfig()
+    const { api, token, botUserId } = chatwootConfig()
     const res = await chatwootFetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
         headers: { api_access_token: token },
         cache: "no-store",
@@ -141,6 +169,7 @@ async function traerTranscripcion(accountId: number, conversationId: number): Pr
                 privado: Boolean(m?.private),
                 saliente,
                 creadoEn: Number.isFinite(creado) ? creado : 0,
+                delBot: saliente && Number(m?.sender?.id) === botUserId,
             }
         })
         .filter((m) => m.contenido.length > 0 && !m.privado)
@@ -174,13 +203,57 @@ async function registrarTurno(params: {
 }
 
 async function procesarTurno(accountId: number, conversationId: number) {
+    // Un solo turno a la vez por conversación: si hay uno en vuelo, el lote se
+    // queda en el buffer y se reprograma. Cuando le toque, el historial ya
+    // incluirá la respuesta del turno anterior y el modelo contestará lo que
+    // falta en vez de duplicar o perderse.
+    if (turnosEnVuelo.has(conversationId)) {
+        const enEspera = buffers.get(conversationId)
+        if (enEspera) {
+            clearTimeout(enEspera.timer)
+            enEspera.timer = setTimeout(
+                () => void procesarTurno(accountId, conversationId),
+                ESPERA_TURNO_EN_VUELO_MS
+            )
+        }
+        return
+    }
+
     const buffer = buffers.get(conversationId)
     buffers.delete(conversationId)
     if (!buffer || buffer.mensajes.length === 0) return
 
     const mensajesDelTurno = buffer.mensajes
+    const reencoladosPrevios = buffer.reencolados || 0
     const mensajeUsuario = mensajesDelTurno.join("\n")
     const inicio = Date.now()
+    turnosEnVuelo.add(conversationId)
+
+    /**
+     * Devuelve este lote al buffer para que un turno posterior lo reconsidere
+     * con el historial ya actualizado. Se usa cuando la respuesta se descarta
+     * por una causa que NO significa "ya está atendido" (el propio bot contestó
+     * otro pedazo de la ráfaga). Si contestó un HUMANO no se reencola: el
+     * equipo se hizo cargo.
+     */
+    const reencolarLote = (): boolean => {
+        if (reencoladosPrevios >= MAX_REENCOLADOS) return false
+        const nuevo = buffers.get(conversationId)
+        if (nuevo) {
+            nuevo.mensajes.unshift(...mensajesDelTurno)
+            nuevo.reencolados = Math.max(nuevo.reencolados || 0, reencoladosPrevios + 1)
+        } else {
+            buffers.set(conversationId, {
+                mensajes: [...mensajesDelTurno],
+                reencolados: reencoladosPrevios + 1,
+                timer: setTimeout(
+                    () => void procesarTurno(accountId, conversationId),
+                    ESPERA_TURNO_EN_VUELO_MS
+                ),
+            })
+        }
+        return true
+    }
 
     // El webhook dejó una fila en `bot_agente_entrantes_pendientes` al recibir
     // el mensaje (antes de este trabajo async). Se borra cuando este turno lo
@@ -250,7 +323,13 @@ async function procesarTurno(accountId: number, conversationId: number) {
         // del equipo (o el propio bot) ya le contestó a este cliente en
         // Chatwoot, el ultimo mensaje del hilo real es saliente -- no volver a
         // contestar por encima. Se descarta el buffer sin mandar nada.
-        if (transcripcion.length > 0 && transcripcion[transcripcion.length - 1].saliente) {
+        const ultimoDelHilo = transcripcion[transcripcion.length - 1]
+        if (ultimoDelHilo?.saliente) {
+            // Si contestó el propio BOT (otro turno de la misma ráfaga), este
+            // lote todavía puede tener preguntas sin responder: se reencola para
+            // que el próximo turno lo vea junto con esa respuesta en el historial.
+            // Si contestó un HUMANO, el equipo se hizo cargo: se descarta.
+            const reencolado = ultimoDelHilo.delBot && reencolarLote()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -260,9 +339,11 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 herramientas: [],
                 latenciaMs: Date.now() - inicio,
                 resultadoEnvio: "salteado",
-                detalleEnvio: "Ya hay una respuesta mas nueva en Chatwoot (humano o bot) cuando se iba a contestar",
+                detalleEnvio: reencolado
+                    ? "El bot ya contestó otro tramo de la ráfaga: lote reencolado para responder lo que falta"
+                    : "Ya hay una respuesta mas nueva en Chatwoot (humano o bot) cuando se iba a contestar",
             })
-            pendienteResuelto = true
+            pendienteResuelto = !reencolado
             return
         }
 
@@ -317,7 +398,9 @@ async function procesarTurno(accountId: number, conversationId: number) {
         // mensaje nuevo que reinició el debounce). Si el hilo real ya tiene una
         // respuesta saliente más nueva, se descarta sin pisar.
         const transcripcionPostEspera = await traerTranscripcion(accountId, conversationId).catch(() => transcripcion)
-        if (transcripcionPostEspera.length > 0 && transcripcionPostEspera[transcripcionPostEspera.length - 1].saliente) {
+        const ultimoPostEspera = transcripcionPostEspera[transcripcionPostEspera.length - 1]
+        if (ultimoPostEspera?.saliente) {
+            const reencolado = ultimoPostEspera.delBot && reencolarLote()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -327,9 +410,11 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 resultadoEnvio: "salteado",
-                detalleEnvio: "Apareció una respuesta más nueva en Chatwoot durante la demora de cadencia humana",
+                detalleEnvio: reencolado
+                    ? "El bot contestó otro tramo durante la demora: lote reencolado para responder lo que falta"
+                    : "Apareció una respuesta más nueva en Chatwoot durante la demora de cadencia humana",
             })
-            pendienteResuelto = true
+            pendienteResuelto = !reencolado
             return
         }
         if (buffers.has(conversationId)) {
@@ -414,6 +499,10 @@ async function procesarTurno(accountId: number, conversationId: number) {
         })
         // NO se marca resuelto: la fila queda y el barrido reintenta (con tope).
     } finally {
+        // Liberar la conversación ANTES de cualquier await pendiente: si quedó
+        // un lote reencolado, su timer ya puede arrancar.
+        turnosEnVuelo.delete(conversationId)
+
         // Se atendió (respondió / escaló / alguien más contestó / silencio
         // deliberado): borrar la fila del webhook. El guard por `ultimo_mensaje_en`
         // evita pisar una ráfaga nueva que entró durante este turno.

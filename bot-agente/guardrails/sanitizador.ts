@@ -1,3 +1,4 @@
+import { normalizarTexto } from "../nucleo/texto"
 /**
  * Guardrail y sanitizador determinista de salida.
  * Se ejecuta en código puro sobre cualquier texto generado por la IA
@@ -173,6 +174,56 @@ export interface OpcionesSanitizacion {
 /**
  * Limpia y normaliza el mensaje generado por el LLM
  */
+/** Normaliza una oración para compararla: sin tildes, signos ni doble espacio. */
+function claveOracion(oracion: string): string {
+    return normalizarTexto(oracion)
+}
+
+/**
+ * Quita del mensaje las oraciones que el bot YA dijo textualmente en sus
+ * mensajes anteriores de esta conversación.
+ *
+ * Por qué existe: las frases de ejemplo del prompt terminaban usándose como
+ * plantilla y salían idénticas dos mensajes seguidos ("Le va bien bro,
+ * cualquier cosa avisanos y coordinamos." en la conv 3561). Esto NO es una
+ * regla de negocio ni de embudo — es higiene de texto — así que vive acá, en el
+ * sanitizador determinista, y no suma un párrafo al prompt.
+ *
+ * Conservador a propósito:
+ *   - Solo compara oraciones de 4 palabras o más (no toca "Dale!", "Si bro").
+ *   - Nunca deja el mensaje vacío: si todo era repetido, devuelve el original
+ *     (que no se mande nada lo decide el motor, no este filtro).
+ *   - No toca preguntas: repreguntar algo es legítimo.
+ */
+export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: string[]): string {
+    if (!texto?.trim() || !mensajesPreviosDelBot?.length) return texto
+
+    const yaDichas = new Set<string>()
+    for (const previo of mensajesPreviosDelBot) {
+        for (const o of (previo || "").split(/(?<=[.!?])\s+|\n+/)) {
+            const clave = claveOracion(o)
+            if (clave.split(" ").length >= 4) yaDichas.add(clave)
+        }
+    }
+    if (yaDichas.size === 0) return texto
+
+    const lineas = texto.split(/\n/)
+    const salida: string[] = []
+    for (const linea of lineas) {
+        const oraciones = linea.split(/(?<=[.!?])\s+/)
+        const conservadas = oraciones.filter((o) => {
+            if (o.trim().endsWith("?")) return true // repreguntar es válido
+            const clave = claveOracion(o)
+            if (clave.split(" ").length < 4) return true
+            return !yaDichas.has(clave)
+        })
+        salida.push(conservadas.join(" ").trim())
+    }
+
+    const resultado = salida.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+    return resultado.length > 0 ? resultado : texto
+}
+
 export function sanitizarMensajeSalida(
     texto: string | null | undefined,
     opciones: OpcionesSanitizacion = {}

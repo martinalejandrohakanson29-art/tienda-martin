@@ -200,10 +200,14 @@ export async function detectarPlantillaPorReferral(referral: ReferralAnuncioEntr
       }
     | null
 > {
-    const partes = [referral?.titulo, referral?.cuerpo]
-        .map((t) => normalizarTexto(t))
-        .filter((t) => t.length >= 8)
-    if (partes.length === 0) return null
+    // El CUERPO manda: Meta reusa el mismo titulo entre anuncios de productos
+    // distintos, asi que resolver el kit por el titulo puede presentar el combo
+    // equivocado. El titulo solo se prueba si el cuerpo no resolvio nada (es lo
+    // mismo que dice el placeholder del panel: "NO pegues el titulo").
+    const cuerpoNorm = normalizarTexto(referral?.cuerpo)
+    const tituloNorm = normalizarTexto(referral?.titulo)
+    const porPrioridad = [cuerpoNorm, tituloNorm].filter((t) => t.length >= 8)
+    if (porPrioridad.length === 0) return null
 
     // Contención SOLA no alcanza: el body de un anuncio suele ser genérico
     // ("POTENCIA TU 110 CON ESTE COMBO!") y entra dentro de la plantilla de
@@ -212,16 +216,14 @@ export async function detectarPlantillaPorReferral(referral: ReferralAnuncioEntr
     // no, el anuncio queda solo como contexto y el modelo lo busca en el
     // catálogo, que es lo honesto cuando no estamos seguros.
     const CASI_IGUAL = 0.8
-    const pega = (plantilla: string | null | undefined): boolean => {
+    const pega = (plantilla: string | null | undefined, parte: string): boolean => {
         const norm = normalizarTexto(plantilla)
         if (norm.length < 8) return false
-        return partes.some((parte) => {
-            if (parte === norm) return true
-            if (!parte.includes(norm) && !norm.includes(parte)) return false
-            const corto = Math.min(parte.length, norm.length)
-            const largo = Math.max(parte.length, norm.length)
-            return corto / largo >= CASI_IGUAL
-        })
+        if (parte === norm) return true
+        if (!parte.includes(norm) && !norm.includes(parte)) return false
+        const corto = Math.min(parte.length, norm.length)
+        const largo = Math.max(parte.length, norm.length)
+        return corto / largo >= CASI_IGUAL
     }
 
     try {
@@ -240,8 +242,8 @@ export async function detectarPlantillaPorReferral(referral: ReferralAnuncioEntr
             WHERE activo = true
         `
 
-        const candidatos = [
-            ...grupos.filter((g) => pega(g.plantillas_referral)).map((g) => ({
+        const buscar = (parte: string) => [
+            ...grupos.filter((g) => pega(g.plantillas_referral, parte)).map((g) => ({
                 ambiguo: false as const,
                 tipo: "grupo" as const,
                 id: g.id,
@@ -249,7 +251,7 @@ export async function detectarPlantillaPorReferral(referral: ReferralAnuncioEntr
                 mensajeBienvenida: g.mensaje_bienvenida,
                 fotoUrl: g.foto_url
             })),
-            ...packs.filter((p) => pega(p.plantillas_referral)).map((p) => ({
+            ...packs.filter((p) => pega(p.plantillas_referral, parte)).map((p) => ({
                 ambiguo: false as const,
                 tipo: "pack" as const,
                 id: p.id,
@@ -260,11 +262,15 @@ export async function detectarPlantillaPorReferral(referral: ReferralAnuncioEntr
             }))
         ]
 
-        if (candidatos.length === 0) return null
-        if (candidatos.length > 1) {
-            return { ambiguo: true, candidatos: candidatos.map((c) => c.nombre) }
+        for (const parte of porPrioridad) {
+            const candidatos = buscar(parte)
+            if (candidatos.length === 0) continue
+            if (candidatos.length > 1) {
+                return { ambiguo: true, candidatos: candidatos.map((c) => c.nombre) }
+            }
+            return candidatos[0].mensajeBienvenida ? candidatos[0] : null
         }
-        return candidatos[0].mensajeBienvenida ? candidatos[0] : null
+        return null
     } catch (err) {
         console.error("Error en detectarPlantillaPorReferral:", err)
         return null

@@ -165,7 +165,125 @@ function bloqueComposicion(
 }
 
 /**
- * Detecta si un mensaje recibido coincide con una plantilla publicitaria de Instagram
+ * Dato del anuncio de Meta por el que entró el cliente (click-to-WhatsApp).
+ * Chatwoot lo guarda en `content_attributes.referral` del mensaje entrante:
+ * el TEXTO del cliente no dice de qué kit viene, el anuncio sí.
+ */
+export type ReferralAnuncioEntrante = {
+    titulo?: string | null
+    cuerpo?: string | null
+}
+
+/**
+ * Resuelve el kit del anuncio a partir del referral de Meta (headline + body),
+ * NO del texto del cliente.
+ *
+ * Es para lo que existe la columna `plantillas_referral` del catálogo, pero
+ * nadie le pasaba el referral: el bot solo veía "Hola quiero más información" o
+ * "Tengo una skua 150" y adivinaba el kit o preguntaba de cero (convs 3357 y
+ * 3664, 08/09).
+ *
+ * Si el texto del anuncio pega con más de un kit (dos packs cargados con la
+ * misma plantilla), devuelve `ambiguo`: no se entrega ninguna bienvenida y el
+ * anuncio queda solo como contexto para el modelo.
+ */
+export async function detectarPlantillaPorReferral(referral: ReferralAnuncioEntrante | null | undefined): Promise<
+    | { ambiguo: true; candidatos: string[] }
+    | {
+          ambiguo: false
+          tipo: "pack" | "grupo"
+          id: number
+          nombre: string
+          mensajeBienvenida: string
+          fotoUrl?: string | null
+          precio?: number
+      }
+    | null
+> {
+    const partes = [referral?.titulo, referral?.cuerpo]
+        .map((t) => normalizarTexto(t))
+        .filter((t) => t.length >= 8)
+    if (partes.length === 0) return null
+
+    // Contención SOLA no alcanza: el body de un anuncio suele ser genérico
+    // ("POTENCIA TU 110 CON ESTE COMBO!") y entra dentro de la plantilla de
+    // cualquier kit de 110 — así se le ofrecía un combo que no era el del
+    // anuncio (conv 3357). Se exige que los dos textos sean casi el mismo: si
+    // no, el anuncio queda solo como contexto y el modelo lo busca en el
+    // catálogo, que es lo honesto cuando no estamos seguros.
+    const CASI_IGUAL = 0.8
+    const pega = (plantilla: string | null | undefined): boolean => {
+        const norm = normalizarTexto(plantilla)
+        if (norm.length < 8) return false
+        return partes.some((parte) => {
+            if (parte === norm) return true
+            if (!parte.includes(norm) && !norm.includes(parte)) return false
+            const corto = Math.min(parte.length, norm.length)
+            const largo = Math.max(parte.length, norm.length)
+            return corto / largo >= CASI_IGUAL
+        })
+    }
+
+    try {
+        const grupos = await prisma.$queryRaw<
+            { id: number; nombre: string; mensaje_bienvenida: string; foto_url: string | null; plantillas_referral: string | null }[]
+        >`
+            SELECT id, nombre, mensaje_bienvenida, foto_url, plantillas_referral
+            FROM chat_pack_grupos
+            WHERE activo = true
+        `
+        const packs = await prisma.$queryRaw<
+            { id: number; nombre: string; precio: any; mensaje_bienvenida: string; foto_url: string | null; plantillas_referral: string | null }[]
+        >`
+            SELECT id, nombre, precio, mensaje_bienvenida, foto_url, plantillas_referral
+            FROM chat_packs
+            WHERE activo = true
+        `
+
+        const candidatos = [
+            ...grupos.filter((g) => pega(g.plantillas_referral)).map((g) => ({
+                ambiguo: false as const,
+                tipo: "grupo" as const,
+                id: g.id,
+                nombre: g.nombre,
+                mensajeBienvenida: g.mensaje_bienvenida,
+                fotoUrl: g.foto_url
+            })),
+            ...packs.filter((p) => pega(p.plantillas_referral)).map((p) => ({
+                ambiguo: false as const,
+                tipo: "pack" as const,
+                id: p.id,
+                nombre: p.nombre,
+                mensajeBienvenida: p.mensaje_bienvenida,
+                fotoUrl: p.foto_url,
+                precio: Number(p.precio) || 0
+            }))
+        ]
+
+        if (candidatos.length === 0) return null
+        if (candidatos.length > 1) {
+            return { ambiguo: true, candidatos: candidatos.map((c) => c.nombre) }
+        }
+        return candidatos[0].mensajeBienvenida ? candidatos[0] : null
+    } catch (err) {
+        console.error("Error en detectarPlantillaPorReferral:", err)
+        return null
+    }
+}
+
+/**
+ * Detecta si un mensaje recibido coincide con una plantilla publicitaria de Instagram.
+ *
+ * Dos direcciones, con criterios distintos a propósito:
+ *  - el mensaje CONTIENE la plantilla: el cliente mandó el texto del anuncio y
+ *    encima su pregunta (la ráfaga típica). Match bueno.
+ *  - la plantilla CONTIENE al mensaje: solo si es casi todo el texto. Sin ese
+ *    corte, un "Hola quiero más información" pelado entra dentro de la plantilla
+ *    de cualquier kit y el bot presentaba el primero que encontraba, un combo
+ *    que el cliente nunca pidió (conv 3357, 08/09).
+ *
+ * Si el mensaje pega con más de un kit, no se entrega ninguna bienvenida: es
+ * demasiado genérico para saber de cuál habla.
  */
 export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<{
     esPlantilla: boolean
@@ -181,8 +299,21 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
     const textoNorm = normalizarTexto(mensajeUsuario)
     if (!textoNorm || textoNorm.length < 5) return null
 
+    const CASI_TODA_LA_PLANTILLA = 0.8
+
+    /** Devuelve la plantilla que dio match, o null. */
+    const matchear = (...plantillas: (string | null | undefined)[]): string | null => {
+        for (const plantilla of plantillas) {
+            const norm = normalizarTexto(plantilla)
+            if (!norm) continue
+            if (textoNorm === norm) return norm
+            if (textoNorm.includes(norm)) return norm
+            if (norm.includes(textoNorm) && textoNorm.length / norm.length >= CASI_TODA_LA_PLANTILLA) return norm
+        }
+        return null
+    }
+
     try {
-        // 1. Revisar grupos
         const grupos = await prisma.$queryRaw<
             { id: number; nombre: string; mensaje_bienvenida: string; foto_url: string | null; plantillas_bienvenida: string | null; plantillas_referral: string | null }[]
         >`
@@ -190,30 +321,6 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
             FROM chat_pack_grupos
             WHERE activo = true
         `
-
-        for (const g of grupos) {
-            const normBienv = normalizarTexto(g.plantillas_bienvenida || "")
-            const normRef = normalizarTexto(g.plantillas_referral || "")
-
-            const matcheaBienv =
-                !!normBienv && (textoNorm === normBienv || textoNorm.includes(normBienv) || normBienv.includes(textoNorm))
-            const matcheaRef =
-                !!normRef && (textoNorm === normRef || textoNorm.includes(normRef) || normRef.includes(textoNorm))
-
-            if (matcheaBienv || matcheaRef) {
-                return {
-                    esPlantilla: true,
-                    tipo: "grupo",
-                    id: g.id,
-                    nombre: g.nombre,
-                    mensajeBienvenida: g.mensaje_bienvenida,
-                    fotoUrl: g.foto_url,
-                    plantillaNormalizada: matcheaBienv ? normBienv : normRef
-                }
-            }
-        }
-
-        // 2. Revisar packs
         const packs = await prisma.$queryRaw<
             { id: number; nombre: string; precio: any; mensaje_bienvenida: string; foto_url: string | null; plantillas_bienvenida: string | null; plantillas_referral: string | null }[]
         >`
@@ -222,17 +329,27 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
             WHERE activo = true
         `
 
+        const candidatos: NonNullable<Awaited<ReturnType<typeof detectarPlantillaAnuncio>>>[] = []
+
+        for (const g of grupos) {
+            const plantilla = matchear(g.plantillas_bienvenida, g.plantillas_referral)
+            if (plantilla) {
+                candidatos.push({
+                    esPlantilla: true,
+                    tipo: "grupo",
+                    id: g.id,
+                    nombre: g.nombre,
+                    mensajeBienvenida: g.mensaje_bienvenida,
+                    fotoUrl: g.foto_url,
+                    plantillaNormalizada: plantilla
+                })
+            }
+        }
+
         for (const p of packs) {
-            const normBienv = normalizarTexto(p.plantillas_bienvenida || "")
-            const normRef = normalizarTexto(p.plantillas_referral || "")
-
-            const matcheaBienv =
-                !!normBienv && (textoNorm === normBienv || textoNorm.includes(normBienv) || normBienv.includes(textoNorm))
-            const matcheaRef =
-                !!normRef && (textoNorm === normRef || textoNorm.includes(normRef) || normRef.includes(textoNorm))
-
-            if (matcheaBienv || matcheaRef) {
-                return {
+            const plantilla = matchear(p.plantillas_bienvenida, p.plantillas_referral)
+            if (plantilla) {
+                candidatos.push({
                     esPlantilla: true,
                     tipo: "pack",
                     id: p.id,
@@ -240,12 +357,24 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
                     mensajeBienvenida: p.mensaje_bienvenida,
                     fotoUrl: p.foto_url,
                     precio: Number(p.precio) || 0,
-                    plantillaNormalizada: matcheaBienv ? normBienv : normRef
-                }
+                    plantillaNormalizada: plantilla
+                })
             }
         }
 
-        return null
+        if (candidatos.length === 0) return null
+        if (candidatos.length > 1) {
+            // Empate: gana un match exacto si hay uno solo; si no, nadie.
+            const exactos = candidatos.filter((c) => c.plantillaNormalizada === textoNorm)
+            if (exactos.length !== 1) {
+                console.warn(
+                    `[catalogo] el mensaje pega con varias plantillas (${candidatos.map((c) => c.nombre).join(", ")}): no se entrega bienvenida`
+                )
+                return null
+            }
+            return exactos[0]
+        }
+        return candidatos[0]
     } catch (err) {
         console.error("Error en detectarPlantillaAnuncio:", err)
         return null

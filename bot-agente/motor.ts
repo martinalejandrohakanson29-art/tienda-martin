@@ -24,6 +24,12 @@ export interface OpcionesEjecucion {
     conversationId?: number
     /** Clave para la memoria persistente del embudo (session_id en el simulador). */
     estadoKey?: string
+    /**
+     * Anuncio de Meta por el que entró el cliente (`content_attributes.referral`
+     * del mensaje de Chatwoot). El texto del cliente no dice de qué kit viene;
+     * el anuncio sí.
+     */
+    referralAnuncio?: { titulo?: string | null; cuerpo?: string | null }
 }
 
 const DEFAULT_MODEL = "gpt-5" // Modelo de producción (chat_config.proveedor_activo lo puede pisar)
@@ -420,7 +426,9 @@ export async function ejecutarTurnoAgente(
     }
 
     // 1. Saludo simple o sin intención ("Hola!", "Buenas"): orientar al cliente directo sin costo de IA
-    if (historialPrevio.length === 0 && esSaludoSinIntencion(mensajeUsuario)) {
+    // Con referral (vino de un anuncio) NO se contesta el genérico: el kit del
+    // anuncio lo resuelve el bloque de abajo aunque el cliente solo diga "Hola".
+    if (historialPrevio.length === 0 && esSaludoSinIntencion(mensajeUsuario) && !opciones.referralAnuncio) {
         const saludo = `Hola ${config.permitirBro ? "bro" : "amigo"}! En qué te podemos ayudar?`
         return {
             mensajeFinal: saludo,
@@ -445,8 +453,20 @@ export async function ejecutarTurnoAgente(
     //  b) Si la moto ya está confirmada, la bienvenida seguía cerrando con
     //     "A qué moto se lo querés poner?" — una pregunta ya respondida.
     {
-        const { detectarPlantillaAnuncio } = await import("./herramientas/catalogo-precios")
-        const matchPlantilla = await detectarPlantillaAnuncio(mensajeUsuario)
+        const { detectarPlantillaAnuncio, detectarPlantillaPorReferral } = await import("./herramientas/catalogo-precios")
+
+        // Primero por texto (la plantilla exacta que manda el cliente). Si no,
+        // por el referral del anuncio: en WhatsApp el cliente muchas veces
+        // escribe directo lo suyo ("Tengo una skua 150") y el único dato del kit
+        // está en el anuncio (convs 3357 y 3664, 08/09).
+        const matchTexto = await detectarPlantillaAnuncio(mensajeUsuario)
+        const matchRef = matchTexto ? null : await detectarPlantillaPorReferral(opciones.referralAnuncio)
+        if (matchRef && matchRef.ambiguo) {
+            console.warn(
+                `[motor] el anuncio pega con varios kits del catálogo (${matchRef.candidatos.join(", ")}): no se entrega bienvenida, solo contexto`
+            )
+        }
+        const matchPlantilla = matchTexto || (matchRef && !matchRef.ambiguo ? matchRef : null)
 
         const esElMismoKitYaPresentado =
             !!matchPlantilla &&
@@ -510,17 +530,30 @@ export async function ejecutarTurnoAgente(
             // y 3657, 08/09). Ahora la bienvenida sale igual (letra exacta, foto,
             // costo $0) y el resto se resuelve en un turno normal, que ya ve el
             // kit como presentado y no repite la ficha.
-            const resto = restoFueraDePlantilla(mensajeUsuario, matchPlantilla.plantillaNormalizada)
+            const resto = restoFueraDePlantilla(
+                mensajeUsuario,
+                matchTexto ? matchTexto.plantillaNormalizada : ""
+            )
 
             if (resto) {
                 const turnoResto = await ejecutarTurnoAgente(
                     resto,
                     [
                         ...historialPrevio,
+                        ...(matchRef
+                            ? [
+                                  {
+                                      rol: "system" as const,
+                                      contenido: `[El cliente entro por el anuncio de "${matchPlantilla.nombre}" y ya se le mando la ficha oficial de ese combo con la foto. Contesta lo que escribio sin volver a presentarlo.]`
+                                  }
+                              ]
+                            : []),
                         { rol: "user", contenido: mensajeUsuario },
                         { rol: "assistant", contenido: textoFinal }
                     ],
-                    opciones
+                    // Sin el referral: el kit del anuncio ya se entrego y volver a
+                    // pasarlo re-dispararia la bienvenida en el sub-turno.
+                    { ...opciones, referralAnuncio: undefined }
                 )
 
                 // El resto escaló (dato que no tenemos): el pendiente ya está en la
@@ -630,11 +663,26 @@ export async function ejecutarTurnoAgente(
         patchEstado.escaladoPendiente = { motivo, resumen, en: new Date().toISOString() }
     }
 
+    // El cliente llegó de un anuncio que no resolvimos a un kit del catálogo (o
+    // que pega con más de uno): el texto del anuncio es la única pista de qué
+    // está mirando. Va como contexto para que lo busque, no como dato de venta.
+    const bloqueAnuncio = opciones.referralAnuncio
+        ? [
+              "### ANUNCIO POR EL QUE ENTRÓ EL CLIENTE (Instagram/Facebook):",
+              opciones.referralAnuncio.titulo ? `Título: ${opciones.referralAnuncio.titulo}` : "",
+              opciones.referralAnuncio.cuerpo ? `Texto: ${opciones.referralAnuncio.cuerpo}` : "",
+              "El cliente viene por ESE producto aunque no lo nombre. Buscalo en el catálogo con esos términos antes de preguntarle qué necesita. Si no lo encontrás, escalá: no inventes ni ofrezcas otro kit como si fuera el del anuncio."
+          ]
+              .filter(Boolean)
+              .join("\n")
+        : ""
+
     const promptFinal = [
         config.tonoEstilo
             ? `${PROMPT_SISTEMA_AGENTE}\n\n### PAUTA DE ESTILO CONFIGURADA POR EL DUEÑO:\n${config.tonoEstilo}`
             : PROMPT_SISTEMA_AGENTE,
         `### CONTEXTO TEMPORAL ACTUAL EN EL LOCAL (Córdoba Capital):\nHoy es ${fechaHoraCordoba} hs.`,
+        bloqueAnuncio,
         bloqueEstado,
         bloqueSituaciones
     ].filter(Boolean).join("\n\n")

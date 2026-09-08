@@ -151,6 +151,12 @@ type MensajeRaw = {
     creadoEn: number
     /** true si lo mandó el usuario Bot de Chatwoot (no un humano del equipo). */
     delBot: boolean
+    /**
+     * Anuncio de Meta por el que entró el cliente (click-to-WhatsApp). Chatwoot
+     * lo deja en `content_attributes.referral`: es el ÚNICO lugar donde dice de
+     * qué kit viene, porque el texto que escribe el cliente casi nunca lo nombra.
+     */
+    referral?: { titulo: string | null; cuerpo: string | null }
 }
 
 async function traerTranscripcion(accountId: number, conversationId: number): Promise<MensajeRaw[]> {
@@ -166,12 +172,19 @@ async function traerTranscripcion(accountId: number, conversationId: number): Pr
         .map((m) => {
             const saliente = m?.message_type === 1 || m?.message_type === "outgoing"
             const creado = typeof m?.created_at === "number" ? m.created_at * 1000 : Date.parse(m?.created_at ?? "")
+            const ref = m?.content_attributes?.referral
             return {
                 contenido: (m?.content || "").toString().trim(),
                 privado: Boolean(m?.private),
                 saliente,
                 creadoEn: Number.isFinite(creado) ? creado : 0,
                 delBot: saliente && Number(m?.sender?.id) === botUserId,
+                referral: ref
+                    ? {
+                          titulo: (ref.headline || "").toString().trim() || null,
+                          cuerpo: (ref.body || "").toString().trim() || null,
+                      }
+                    : undefined,
             }
         })
         // Los carteles de Chatwoot ("This message is unavailable.") no son parte
@@ -203,6 +216,21 @@ export function recortarMensajesDelTurno<T extends { contenido: string; saliente
         corte--
     }
     return transcripcion.slice(0, corte)
+}
+
+/**
+ * Anuncio de Meta que trae el tramo que estamos por contestar.
+ *
+ * El referral viaja en el mensaje entrante, no en el texto: el cliente clickea
+ * el anuncio y escribe otra cosa ("Hola quiero más información", "Tengo una
+ * skua 150"). Sin esto el motor no tenía forma de saber de qué kit venía y
+ * adivinaba o preguntaba de cero (convs 3357 y 3664, 08/09).
+ *
+ * Solo se mira el tramo sin responder: un anuncio clickeado hace tres días no
+ * es el contexto de lo que el cliente pregunta hoy.
+ */
+function referralDelTramo(mensajes: MensajeRaw[]): { titulo: string | null; cuerpo: string | null } | undefined {
+    return [...mensajes].reverse().find((m) => !m.saliente && m.referral)?.referral
 }
 
 /**
@@ -434,13 +462,13 @@ async function procesarTurno(accountId: number, conversationId: number) {
         // silencio -- conv 3637 (08/09): se escalo "escape paolucci para
         // varillero s2 motomel", el cliente insistio con "??" y el modelo, que
         // ya no veia esa pregunta, contesto sobre el kit 170 de media hora antes.
-        const historialPrevio: MensajeChat[] = armarHistorialPrevio(
-            recortarMensajesDelTurno(transcripcion, mensajesDelTurno)
-        )
+        const previoDelTurno = recortarMensajesDelTurno(transcripcion, mensajesDelTurno)
+        const historialPrevio: MensajeChat[] = armarHistorialPrevio(previoDelTurno)
 
         const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
             conversationId,
             estadoKey: String(conversationId),
+            referralAnuncio: referralDelTramo(transcripcion.slice(previoDelTurno.length)),
         })
 
         if (respuesta.escaladoHumano) {
@@ -796,6 +824,7 @@ export async function atenderEntrantesPendientes(
                 const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
                     conversationId,
                     estadoKey: String(conversationId),
+                    referralAnuncio: referralDelTramo(transcripcion.slice(cortIdx + 1)),
                 })
 
                 if (respuesta.escaladoHumano) {
@@ -974,6 +1003,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
                 conversationId,
                 estadoKey: String(conversationId),
+                referralAnuncio: referralDelTramo(transcripcion.slice(cortIdx + 1)),
             })
 
             if (respuesta.escaladoHumano) {

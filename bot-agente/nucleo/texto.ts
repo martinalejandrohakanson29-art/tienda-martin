@@ -246,12 +246,34 @@ const SALUDOS_SUELTOS = new Set([
     "hey", "que tal", "como va", "como andas", "como estas", "hola buenas"
 ])
 
+/**
+ * Palabras de un pedido generico de informacion. Una linea hecha solo de estas
+ * ("hola quiero mas info", "me pasas info del kit?") no agrega nada a la
+ * bienvenida que ya se mando: si se procesa como consulta aparte, el bot manda
+ * la ficha y encima un "decime que dato te falta" que sobra.
+ */
+const RELLENO_PEDIDO_INFO = new Set([
+    "hola", "buenas", "buen", "dia", "tardes", "noches", "que", "tal", "como", "va",
+    "quiero", "queria", "quisiera", "me", "gustaria", "necesito", "dame", "pasame",
+    "pasas", "podes", "pasar", "decime", "saber", "conocer", "ver", "mandame", "mandas",
+    "mas", "info", "informacion", "datos", "detalles", "sobre", "el", "la", "los", "las",
+    "de", "del", "un", "una", "por", "favor", "gracias", "y", "es", "esta", "esto", "eso",
+    "producto", "combo", "kit", "publicacion", "aviso", "anuncio"
+])
+
+function esPedidoGenericoDeInfo(normalizado: string): boolean {
+    const palabras = normalizado.split(" ").filter(Boolean)
+    if (palabras.length === 0 || palabras.length > 8) return false
+    return palabras.every((p) => RELLENO_PEDIDO_INFO.has(p))
+}
+
 export function restoFueraDePlantilla(
     mensajeUsuario: string | null | undefined,
     plantillaNormalizada: string | null | undefined
 ): string {
     const plantillaNorm = (plantillaNormalizada || "").trim()
-    if (!plantillaNorm) return ""
+    // Sin plantilla en el texto (el kit se resolvió por el referral del
+    // anuncio): no hay nada que descontar, pero igual se filtran saludos sueltos.
 
     const restantes = (mensajeUsuario || "")
         .split(/\n+/)
@@ -259,7 +281,9 @@ export function restoFueraDePlantilla(
             const norm = normalizarTexto(linea)
             if (norm.length < 3) return false // "?", "ok", vacío
             if (SALUDOS_SUELTOS.has(norm)) return false
+            if (esPedidoGenericoDeInfo(norm)) return false
             // La línea es (o está contenida en) la plantilla del anuncio.
+            if (!plantillaNorm) return true
             return !(plantillaNorm.includes(norm) || norm.includes(plantillaNorm))
         })
         .map((linea) => linea.trim())

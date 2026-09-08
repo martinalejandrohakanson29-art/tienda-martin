@@ -90,6 +90,81 @@ function formatearPrecio(monto: number): string {
 }
 
 /**
+ * COMPOSICIÓN OFICIAL DE UN KIT ("viene con leva?")
+ * -------------------------------------------------
+ * Qué trae un kit es un DATO, no algo que el modelo pueda deducir del nombre
+ * ("Kit 170 varillero + leva") ni de otro kit parecido del catálogo. Sale de
+ * las dos fuentes que son la verdad: las viñetas de la ficha cargada en la app
+ * (`mensaje_bienvenida`) y los artículos vinculados en `chat_pack_articulos`.
+ *
+ * Por qué existe: la ficha viajaba al modelo SOLO en el paso de presentación.
+ * Un turno después (kit ya presentado) la herramienta se la ocultaba a
+ * propósito para que no la re-mandara, y ahí el modelo se quedaba sin ningún
+ * dato de composición: ante "con la leva no viene no?" contestaba de memoria.
+ * En la conv 3583 (08/09) afirmó que el kit dakar 200 traía leva. No la trae.
+ */
+function lineasComposicion(
+    mensajeBienvenida: string | null | undefined,
+    articulos: ArticuloSueltoInfo[] | undefined
+): string[] {
+    const salida: string[] = []
+    const vistos = new Set<string>()
+
+    const agregar = (texto: string) => {
+        const limpio = texto.replace(/\s+/g, " ").trim().replace(/[.;,]+$/, "")
+        if (!limpio) return
+        const clave = normalizarTexto(limpio)
+        if (!clave || vistos.has(clave)) return
+        vistos.add(clave)
+        salida.push(limpio)
+    }
+
+    for (const linea of (mensajeBienvenida || "").split(/\n/)) {
+        const bruto = linea.trim()
+        if (!/^(✅|✔|•|👉🏼|👉|-|\*)/.test(bruto)) continue
+        const sinVineta = bruto.replace(/^(✅|✔|•|👉🏼|👉|-|\*)+/, "").trim()
+        // Las viñetas de precio / envío no son composición.
+        if (!sinVineta || /\$|precio|cuesta|env[ií]o|transferencia|efectivo/i.test(sinVineta)) continue
+        agregar(sinVineta)
+    }
+
+    // Los artículos vinculados suelen repetir lo que ya dice la ficha ("Cilindro
+    // Dakar 200" vs "Cilindro Dakar 200: Carrera larga (63.5mm)"): se suman solo
+    // los que aportan una pieza que la ficha no nombra.
+    for (const art of articulos || []) {
+        const clave = normalizarTexto(art.nombre)
+        if (!clave) continue
+        const yaNombrada = salida.some((linea) => {
+            const l = normalizarTexto(linea)
+            return l.includes(clave) || clave.includes(l)
+        })
+        if (!yaNombrada) agregar(art.nombre)
+    }
+
+    return salida
+}
+
+/** Bloque de composición + la regla de lista cerrada, para el `mensaje_para_agente`. */
+function bloqueComposicion(
+    mensajeBienvenida: string | null | undefined,
+    articulos: ArticuloSueltoInfo[] | undefined,
+    yaPresentado: boolean
+): string[] {
+    const piezas = lineasComposicion(mensajeBienvenida, articulos)
+    if (piezas.length === 0) return []
+
+    const encabezado = yaPresentado
+        ? `   - QUÉ TRAE (composición oficial — dato para contestar con precisión, NO la reenvíes como lista salvo que pregunte justo por eso):`
+        : `   - QUÉ TRAE (composición oficial de este kit):`
+
+    return [
+        encabezado,
+        ...piezas.map((pieza) => `     ✔ ${pieza}`),
+        `   - Esa lista es CERRADA: es TODO lo que trae el kit. Si el cliente pregunta si viene con una pieza que NO figura ahí (leva, escape, carburador, tapa, embrague...), la respuesta es que NO viene incluida. PROHIBIDO afirmar que la incluye, aunque otro kit del catálogo sí la traiga o el nombre del kit suene parecido. Si esa pieza aparece abajo como artículo suelto, podés decirle que va aparte.`
+    ]
+}
+
+/**
  * Detecta si un mensaje recibido coincide con una plantilla publicitaria de Instagram
  */
 export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<{
@@ -417,6 +492,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             } else if (p.mensaje_bienvenida) {
                 lineas.push(`   - Mensaje oficial cargado en la app (respetar formato, listas y datos técnicos; si la charla ya está en curso, OMITIR el saludo inicial):\n${p.mensaje_bienvenida.trim()}`)
             }
+            lineas.push(...bloqueComposicion(p.mensaje_bienvenida, p.articulos_sueltos, packYaPresentado(p)))
             if (p.articulos_sueltos && p.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas de este kit (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of p.articulos_sueltos) {
@@ -462,6 +538,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 lineas.push(`   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`)
                 lineas.push(`   - En cuanto el cliente diga su moto O su variante (corto/largo/etc.), usá SIEMPRE resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo, NUNCA redactes el precio de memoria. Hacé lo que devuelva.`)
             }
+            lineas.push(...bloqueComposicion(g.mensaje_bienvenida, g.articulos_sueltos, grupoYaPresentado(g)))
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of g.articulos_sueltos) {

@@ -91,7 +91,8 @@ function esSaludoSinIntencion(msg: string): boolean {
  */
 function extraerFotoDeBienvenida(
     herramientasEjecutadas: HerramientaEjecutadaInfo[],
-    estadoConv: EstadoConversacion
+    estadoConv: EstadoConversacion,
+    descartados: { packsDescartados: Set<number>; gruposDescartados: Set<number> }
 ): string | undefined {
     for (const ej of herramientasEjecutadas) {
         if (ej.nombre !== "consultar_catalogo_y_precios") continue
@@ -108,12 +109,114 @@ function extraerFotoDeBienvenida(
             (grupo && estadoConv.grupoPineado?.id === grupo.id) ||
             (pack && estadoConv.packPresentado?.id === pack.id)
 
+        // Si en este turno hubo varias búsquedas y `confirmarPresentadoSegunMensaje`
+        // ya decidió cuál kit salió de verdad, la foto sale por ese mismo criterio:
+        // no mandamos la foto de un kit que el mensaje no presenta.
+        if (pack && descartados.packsDescartados.has(pack.id)) continue
+        if (grupo && descartados.gruposDescartados.has(grupo.id)) continue
+
         if (!yaPineadoAntes) {
             const foto = grupo?.foto_url || pack?.foto_url
             if (foto) return foto
         }
     }
     return undefined
+}
+
+/**
+ * ¿El precio de este kit aparece en el texto que se le manda al cliente?
+ * La ficha oficial siempre lo lleva, así que es la evidencia más barata de que
+ * el mensaje que sale es el de ESE kit y no el de otro que se buscó al pasar.
+ */
+function precioApareceEnTexto(texto: string, precio: number): boolean {
+    if (!precio || !texto) return false
+    const plano = texto.replace(/[.\s ]/g, "")
+    return plano.includes(`$${Math.round(precio)}`)
+}
+
+/**
+ * Corrige el kit que queda marcado como "presentado" cuando en el mismo turno
+ * hubo VARIAS búsquedas de catálogo que resolvieron a kits distintos.
+ *
+ * Por qué existe: el modelo suele buscar dos o tres veces en un mismo turno
+ * ("varillero", "150 a 200", "200cc"). Cada búsqueda que resolvía a un único
+ * pack pisaba `patchEstado.packPresentado`, así que la memoria terminaba
+ * anotando un kit que el cliente NUNCA vio. En la conv 3583 (08/09) se le
+ * presentó el "kit dakar 200 economico" pero quedó guardado "Kit 170 varillero
+ * + leva": al turno siguiente el cliente preguntó "con la leva no viene no?" y
+ * el bot, leyendo esa memoria, le afirmó que sí venía con leva. El kit no la
+ * incluye.
+ *
+ * Criterio: si hubo un solo candidato en el turno no se toca nada (comportamiento
+ * de siempre). Si hubo varios, gana el que tenga su precio en el mensaje que
+ * realmente sale. Si ninguno lo tiene, no se marca nada: mejor sin memoria que
+ * con memoria falsa.
+ *
+ * Devuelve los ids que quedaron DESCARTADOS (se buscaron pero el mensaje no los
+ * presenta) para que la foto de bienvenida salga por el mismo criterio.
+ */
+function confirmarPresentadoSegunMensaje(
+    patchEstado: EstadoConversacion,
+    herramientasEjecutadas: HerramientaEjecutadaInfo[],
+    mensajeFinal: string
+): { packsDescartados: Set<number>; gruposDescartados: Set<number> } {
+    const candidatosPack: { id: number; nombre: string; precio: number }[] = []
+    const candidatosGrupo: { id: number; nombre: string; precios: number[] }[] = []
+
+    for (const ej of herramientasEjecutadas) {
+        if (ej.nombre !== "consultar_catalogo_y_precios") continue
+        const r = ej.resultado || {}
+        if (!r.encontrado) continue
+        const packs = r.packs || []
+        const grupos = r.grupos || []
+        if (packs.length === 1 && grupos.length === 0 && !packs[0].grupo_id) {
+            if (!candidatosPack.some((c) => c.id === packs[0].id)) {
+                candidatosPack.push({ id: packs[0].id, nombre: packs[0].nombre, precio: Number(packs[0].precio) || 0 })
+            }
+        }
+        if (grupos.length === 1 && packs.length === 0) {
+            if (!candidatosGrupo.some((c) => c.id === grupos[0].id)) {
+                candidatosGrupo.push({
+                    id: grupos[0].id,
+                    nombre: grupos[0].nombre,
+                    precios: (grupos[0].variantes || []).map((v: any) => Number(v.precio) || 0)
+                })
+            }
+        }
+    }
+
+    const packsDescartados = new Set<number>()
+    const gruposDescartados = new Set<number>()
+
+    if (candidatosPack.length > 1) {
+        const confirmado = candidatosPack.find((c) => precioApareceEnTexto(mensajeFinal, c.precio))
+        for (const c of candidatosPack) {
+            if (c.id !== confirmado?.id) packsDescartados.add(c.id)
+        }
+        if (patchEstado.packPresentado) {
+            if (confirmado) {
+                patchEstado.packPresentado = { id: confirmado.id, nombre: confirmado.nombre, precio: confirmado.precio }
+            } else {
+                delete patchEstado.packPresentado
+            }
+        }
+    }
+
+    if (candidatosGrupo.length > 1) {
+        const confirmado = candidatosGrupo.find((c) => c.precios.some((p) => precioApareceEnTexto(mensajeFinal, p)))
+        for (const c of candidatosGrupo) {
+            if (c.id !== confirmado?.id) gruposDescartados.add(c.id)
+        }
+        if (patchEstado.grupoPineado) {
+            if (confirmado) {
+                patchEstado.grupoPineado = { id: confirmado.id, nombre: confirmado.nombre }
+            } else {
+                delete patchEstado.grupoPineado
+            }
+        }
+    }
+
+    return { packsDescartados, gruposDescartados }
 }
 
 /**
@@ -642,11 +745,19 @@ export async function ejecutarTurnoAgente(
 
             const mensajeFinalUnificado = mensajesFinalesSanitizados.join("\n\n---\n\n")
 
+            // El kit que queda en la memoria tiene que ser el que el cliente
+            // realmente leyó, no cualquier otro que se haya buscado en el camino.
+            const descartadosPorElMensaje = confirmarPresentadoSegunMensaje(
+                patchEstado,
+                herramientasEjecutadas,
+                mensajeFinalUnificado
+            )
+
             await persistirEstado()
             return {
                 mensajeFinal: mensajeFinalUnificado || null,
                 mensajesFinales: mensajesFinalesSanitizados,
-                fotoUrl: extraerFotoDeBienvenida(herramientasEjecutadas, estadoConv),
+                fotoUrl: extraerFotoDeBienvenida(herramientasEjecutadas, estadoConv, descartadosPorElMensaje),
                 herramientasEjecutadas,
                 escaladoHumano: false,
                 latenciaMs: Date.now() - inicio,

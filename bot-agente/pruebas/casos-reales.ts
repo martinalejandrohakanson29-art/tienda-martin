@@ -754,5 +754,45 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Debe confirmar recorrido largo con su precio y cerrar corto. Prohibido justificar la eleccion o comparar con el corto: el recorrido lo define el motor, no el gusto del cliente."
         }
+    },
+    {
+        // Conv 3583 (08/09). Se le presento el "kit dakar 200 economico"
+        // ($167.000), que NO trae leva. Al otro dia el cliente pregunto "con la
+        // leva no viene no?" y el bot le contesto "si, este ya viene con leva
+        // incluida". Dos causas encadenadas:
+        //   1. En el turno de la presentacion el modelo busco varias veces en el
+        //      catalogo ("varillero" -> Kit 170 varillero + leva, "200" -> kit
+        //      dakar 200) y la memoria se quedaba con la ULTIMA busqueda, no con
+        //      el kit que realmente salio en el mensaje. Quedo guardado el kit
+        //      equivocado (ver `confirmarPresentadoSegunMensaje` en motor.ts).
+        //   2. Con el kit ya presentado, `consultar_catalogo_y_precios` le
+        //      ocultaba la ficha al modelo para que no la re-mandara, asi que no
+        //      tenia ningun dato de composicion para contestar (ver
+        //      `bloqueComposicion` en catalogo-precios.ts).
+        id: "caso-41-no-inventar-piezas-incluidas",
+        titulo: "Que incluye el kit: se contesta con la composicion oficial, nunca de memoria",
+        mensajeCliente: "Con la leva no viene no?",
+        estadoInicial: {
+            packPresentado: { id: 12, nombre: "kit dakar 200 economico", precio: 167000 }
+        },
+        historial: [
+            { rol: "user", contenido: "Holas buenas" },
+            { rol: "user", contenido: "Tenes algun kit de potenciacion de 150 a 200 varillero completo?" },
+            { rol: "user", contenido: "Es para una skua v6" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Buenas! Si, tenemos el kit completo para pasar de 150 a 200 varillero.\n\n🔥 KIT POTENCIADO 200cc (Para varilleros sin balnaceador) 🔥\n✅ Cilindro Dakar 200: Carrera larga (63.5mm).\n✅ Cigüeñal 200: Carrera larga (62mm).\n✅ Espárragos y varillas de válvulas (más largos).\n✅ Extras: Tuercas de espárragos y juego de juntas en súper medida.\n\n💳 Precio Efectivo/Transferencia: $167.000\n\n🚚 ENVÍO\nGRATIS A TODO EL PAÍS! No pagas ni un peso más por el despacho.\n\nPara confirmar compatibilidad exacta con tu Skua V6, tenes la Motomel Skua 150 o la 200?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // El kit no incluye leva: la respuesta tiene que ser negativa.
+            patronRespuesta: /\bno\b/i,
+            patronProhibido: /(\bs[ií]\b,?\s*(este|ese|el)?\s*(kit|combo)?\s*(ya\s*)?(viene|trae|incluye)|\bleva incluida\b|ya viene con (la )?leva)/i,
+            descripcionEsperada:
+                "La composicion oficial del kit dakar 200 no tiene leva. Debe decir que no viene incluida (puede aclarar que va aparte), sin re-mandar la ficha."
+        }
     }
 ]

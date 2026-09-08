@@ -217,10 +217,12 @@ export async function getInstagramGeneralDashboard(options?: {
     }
 
     // 2. Traemos en paralelo datos de Meta Ads y Ventas de PostgreSQL
-    const [metaData, ventas, packsDef, todosArticulos] = await Promise.all([
+    // 2. Traemos en paralelo datos de Meta Ads, Ventas y Campañas Activas
+    const [metaData, ventas, packsDef, todosArticulos, campaignsDB] = await Promise.all([
       consultarMetaAdsRango(strDesde, strHasta),
       prisma.venta.findMany({
         where: {
+          tipoVenta: { not: "PEDIDO" },
           estadoPedido: { not: "CANCELADO" },
           createdAt: { gte: inicio, lte: fin },
           puntoVentaId: { in: targetPvIds }
@@ -236,20 +238,35 @@ export async function getInstagramGeneralDashboard(options?: {
       }),
       prisma.articuloMostrador.findMany({
         select: { id: true, nombre: true }
+      }),
+      prisma.marketingCampaign.findMany({
+        where: {
+          status: { in: ["ACTIVE", "ACTIVO", "Active", "Activo"] }
+        },
+        include: {
+          items: {
+            include: {
+              articulo: true
+            }
+          }
+        }
       })
     ])
 
-    // 3. Cálculos de Ventas Brutas y Cantidad de Ventas
-    // REGLA CLAVE: "un pack con varios articulos es 1 venta". Cada registro de Venta es exactamente 1 venta/pedido.
-    const cantidadVentas = ventas.length
+    // Identificamos todos los artículos y packs asociados a campañas activas de Meta
+    const articulosAsociadosMap = new Map<string, any>()
+    const nombresAsociadosSet = new Set<string>()
 
-    let ventasBrutas = 0
-    for (const v of ventas) {
-      const monto = Number(v.totalFinal || v.total || 0)
-      ventasBrutas += monto
+    for (const camp of campaignsDB) {
+      for (const it of camp.items || []) {
+        if (it.articulo) {
+          articulosAsociadosMap.set(it.articuloId, it.articulo)
+          nombresAsociadosSet.add(it.articulo.nombre.toLowerCase().trim())
+        }
+      }
     }
 
-    // 4. Mapeo y Reconstrucción de Packs / Top Artículos Más Vendidos
+    // 3. Mapeo y Reconstrucción de Packs / Top Artículos Más Vendidos
     const articuloByNombre = new Map(todosArticulos.map(a => [a.nombre.toLowerCase().trim(), a]))
     const packs = packsDef
       .filter(p => p.packItems.length > 0)
@@ -276,21 +293,39 @@ export async function getInstagramGeneralDashboard(options?: {
       salesByArticle[key].recaudado += monto
     }
 
+    let cantidadVentas = 0
+    const ventasAsociadasList: any[] = []
+
+    // Inicializamos todos los días del rango para que no queden huecos
+    const mapaDias = new Map<string, { ventasBrutas: number; cantidadVentas: number }>()
+    const cursor = new Date(inicio)
+    while (cursor <= fin) {
+      const yyyyMmDd = formatISODateArg(cursor)
+      mapaDias.set(yyyyMmDd, { ventasBrutas: 0, cantidadVentas: 0 })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+
     for (const venta of ventas) {
       const disp: Record<string, { qty: number; monto: number; nombre: string }> = {}
+      let ventaTieneAsociado = false
+      let montoAsociadoVenta = 0
+      const itemsAsociadosDeVenta: { nombre: string; cantidad: number }[] = []
 
       for (const item of venta.items) {
         if (item.esNota) continue
         const nomLower = item.nombre.toLowerCase().trim()
-        if (nomLower === "envio" || nomLower.startsWith("envío") || nomLower.startsWith("costo de envio")) {
-          continue
-        }
 
         // Pack registrado directamente
         if (item.productoId?.startsWith("PACK-")) {
           const matchPack = packsDef.find(p => p.nombre.toLowerCase().trim() === nomLower)
           const packKey = matchPack ? matchPack.id : nomLower
           acumularVenta(packKey, item.nombre, item.cantidad, Number(item.subtotal))
+
+          if (articulosAsociadosMap.has(packKey) || nombresAsociadosSet.has(nomLower)) {
+            ventaTieneAsociado = true
+            montoAsociadoVenta += Number(item.subtotal)
+            itemsAsociadosDeVenta.push({ nombre: item.nombre, cantidad: item.cantidad })
+          }
           continue
         }
 
@@ -299,6 +334,12 @@ export async function getInstagramGeneralDashboard(options?: {
           const matchArt = articuloByNombre.get(nomLower)
           const artKey = matchArt ? matchArt.id : nomLower
           acumularVenta(artKey, item.nombre, item.cantidad, Number(item.subtotal))
+
+          if (articulosAsociadosMap.has(artKey) || nombresAsociadosSet.has(nomLower)) {
+            ventaTieneAsociado = true
+            montoAsociadoVenta += Number(item.subtotal)
+            itemsAsociadosDeVenta.push({ nombre: item.nombre, cantidad: item.cantidad })
+          }
           continue
         }
 
@@ -329,17 +370,89 @@ export async function getInstagramGeneralDashboard(options?: {
           montoPack += montoConsumido
         }
         acumularVenta(pack.id, pack.nombre, copias, montoPack)
+
+        if (copias > 0 && (articulosAsociadosMap.has(pack.id) || nombresAsociadosSet.has(pack.nombre.toLowerCase().trim()))) {
+          ventaTieneAsociado = true
+          montoAsociadoVenta += montoPack
+          itemsAsociadosDeVenta.push({ nombre: pack.nombre, cantidad: copias })
+        }
       }
 
       // Componentes individuales restantes
       for (const [pid, d] of Object.entries(disp)) {
-        if (d.qty > 0) acumularVenta(pid, d.nombre, d.qty, d.monto)
+        if (d.qty > 0) {
+          acumularVenta(pid, d.nombre, d.qty, d.monto)
+          if (articulosAsociadosMap.has(pid) || nombresAsociadosSet.has(d.nombre.toLowerCase().trim())) {
+            ventaTieneAsociado = true
+            montoAsociadoVenta += d.monto
+            itemsAsociadosDeVenta.push({ nombre: d.nombre, cantidad: d.qty })
+          }
+        }
+      }
+
+      if (ventaTieneAsociado) {
+        cantidadVentas++
+        ventasAsociadasList.push({
+          ...venta,
+          montoAsociadoVenta,
+          itemsAsociadosDeVenta
+        })
+
+        const vFecha = new Date(venta.createdAt.toLocaleString("en-US", { timeZone: "America/Argentina/Cordoba" }))
+        const yyyyMmDd = formatISODateArg(vFecha)
+        const diaObj = mapaDias.get(yyyyMmDd)
+        if (diaObj) {
+          diaObj.ventasBrutas += montoAsociadoVenta
+          diaObj.cantidadVentas += 1
+        }
       }
     }
 
-    const totalUnidadesVendidas = Object.values(salesByArticle).reduce((s, a) => s + a.cantidad, 0)
+    // 4. Ventas Brutas de Artículos Asociados
+    let ventasBrutas = 0
+    for (const [artId, art] of articulosAsociadosMap.entries()) {
+      const byId = salesByArticle[art.id]
+      const byNombre = salesByArticle[art.nombre.toLowerCase().trim()]
+      let facturacion = 0
+      if (byId && byNombre && byId !== byNombre) {
+        facturacion = byId.recaudado + byNombre.recaudado
+      } else if (byId) {
+        facturacion = byId.recaudado
+      } else if (byNombre) {
+        facturacion = byNombre.recaudado
+      }
+      ventasBrutas += facturacion
+    }
 
-    const topArticulos: TopArticuloDashboard[] = Object.values(salesByArticle)
+    // 5. Top Artículos Asociados Más Vendidos
+    const articulosAsociadosVendidos: { nombre: string; cantidad: number; recaudado: number }[] = []
+    for (const [artId, art] of articulosAsociadosMap.entries()) {
+      const byId = salesByArticle[art.id]
+      const byNombre = salesByArticle[art.nombre.toLowerCase().trim()]
+      let cantidad = 0
+      let recaudado = 0
+      if (byId && byNombre && byId !== byNombre) {
+        cantidad = byId.cantidad + byNombre.cantidad
+        recaudado = byId.recaudado + byNombre.recaudado
+      } else if (byId) {
+        cantidad = byId.cantidad
+        recaudado = byId.recaudado
+      } else if (byNombre) {
+        cantidad = byNombre.cantidad
+        recaudado = byNombre.recaudado
+      }
+      if (cantidad > 0) {
+        articulosAsociadosVendidos.push({
+          nombre: art.nombre,
+          cantidad,
+          recaudado
+        })
+      }
+    }
+
+    const totalUnidadesVendidas = articulosAsociadosVendidos.reduce((s, a) => s + a.cantidad, 0)
+
+    const topArticulos: TopArticuloDashboard[] = articulosAsociadosVendidos
       .sort((a, b) => b.cantidad - a.cantidad)
       .slice(0, 5)
       .map(art => ({
@@ -349,27 +462,7 @@ export async function getInstagramGeneralDashboard(options?: {
         porcentaje: totalUnidadesVendidas > 0 ? Number(((art.cantidad / totalUnidadesVendidas) * 100).toFixed(1)) : 0
       }))
 
-    // 5. Agrupación de Evolución Diaria (para el gráfico interactivo)
-    const mapaDias = new Map<string, { ventasBrutas: number; cantidadVentas: number }>()
-
-    // Inicializamos todos los días del rango para que no queden huecos
-    const cursor = new Date(inicio)
-    while (cursor <= fin) {
-      const yyyyMmDd = formatISODateArg(cursor)
-      mapaDias.set(yyyyMmDd, { ventasBrutas: 0, cantidadVentas: 0 })
-      cursor.setDate(cursor.getDate() + 1)
-    }
-
-    ventas.forEach(v => {
-      const vFecha = new Date(v.createdAt.toLocaleString("en-US", { timeZone: "America/Argentina/Cordoba" }))
-      const yyyyMmDd = formatISODateArg(vFecha)
-      const diaObj = mapaDias.get(yyyyMmDd)
-      if (diaObj) {
-        diaObj.ventasBrutas += Number(v.totalFinal || v.total || 0)
-        diaObj.cantidadVentas += 1
-      }
-    })
-
+    // 6. Agrupación de Evolución Diaria (para el gráfico interactivo)
     const diasTotales = Math.max(mapaDias.size, 1)
     const gastoPromedioDiario = metaData.totalSpend / diasTotales
 
@@ -384,8 +477,8 @@ export async function getInstagramGeneralDashboard(options?: {
       }
     })
 
-    // 6. Resumen de Ventas Recientes para auditoría rápida
-    const ventasRecientes: VentaRecienteItem[] = ventas.slice(0, 15).map(v => {
+    // 7. Resumen de Ventas Recientes con Artículos Pautados
+    const ventasRecientes: VentaRecienteItem[] = ventasAsociadasList.slice(0, 15).map(v => {
       const vFecha = new Date(v.createdAt.toLocaleString("en-US", { timeZone: "America/Argentina/Cordoba" }))
       const fechaFormateada = `${vFecha.getDate().toString().padStart(2, "0")}/${(vFecha.getMonth() + 1)
         .toString()
@@ -394,20 +487,20 @@ export async function getInstagramGeneralDashboard(options?: {
         .toString()
         .padStart(2, "0")} hs`
 
-      const itemsNoEnvio = v.items.filter(it => !it.esNota && !it.nombre.toLowerCase().includes("envio"))
+      const itemsAsociados = v.itemsAsociadosDeVenta || []
       const resumenItems =
-        itemsNoEnvio.map(it => `${it.cantidad}x ${it.nombre}`).slice(0, 3).join(", ") +
-        (itemsNoEnvio.length > 3 ? ` (+${itemsNoEnvio.length - 3} más)` : "")
+        itemsAsociados.map((it: any) => `${it.cantidad}x ${it.nombre}`).slice(0, 3).join(", ") +
+        (itemsAsociados.length > 3 ? ` (+${itemsAsociados.length - 3} más)` : "")
 
       return {
         id: v.id,
         numeroVenta: v.numeroVenta,
         fecha: fechaFormateada,
         cliente: v.cliente || "Consumidor Final",
-        totalFinal: Number(v.totalFinal || v.total || 0),
+        totalFinal: Number((v.montoAsociadoVenta || v.totalFinal || v.total || 0).toFixed(2)),
         metodoPago: v.metodo_pago || "Sin especificar",
         estadoPedido: v.estadoPedido || "PENDIENTE",
-        itemsCount: itemsNoEnvio.length,
+        itemsCount: itemsAsociados.length,
         resumenItems: resumenItems || "Sin artículos registrados"
       }
     })

@@ -247,7 +247,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
         <Card className="bg-white shadow-xs border-l-4 border-l-emerald-500 hover:shadow-sm transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Ventas Brutas
+              Ventas Brutas Artículos Pautados
             </CardTitle>
             <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
               <DollarSign className="h-4 w-4" />
@@ -259,7 +259,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
             </div>
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3 text-emerald-600 inline" />
-              Facturación confirmada en {filtros.puntoVentaNombre || "Instagram + Mostrador"}
+              Facturación de artículos en pauta en {filtros.puntoVentaNombre || "Instagram + Mostrador"}
             </p>
           </CardContent>
         </Card>
@@ -308,7 +308,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
         <Card className="bg-white shadow-xs border-l-4 border-l-purple-500 hover:shadow-sm transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Cantidad de Ventas
+              Ventas de Artículos Pautados
             </CardTitle>
             <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
               <PackageCheck className="h-4 w-4" />
@@ -320,7 +320,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
               <span className="text-sm font-semibold text-purple-600">pedidos</span>
             </div>
             <p className="text-[11px] text-purple-800/80 font-medium mt-1 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200/50 inline-block">
-              1 pack con varios artículos = 1 venta
+              Pedidos con productos de pauta (1 pack = 1 venta)
             </p>
           </CardContent>
         </Card>
@@ -336,7 +336,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
             <div className="text-base font-bold text-slate-800 font-mono mt-0.5">
               ${metricas.ticketPromedio.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="text-[10px] text-slate-500">Ventas brutas / Total pedidos</div>
+            <div className="text-[10px] text-slate-500">Facturación pautada / Total pedidos</div>
           </div>
           <div className="p-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
             <ShoppingBag className="h-4 w-4" />
@@ -383,10 +383,10 @@ export function InstagramGeneralClient({ initialData }: Props) {
               <div>
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Award className="h-4 w-4 text-amber-500" />
-                  Top 5 Artículos Más Vendidos
+                  Top 5 Artículos Pautados Más Vendidos
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
-                  Combos y artículos con mayor rotación en el período.
+                  Combos y artículos en pauta publicitaria con mayor rotación en el período.
                 </CardDescription>
               </div>
               <Badge variant="secondary" className="text-[10px] font-semibold">
@@ -498,7 +498,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
                     />
                     <Legend
                       wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }}
-                      formatter={(value) => (value === "ventasBrutas" ? "Facturación Diaria" : "Gasto Meta Ads")}
+                      formatter={(value) => (value === "ventasBrutas" ? "Ventas Artículos Pautados" : "Gasto Meta Ads")}
                     />
                     <Bar dataKey="ventasBrutas" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={35} />
                     <Bar dataKey="gastoMeta" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={35} opacity={0.7} />
@@ -519,10 +519,10 @@ export function InstagramGeneralClient({ initialData }: Props) {
             <div>
               <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-slate-500" />
-                Ventas Registradas en el Período ({metricas.cantidadVentas} totales)
+                Ventas con Artículos Pautados ({metricas.cantidadVentas} pedidos)
               </CardTitle>
               <CardDescription className="text-xs text-slate-500 mt-0.5">
-                Listado transparente de los comprobantes que componen las ventas brutas del panel.
+                Listado transparente de los pedidos con productos pautados que componen las ventas brutas.
               </CardDescription>
             </div>
             <Badge variant="outline" className="text-xs font-mono text-slate-600 bg-slate-50">

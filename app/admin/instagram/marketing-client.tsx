@@ -368,32 +368,39 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
 
 const STORAGE_KEY = "marketing_visible_columns_v9";
 
-type StatusFilter = "ALL" | "ACTIVE" | "PAUSED";
-
 function isItemActive(status?: string): boolean {
-  if (!status) return true;
+  if (!status) return false;
   const s = status.toUpperCase();
   return s === "ACTIVE" || s === "ACTIVO" || s === "1";
 }
 
 function StatusBadge({ status, type = "camp" }: { status?: string; type?: "camp" | "adset" | "ad" }) {
   const active = isItemActive(status);
-  const labelActive = type === "camp" ? "Activa" : "Activo";
-  const labelPaused = type === "camp" ? "Pausada" : "Pausado";
+  const s = (status || "").toUpperCase();
+  const isArchived = s === "ARCHIVED" || s === "DELETED" || s === "ARCHIVADA";
 
   if (active) {
     return (
       <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200 gap-1.5 shrink-0 shadow-2xs">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-        {labelActive}
+        {type === "camp" ? "Activa" : "Activo"}
+      </Badge>
+    );
+  }
+
+  if (isArchived) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 text-slate-500 border-slate-200 gap-1.5 shrink-0 shadow-2xs">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
+        {type === "camp" ? "Archivada" : "Archivado"}
       </Badge>
     );
   }
 
   return (
-    <Badge variant="outline" className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 text-slate-600 border-slate-200 gap-1.5 shrink-0 shadow-2xs">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
-      {labelPaused}
+    <Badge variant="outline" className="text-[10px] font-medium px-2 py-0.5 bg-amber-50 text-amber-700 border-amber-200 gap-1.5 shrink-0 shadow-2xs">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+      {type === "camp" ? "Pausada" : "Pausado"}
     </Badge>
   );
 }
@@ -484,7 +491,6 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [datePreset, setDatePreset] = useState<DatePresetId>("last_30d");
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -670,20 +676,13 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
   };
 
   const counts = useMemo(() => {
-    let total = campaigns.length;
-    let active = 0;
-    let paused = 0;
-    campaigns.forEach(c => {
-      if (isItemActive(c.status)) active++;
-      else paused++;
-    });
-    return { total, active, paused };
+    const active = campaigns.filter(c => isItemActive(c.status)).length;
+    return { total: active, active };
   }, [campaigns]);
 
   const filteredCampaigns = useMemo(() => {
     return campaigns.filter(camp => {
-      if (statusFilter === "ACTIVE" && !isItemActive(camp.status)) return false;
-      if (statusFilter === "PAUSED" && isItemActive(camp.status)) return false;
+      if (!isItemActive(camp.status)) return false;
 
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -705,7 +704,7 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
 
       return true;
     });
-  }, [campaigns, statusFilter, search]);
+  }, [campaigns, search]);
 
   const selectedCampaign = useMemo(() => {
     if (!selectedCampaignId) return null;
@@ -1759,33 +1758,11 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
 
               {/* FILTROS Y BUSCADOR */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
-                <div className="flex items-center bg-slate-100/90 p-0.5 rounded-lg border border-slate-200/80 shrink-0">
-                  <button
-                    onClick={() => setStatusFilter("ALL")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                      statusFilter === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Todas ({counts.total})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter("ACTIVE")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
-                      statusFilter === "ACTIVE" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    Activas ({counts.active})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter("PAUSED")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
-                      statusFilter === "PAUSED" ? "bg-white text-slate-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                    Pausadas ({counts.paused})
-                  </button>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Campañas Activas en Meta ({counts.active})
+                  </Badge>
                 </div>
 
                 <div className="relative flex-1 max-w-sm">

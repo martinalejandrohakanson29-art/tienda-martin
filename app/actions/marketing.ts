@@ -311,9 +311,12 @@ export async function getMarketingPerformance(options?: {
       fin = new Date(`${options.fechaHasta}T23:59:59.999-03:00`);
     }
 
-    // 3. Traemos datos de DB en paralelo
+    // 3. Traemos datos de DB en paralelo (solo campañas activas en Meta)
     const [campaignsDB, autoResponses, ventas, packsDef, todosArticulos] = await Promise.all([
       prisma.marketingCampaign.findMany({
+        where: {
+          status: { in: ["ACTIVE", "ACTIVO", "Active", "Activo"] }
+        },
         include: {
           items: {
             include: {
@@ -831,7 +834,7 @@ export async function consultarMarketingMetaDirecto(datePreset: string = "last_3
     const authHeader = META_ACCESS_TOKEN.startsWith("Bearer ") ? META_ACCESS_TOKEN : `Bearer ${META_ACCESS_TOKEN}`;
 
     const [campaignsRes, adsetsRes, adsRes, adInsightsRes, campaignInsightsRes] = await Promise.all([
-      fetch(`https://graph.facebook.com/v19.0/${META_AD_ACCOUNT}/campaigns?fields=id,name,status,effective_status,objective,created_time,start_time,stop_time,updated_time&limit=500`, { 
+      fetch(`https://graph.facebook.com/v19.0/${META_AD_ACCOUNT}/campaigns?fields=id,name,status,effective_status,objective,created_time,start_time,stop_time,updated_time&filtering=[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED","ARCHIVED"]}]&limit=500`, { 
         headers: { 'Authorization': authHeader },
         cache: 'no-store' 
       }),
@@ -1029,8 +1032,20 @@ export async function consultarMarketingMetaDirecto(datePreset: string = "last_3
       });
     }
 
-    revalidatePath("/admin/instagram");
-    revalidatePath("/admin/marketing");
+    const returnedCampIds = campaignsData.map((c: any) => c.id.toString());
+    if (returnedCampIds.length > 0) {
+      await prisma.marketingCampaign.updateMany({
+        where: { id: { notIn: returnedCampIds } },
+        data: { status: "ARCHIVED" }
+      });
+    }
+
+    try {
+      revalidatePath("/admin/instagram");
+      revalidatePath("/admin/marketing");
+    } catch {
+      // Safe fallback if called outside Next.js request context
+    }
 
     const updatedData = await getMarketingPerformance({ datePreset });
     return { 

@@ -274,6 +274,7 @@ export async function ejecutarTurnoAgente(
             ],
             escaladoHumano: true,
             motivoEscalado: escaladoInmediato.motivo,
+            escaladoPersistido: true,
             latenciaMs: Date.now() - inicio,
             tokensUsados: { prompt: 0, completion: 0, total: 0 }
         }
@@ -395,6 +396,9 @@ export async function ejecutarTurnoAgente(
     const herramientasEjecutadas: HerramientaEjecutadaInfo[] = []
     let escaladoHumano = false
     let motivoEscalado: string | undefined
+    // Se pone en true en cuanto alguna rama ejecuta `escalarAHumano`: el pendiente
+    // ya quedó en la bandeja del equipo y nadie más debe volver a insertarlo.
+    let escaladoPersistido = false
 
     const fechaHoraCordoba = new Intl.DateTimeFormat("es-AR", {
         timeZone: "America/Argentina/Cordoba",
@@ -557,6 +561,7 @@ export async function ejecutarTurnoAgente(
                     herramientasEjecutadas,
                     escaladoHumano: true,
                     motivoEscalado: "respuesta_no_confiable",
+                    escaladoPersistido: true,
                     latenciaMs: Date.now() - inicio,
                     tokensUsados: tokensTotales,
                 }
@@ -630,6 +635,8 @@ export async function ejecutarTurnoAgente(
                 if (call.function.name === "escalar_a_humano") {
                     escaladoHumano = true
                     motivoEscalado = ejecucion.argumentos?.motivo || "escalado_manual"
+                    // El propio ejecutor de la herramienta ya insertó el pendiente.
+                    escaladoPersistido = true
                 }
 
                 // 1.b resolver_variante puede pedir escalado (moto no registrada en un
@@ -637,6 +644,7 @@ export async function ejecutarTurnoAgente(
                 if (call.function.name === "resolver_variante" && ejecucion.resultado?.escalar === true) {
                     escaladoHumano = true
                     motivoEscalado = ejecucion.resultado?.motivo || "moto_no_registrada"
+                    escaladoPersistido = true
                     await escalarAHumano({
                         motivo: ejecucion.resultado?.motivo || "moto_no_registrada",
                         resumen_consulta: `Variante no resuelta para "${ejecucion.argumentos?.modelo_moto || "?"}" en combo "${ejecucion.argumentos?.combo || "?"}".`,
@@ -656,6 +664,7 @@ export async function ejecutarTurnoAgente(
                     escaladoHumano = true
                     const moto = ejecucion.argumentos?.modelo_moto || "desconocida"
                     motivoEscalado = `moto_no_registrada: ${moto}`
+                    escaladoPersistido = true
                     await escalarAHumano({
                         motivo: "moto_no_registrada",
                         resumen_consulta: `Compatibilidad no confirmada para "${moto}"${ejecucion.argumentos?.kit_nombre_o_id ? ` con "${ejecucion.argumentos.kit_nombre_o_id}"` : ""}.`,
@@ -739,6 +748,7 @@ export async function ejecutarTurnoAgente(
                 herramientasEjecutadas,
                 escaladoHumano: true,
                 motivoEscalado,
+                escaladoPersistido,
                 latenciaMs: Date.now() - inicio,
                 tokensUsados: tokensTotales
             }
@@ -754,6 +764,9 @@ export async function ejecutarTurnoAgente(
         herramientasEjecutadas,
         escaladoHumano: true,
         motivoEscalado: "limite_pasos_react_superado",
+        // Nadie llamó a `escalarAHumano` en esta salida: el consumidor debe
+        // persistir el pendiente para que el equipo vea la conversación.
+        escaladoPersistido: false,
         latenciaMs: Date.now() - inicio,
         tokensUsados: tokensTotales
     }

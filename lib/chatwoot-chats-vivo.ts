@@ -20,7 +20,10 @@ export type ConversacionVivo = {
     telefono: string
     iniciales: string
     colorAvatar: string
+    /** Bandeja principal (la más específica) — la que se muestra como badge */
     categoria: Categoria
+    /** TODAS las bandejas con pendientes abiertos, para filtrar sin perder ninguna */
+    categorias: Categoria[]
     status: string
     ultimoMensaje: string
     ultimoMensajePropio: boolean
@@ -274,13 +277,18 @@ export async function sincronizarEspejoChatwoot(maxPaginas = 1): Promise<{ total
 }
 
 /**
- * Categoría por conversación, cruzando contra las 4 tablas de pendientes
+ * Categorías por conversación, cruzando contra las 4 tablas de pendientes
  * (mismo criterio que listarPendientesEquipo, pero solo la clasificación, sin
- * traer el detalle). Si una conversación aparece en más de una tabla a la vez
- * (no debería pasar en el flujo normal), gana la más específica: técnica >
- * negocio > precio > sin_match.
+ * traer el detalle).
+ *
+ * Una conversación puede tener pendientes abiertos en varias bandejas a la vez
+ * (ej. preguntó por compatibilidad y por el precio de otra pieza). Se devuelven
+ * TODAS, ordenadas de más a menos específica: técnica > negocio > precio >
+ * sin_match. La primera es la que se muestra como badge; el filtro del panel
+ * usa la lista completa para no esconder una conversación de la bandeja que el
+ * equipo está mirando.
  */
-async function categoriasPorConversacion(ids: number[]): Promise<Map<number, Categoria>> {
+async function categoriasPorConversacion(ids: number[]): Promise<Map<number, Categoria[]>> {
     if (ids.length === 0) return new Map()
     const idsBigint = ids.map((id) => BigInt(id))
 
@@ -305,14 +313,19 @@ async function categoriasPorConversacion(ids: number[]): Promise<Map<number, Cat
         tecnica: 4,
     }
 
-    const mapa = new Map<number, Categoria>()
+    const mapa = new Map<number, Categoria[]>()
     for (const f of filas) {
         const id = Number(f.conversation_id)
         const cat = f.categoria as Categoria
-        const catActual = mapa.get(id)
-        if (!catActual || (peso[cat] || 0) > (peso[catActual] || 0)) {
-            mapa.set(id, cat)
+        const actuales = mapa.get(id)
+        if (!actuales) {
+            mapa.set(id, [cat])
+        } else if (!actuales.includes(cat)) {
+            actuales.push(cat)
         }
+    }
+    for (const cats of mapa.values()) {
+        cats.sort((a, b) => (peso[b] || 0) - (peso[a] || 0))
     }
     return mapa
 }
@@ -365,7 +378,8 @@ export async function listarChatsVivo(periodoDias: number): Promise<PanelChatsVi
             telefono: f.telefono,
             iniciales: iniciales(f.nombre),
             colorAvatar: colorAvatar(idNum),
-            categoria: categorias.get(idNum) ?? "sin_etiqueta",
+            categoria: categorias.get(idNum)?.[0] ?? "sin_etiqueta",
+            categorias: categorias.get(idNum) ?? [],
             status: f.status,
             ultimoMensaje: f.ultimo_mensaje || "(sin texto)",
             ultimoMensajePropio: f.ultimo_mensaje_propio,

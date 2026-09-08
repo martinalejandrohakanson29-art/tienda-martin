@@ -64,6 +64,12 @@ export interface RespuestaAgente {
     escaladoHumano: boolean
     /** Motivo por el cual se escaló a humano, si aplica */
     motivoEscalado?: string
+    /**
+     * true si el motor YA persistió el pendiente en la bandeja del equipo. Quien
+     * consume el turno (el piloto en vivo) no debe volver a llamar a
+     * `escalarAHumano`: duplicaba la fila en el panel (conv 3599).
+     */
+    escaladoPersistido?: boolean
     /** Tiempo de procesamiento en milisegundos */
     latenciaMs: number
     /** Tokens utilizados en la llamada (estimados o reales del proveedor) */

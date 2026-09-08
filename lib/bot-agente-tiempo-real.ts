@@ -365,11 +365,17 @@ async function procesarTurno(accountId: number, conversationId: number) {
         })
 
         if (respuesta.escaladoHumano) {
-            await escalarAHumano({
-                motivo: respuesta.motivoEscalado || "escalado_piloto_tiempo_real",
-                resumen_consulta: `[Piloto bot-agente en vivo] ${mensajeUsuario.slice(0, 300)}`,
-                conversation_id: conversationId,
-            }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado:", err))
+            // El motor ya deja el pendiente en la bandeja del equipo en casi todas
+            // sus salidas de escalado. Solo se persiste acá cuando no lo hizo (ej.
+            // `limite_pasos_react_superado`); antes se insertaba siempre y cada
+            // escalado dejaba DOS filas en el panel de pendientes (conv 3599).
+            if (!respuesta.escaladoPersistido) {
+                await escalarAHumano({
+                    motivo: respuesta.motivoEscalado || "otro",
+                    resumen_consulta: `[Piloto bot-agente en vivo] ${mensajeUsuario.slice(0, 300)}`,
+                    conversation_id: conversationId,
+                }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado:", err))
+            }
 
             await registrarTurno({
                 conversationId,
@@ -717,11 +723,16 @@ export async function atenderEntrantesPendientes(
                 })
 
                 if (respuesta.escaladoHumano) {
-                    await escalarAHumano({
-                        motivo: respuesta.motivoEscalado || "escalado_barrido_entrantes",
-                        resumen_consulta: `[barrido entrantes pendientes] ${mensajeUsuario.slice(0, 300)}`,
-                        conversation_id: conversationId,
-                    }).catch((err) => console.error("[entrantes-pendientes] fallo al persistir escalado:", err))
+                    // Igual que en el camino en vivo: el motor ya dejó el pendiente
+                    // salvo en sus salidas sin persistencia. Insertar siempre
+                    // duplicaba la fila en el panel del equipo.
+                    if (!respuesta.escaladoPersistido) {
+                        await escalarAHumano({
+                            motivo: respuesta.motivoEscalado || "otro",
+                            resumen_consulta: `[barrido entrantes pendientes] ${mensajeUsuario.slice(0, 300)}`,
+                            conversation_id: conversationId,
+                        }).catch((err) => console.error("[entrantes-pendientes] fallo al persistir escalado:", err))
+                    }
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -893,11 +904,15 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             })
 
             if (respuesta.escaladoHumano) {
-                await escalarAHumano({
-                    motivo: respuesta.motivoEscalado || "escalado_reproceso_cola",
-                    resumen_consulta: `[Reproceso cola con bot-agente] ${mensajeUsuario.slice(0, 300)}`,
-                    conversation_id: conversationId,
-                }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado:", err))
+                // Ver el comentario del camino en vivo: solo se persiste si el
+                // motor no lo hizo, para no duplicar el pendiente del equipo.
+                if (!respuesta.escaladoPersistido) {
+                    await escalarAHumano({
+                        motivo: respuesta.motivoEscalado || "otro",
+                        resumen_consulta: `[Reproceso cola con bot-agente] ${mensajeUsuario.slice(0, 300)}`,
+                        conversation_id: conversationId,
+                    }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado:", err))
+                }
 
                 await registrarTurno({
                     conversationId,

@@ -43,6 +43,16 @@ const CATEGORIA_INFO: Record<Categoria, { texto: string; clase: string }> = {
     sin_etiqueta: { texto: "Sin etiqueta", clase: "bg-slate-100 text-slate-600 border-slate-200" },
 }
 
+/**
+ * Bandejas con pendientes abiertos de una conversación. `categorias` puede venir
+ * vacío desde un payload viejo (SSR cacheado, evento en vivo armado a mano): en
+ * ese caso se cae a la categoría principal para no perder el filtro.
+ */
+function categoriasDe(c: ConversacionVivo): Categoria[] {
+    if (c.categorias && c.categorias.length > 0) return c.categorias
+    return c.categoria === "sin_etiqueta" ? [] : [c.categoria]
+}
+
 const PLANTILLA_DATOS_ENVIO = `DATOS PARA ENVIO
 
 NOMBRE COMPLETO:
@@ -892,6 +902,7 @@ export function ChatsVivoClient({
                                 iniciales: data.conversacion.nombre.slice(0, 2).toUpperCase(),
                                 colorAvatar: "bg-emerald-500",
                                 categoria: "sin_etiqueta",
+                                categorias: [],
                                 status: "open",
                                 ultimoMensaje: texto || "(nuevo chat)",
                                 ultimoMensajePropio: esPropio,
@@ -1001,7 +1012,12 @@ export function ChatsVivoClient({
                     ? c.destacado
                     : filtro === "pendientes"
                     ? c.categoria !== "sin_etiqueta"
-                    : c.categoria === filtro
+                    : filtro === "sin_etiqueta"
+                    ? c.categoria === "sin_etiqueta"
+                    // Una conversación con pendientes en varias bandejas aparece
+                    // en todas: filtrar por "Técnica" no debe esconderla porque
+                    // su badge principal quedó en otra.
+                    : categoriasDe(c).includes(filtro)
             const pasaBusqueda =
                 q.length === 0 || c.nombre.toLowerCase().includes(q) || c.telefono.toLowerCase().includes(q)
             return pasaCategoria && pasaBusqueda
@@ -1025,8 +1041,12 @@ export function ChatsVivoClient({
             sin_etiqueta: 0,
         }
         for (const c of conversaciones) {
-            if (c.categoria in conteo) {
-                conteo[c.categoria]++
+            if (c.categoria === "sin_etiqueta") {
+                conteo.sin_etiqueta++
+                continue
+            }
+            for (const cat of categoriasDe(c)) {
+                if (cat in conteo) conteo[cat]++
             }
         }
         return conteo
@@ -1290,14 +1310,16 @@ export function ChatsVivoClient({
     }
 
     const handleMarcarResuelta = async (conversationId: number) => {
-        const anterior = conversaciones.find((c) => c.id === conversationId)?.categoria
+        const previa = conversaciones.find((c) => c.id === conversationId)
+        const anterior = previa?.categoria
+        const anteriores = previa ? categoriasDe(previa) : []
         // Optimista: pasa a "sin etiqueta" (nada pendiente) de una
         setPanel((prev) => {
             if (!prev) return prev
             return {
                 ...prev,
                 conversaciones: prev.conversaciones.map((c) =>
-                    c.id === conversationId ? { ...c, categoria: "sin_etiqueta" } : c
+                    c.id === conversationId ? { ...c, categoria: "sin_etiqueta", categorias: [] } : c
                 ),
             }
         })
@@ -1313,7 +1335,7 @@ export function ChatsVivoClient({
                     return {
                         ...prev,
                         conversaciones: prev.conversaciones.map((c) =>
-                            c.id === conversationId ? { ...c, categoria: anterior } : c
+                            c.id === conversationId ? { ...c, categoria: anterior, categorias: anteriores } : c
                         ),
                     }
                 })
@@ -1741,6 +1763,14 @@ export function ChatsVivoClient({
                                             <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full border ${cat.clase}`}>
                                                 {cat.texto}
                                             </span>
+                                            {categoriasDe(c).slice(1).map((extra) => (
+                                                <span
+                                                    key={extra}
+                                                    className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full border ${CATEGORIA_INFO[extra].clase}`}
+                                                >
+                                                    {CATEGORIA_INFO[extra].texto}
+                                                </span>
+                                            ))}
                                             {c.categoria !== "sin_etiqueta" && (
                                                 <span
                                                     role="button"
@@ -1821,6 +1851,14 @@ export function ChatsVivoClient({
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
                                         {CATEGORIA_INFO[seleccionada.categoria].texto}
                                     </span>
+                                    {categoriasDe(seleccionada).slice(1).map((extra) => (
+                                        <span
+                                            key={extra}
+                                            className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[extra].clase}`}
+                                        >
+                                            {CATEGORIA_INFO[extra].texto}
+                                        </span>
+                                    ))}
                                     {seleccionada.categoria !== "sin_etiqueta" && (
                                         <button
                                             type="button"

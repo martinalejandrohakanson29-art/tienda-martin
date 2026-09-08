@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import { BandejaEscalado, MOTIVOS_CANONICOS, clasificarMotivoEscalado } from "../nucleo/motivos-escalado"
 
 export interface ArgsEscalarHumano {
     motivo: string
@@ -12,6 +13,8 @@ export interface ArgsEscalarHumano {
 export interface ResultadoEscalarHumano {
     escalado: boolean
     motivo: string
+    /** Bandeja de pendientes en la que quedó registrado (etiqueta en chats-vivo) */
+    bandeja: BandejaEscalado
     resumen: string
     mensaje_para_agente: string
 }
@@ -26,7 +29,17 @@ export const definicionEscalarHumano: DefinicionHerramienta = {
             properties: {
                 motivo: {
                     type: "string",
-                    description: "Categoría breve del motivo (ej: 'moto_no_registrada', 'mayorista', 'pieza_no_catalogada', 'reclamo', 'ambiguo')."
+                    // Enum cerrado: el motivo decide en qué bandeja del panel de
+                    // pendientes cae la conversación (Técnica / Precio / Negocio /
+                    // Sin resolver). Con texto libre el modelo inventaba variantes
+                    // que caían todas en "Sin resolver" (conv 3599).
+                    enum: Object.keys(MOTIVOS_CANONICOS),
+                    description:
+                        "Motivo del escalado, exactamente uno de la lista. " +
+                        "Técnica: 'moto_no_registrada' (no sabemos si le entra a esa moto), 'compatibilidad_dudosa', 'consulta_tecnica'. " +
+                        "Precio: 'producto_no_catalogado' (pide un kit/pieza que no está en el catálogo), 'consulta_precio', 'stock'. " +
+                        "Negocio: 'mayorista', 'envio', 'pago', 'reclamo', 'horarios', 'ubicacion'. " +
+                        "Si no encaja en ninguno: 'ambiguo' u 'otro'."
                 },
                 resumen_consulta: {
                     type: "string",
@@ -47,7 +60,9 @@ export const definicionEscalarHumano: DefinicionHerramienta = {
 }
 
 export async function escalarAHumano(args: ArgsEscalarHumano): Promise<ResultadoEscalarHumano> {
-    console.log(`[ESCALADO EN SILENCIO] Motivo: ${args.motivo} | Resumen: ${args.resumen_consulta}`)
+    console.log(
+        `[ESCALADO EN SILENCIO] Motivo: ${args.motivo} -> bandeja ${clasificarMotivoEscalado(args.motivo)} | Resumen: ${args.resumen_consulta}`
+    )
 
     // Solo se persiste el pendiente si hay una conversación real de Chatwoot a la
     // cual linkearlo. En el simulador y el banco de pruebas (sin conversation_id)
@@ -56,15 +71,20 @@ export async function escalarAHumano(args: ArgsEscalarHumano): Promise<Resultado
         return {
             escalado: true,
             motivo: args.motivo,
+            bandeja: clasificarMotivoEscalado(args.motivo),
             resumen: args.resumen_consulta,
             mensaje_para_agente:
                 "ESCALADO (modo prueba, sin conversación real: no se persiste). NO envíes ningún mensaje al cliente."
         }
     }
 
-    // Registrar en la tabla correspondiente para el panel de pendientes de Chatwoot
+    // Registrar en la bandeja de pendientes que corresponde. El motivo se
+    // normaliza primero: si el modelo mandó algo fuera del enum, igual cae en la
+    // bandeja correcta en vez del cajón genérico.
+    const bandeja = clasificarMotivoEscalado(args.motivo)
+
     try {
-        if (args.motivo === "moto_no_registrada" || args.motivo === "tecnica" || args.modelo_moto) {
+        if (bandeja === "tecnica") {
             await prisma.$executeRawUnsafe(
                 `INSERT INTO preguntas_tecnicas_pendientes (conversation_id, modelo_moto, kit, pregunta_original, estado, es_grupo, creado_en)
                  VALUES ($1, $2, $3, $4, 'pendiente', false, NOW())`,
@@ -73,15 +93,15 @@ export async function escalarAHumano(args: ArgsEscalarHumano): Promise<Resultado
                 args.kit || null,
                 args.resumen_consulta
             )
-        } else if (args.motivo === "pieza_no_catalogada" || args.motivo === "precio") {
+        } else if (bandeja === "precio") {
             await prisma.$executeRawUnsafe(
                 `INSERT INTO preguntas_precio_pendientes (conversation_id, producto, pregunta_original, estado, creado_en)
                  VALUES ($1, $2, $3, 'pendiente', NOW())`,
                 args.conversation_id || null,
-                args.resumen_consulta,
+                args.kit || args.resumen_consulta,
                 args.resumen_consulta
             )
-        } else if (args.motivo === "negocio" || args.motivo === "horarios" || args.motivo === "ubicacion") {
+        } else if (bandeja === "negocio") {
             await prisma.$executeRawUnsafe(
                 `INSERT INTO preguntas_negocio_pendientes (conversation_id, tema, pregunta_original, estado, creado_en)
                  VALUES ($1, $2, $3, 'pendiente', NOW())`,
@@ -104,6 +124,7 @@ export async function escalarAHumano(args: ArgsEscalarHumano): Promise<Resultado
     return {
         escalado: true,
         motivo: args.motivo,
+        bandeja,
         resumen: args.resumen_consulta,
         mensaje_para_agente: "ESCALADO REALIZADO CON ÉXITO. Regla de oro: NO envíes ningún mensaje de texto al cliente. El equipo humano continuará la conversación."
     }

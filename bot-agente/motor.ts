@@ -11,6 +11,7 @@ import {
     guardarEstadoConversacion,
     formatearMemoriaEstado,
     unirTemas,
+    esInsistenciaSinContenido,
     EstadoConversacion
 } from "./nucleo/estado-persistente"
 
@@ -242,6 +243,33 @@ export async function ejecutarTurnoAgente(
 
     const cleanBaseUrl = baseUrl.replace(/\/chat\/completions\/?$/, "").replace(/\/$/, "")
 
+    // 0.a Ya hay una consulta derivada al equipo esperando respuesta humana y el
+    //     cliente solo insiste ("??", "hola?", "ahi?"): NO hay nada nuevo que
+    //     contestar y el bot no puede responder lo que escaló. Silencio, sin
+    //     gastar un turno de modelo. Antes el turno arrancaba en blanco y el
+    //     modelo improvisaba sobre el kit anterior (conv 3637, 08/09).
+    if (estadoConv.escaladoPendiente && esInsistenciaSinContenido(mensajeUsuario)) {
+        return {
+            mensajeFinal: null,
+            herramientasEjecutadas: [
+                {
+                    nombre: "escalado_pendiente",
+                    argumentos: {
+                        motivo: estadoConv.escaladoPendiente.motivo,
+                        desde: estadoConv.escaladoPendiente.en
+                    },
+                    resultado: {
+                        mensaje_para_agente:
+                            "El cliente insiste por una consulta que ya está en la bandeja del equipo. Silencio: la contesta un humano."
+                    }
+                }
+            ],
+            escaladoHumano: false,
+            latenciaMs: Date.now() - inicio,
+            tokensUsados: { prompt: 0, completion: 0, total: 0 }
+        }
+    }
+
     // 0. Detección determinista de escalado (humano, insulto, reclamo): costo $0, latencia 0ms, silencio total
     const escaladoInmediato = detectarEscaladoDeterminista(mensajeUsuario)
     if (escaladoInmediato) {
@@ -259,6 +287,14 @@ export async function ejecutarTurnoAgente(
                 mensaje_para_agente: "ESCALADO DETERMINISTA (no se pudo persistir)."
             }
         })
+
+        await guardarEstadoConversacion(estadoKey, {
+            escaladoPendiente: {
+                motivo: escaladoInmediato.motivo,
+                resumen: escaladoInmediato.resumen,
+                en: new Date().toISOString()
+            }
+        }).catch(() => {})
 
         return {
             mensajeFinal: null, // Silencio total cara al cliente
@@ -422,6 +458,17 @@ export async function ejecutarTurnoAgente(
     // y se persiste al final del turno.
     const patchEstado: EstadoConversacion = {}
     const persistirEstado = () => guardarEstadoConversacion(estadoKey, patchEstado).catch(() => {})
+
+    /**
+     * Deja anotado en la memoria de la charla que esta consulta quedó derivada
+     * al equipo. El turno siguiente lo lee: el bot no vuelve a hablar por encima
+     * de algo que él mismo escaló, ni contesta la insistencia del cliente
+     * (conv 3637, 08/09). Se limpia solo cuando un humano responde en el chat.
+     */
+    const anotarEscaladoPendiente = (motivo: string, resumen: string) => {
+        if (patchEstado.escaladoPendiente) return // el primero de la ráfaga manda
+        patchEstado.escaladoPendiente = { motivo, resumen, en: new Date().toISOString() }
+    }
 
     const promptFinal = [
         config.tonoEstilo
@@ -648,6 +695,10 @@ export async function ejecutarTurnoAgente(
                     motivoEscalado = ejecucion.argumentos?.motivo || "escalado_manual"
                     // El propio ejecutor de la herramienta ya insertó el pendiente.
                     escaladoPersistido = true
+                    anotarEscaladoPendiente(
+                        motivoEscalado || "escalado_manual",
+                        ejecucion.argumentos?.resumen_consulta || mensajeUsuario
+                    )
                 }
 
                 // 1.b resolver_variante puede pedir escalado (moto no registrada en un
@@ -656,6 +707,10 @@ export async function ejecutarTurnoAgente(
                     escaladoHumano = true
                     motivoEscalado = ejecucion.resultado?.motivo || "moto_no_registrada"
                     escaladoPersistido = true
+                    anotarEscaladoPendiente(
+                        motivoEscalado || "moto_no_registrada",
+                        `Compatibilidad de "${ejecucion.argumentos?.modelo_moto || "?"}" con "${ejecucion.argumentos?.combo || "?"}" (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
+                    )
                     await escalarAHumano({
                         motivo: ejecucion.resultado?.motivo || "moto_no_registrada",
                         resumen_consulta: `Variante no resuelta para "${ejecucion.argumentos?.modelo_moto || "?"}" en combo "${ejecucion.argumentos?.combo || "?"}".`,
@@ -676,6 +731,10 @@ export async function ejecutarTurnoAgente(
                     const moto = ejecucion.argumentos?.modelo_moto || "desconocida"
                     motivoEscalado = `moto_no_registrada: ${moto}`
                     escaladoPersistido = true
+                    anotarEscaladoPendiente(
+                        "moto_no_registrada",
+                        `Compatibilidad no confirmada para "${moto}" (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
+                    )
                     await escalarAHumano({
                         motivo: "moto_no_registrada",
                         resumen_consulta: `Compatibilidad no confirmada para "${moto}"${ejecucion.argumentos?.kit_nombre_o_id ? ` con "${ejecucion.argumentos.kit_nombre_o_id}"` : ""}.`,
@@ -769,6 +828,7 @@ export async function ejecutarTurnoAgente(
     }
 
     // Si agotó los pasos máximos sin respuesta, escalar por seguridad
+    anotarEscaladoPendiente("limite_pasos_react_superado", mensajeUsuario.slice(0, 300))
     await persistirEstado()
     return {
         mensajeFinal: null,

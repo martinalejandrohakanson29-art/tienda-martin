@@ -13,6 +13,7 @@ import { ejecutarTurnoAgente } from "@/bot-agente/motor"
 import { escalarAHumano } from "@/bot-agente/herramientas/escalar-humano"
 import { MensajeChat } from "@/bot-agente/tipos"
 import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
+import { cerrarEscaladoPendienteSiRespondioHumano } from "@/bot-agente/nucleo/estado-persistente"
 
 // Puente entre el webhook real de Chatwoot y el motor bot-agente para las
 // conversaciones marcadas como piloto (tabla `bot_agente_piloto`). Corre en el
@@ -179,6 +180,31 @@ async function traerTranscripcion(accountId: number, conversationId: number): Pr
         .sort((a, b) => a.creadoEn - b.creadoEn)
 }
 
+/**
+ * Historial previo de un turno: el hilo completo MENOS los mensajes que este
+ * turno va a responder (los del buffer, que ya viajan como mensaje del cliente).
+ *
+ * Se recortan del final y solo mientras coincidan uno a uno con el buffer. Todo
+ * lo demas queda: en particular los mensajes del cliente que quedaron SIN
+ * respuesta (escalado en silencio del turno anterior), que antes se perdian.
+ * Exportada para poder testearla sin Chatwoot.
+ */
+export function recortarMensajesDelTurno<T extends { contenido: string; saliente: boolean }>(
+    transcripcion: T[],
+    mensajesDelTurno: string[]
+): T[] {
+    const pendientes = mensajesDelTurno.map((m) => m.trim()).filter(Boolean)
+    let corte = transcripcion.length
+    while (corte > 0 && pendientes.length > 0) {
+        const m = transcripcion[corte - 1]
+        if (m.saliente) break
+        if (m.contenido.trim() !== pendientes[pendientes.length - 1]) break
+        pendientes.pop()
+        corte--
+    }
+    return transcripcion.slice(0, corte)
+}
+
 async function registrarTurno(params: {
     conversationId: number
     accountId: number
@@ -322,6 +348,14 @@ async function procesarTurno(accountId: number, conversationId: number) {
 
         const transcripcion = await traerTranscripcion(accountId, conversationId)
 
+        // Si un compañero ya contestó en el chat después de un escalado, ese
+        // pendiente deja de pesar en la memoria de la charla.
+        const ultimaHumana = [...transcripcion].reverse().find((m) => m.saliente && !m.delBot)
+        await cerrarEscaladoPendienteSiRespondioHumano(
+            String(conversationId),
+            ultimaHumana?.creadoEn || null
+        ).catch(() => {})
+
         // Chequeo de seguridad: si justo mientras esperaba el debounce alguien
         // del equipo (o el propio bot) ya le contestó a este cliente en
         // Chatwoot, el ultimo mensaje del hilo real es saliente -- no volver a
@@ -350,11 +384,14 @@ async function procesarTurno(accountId: number, conversationId: number) {
             return
         }
 
-        // Todo lo que ya es historial real (todo menos el bloque final que
-        // corresponde a este buffer sin responder).
-        let cortIdx = transcripcion.length - 1
-        while (cortIdx >= 0 && !transcripcion[cortIdx].saliente) cortIdx--
-        const historialPrevio: MensajeChat[] = transcripcion.slice(0, cortIdx + 1).map((m) => ({
+        // Historial real = todo el hilo MENOS los mensajes de este buffer (que
+        // van como mensaje del turno). Antes se cortaba en el ultimo saliente:
+        // los mensajes del cliente que habian quedado SIN respuesta saliente
+        // desaparecian del contexto. Pasa siempre despues de un escalado en
+        // silencio -- conv 3637 (08/09): se escalo "escape paolucci para
+        // varillero s2 motomel", el cliente insistio con "??" y el modelo, que
+        // ya no veia esa pregunta, contesto sobre el kit 170 de media hora antes.
+        const historialPrevio: MensajeChat[] = recortarMensajesDelTurno(transcripcion, mensajesDelTurno).map((m) => ({
             rol: m.saliente ? "assistant" : "user",
             contenido: m.contenido,
         }))

@@ -39,9 +39,26 @@ export interface EstadoConversacion {
      * bloque MEMORIA DE ESTADO lo recuerda.
      */
     temasRespondidos?: string[]
+    /**
+     * Consulta que YA se derivó al equipo y sigue esperando respuesta humana.
+     * Se limpia sola cuando un humano del equipo contesta en el chat.
+     *
+     * Antes no quedaba rastro del escalado: el turno siguiente arrancaba en
+     * blanco y el bot hablaba por encima de una consulta que él mismo había
+     * derivado (conv 3637, 08/09: escaló el escape para varillero S2, el
+     * cliente insistió con "??" y contestó sobre otro kit).
+     */
+    escaladoPendiente?: { motivo: string; resumen: string; en: string } | null
 }
 
 const VACIO: EstadoConversacion = {}
+
+/**
+ * Un escalado deja de pesar en la memoria pasado un dia: si el equipo nunca
+ * contesto en el chat (lo resolvio por afuera, el cliente cambio de tema),
+ * no queremos que el bot siga mudo para siempre por una consulta de anteayer.
+ */
+const ESCALADO_PENDIENTE_VIGENCIA_MS = 24 * 60 * 60 * 1000
 
 /** Clave canónica de un tema para comparar sin duplicar por mayúsculas/acentos. */
 export function normalizarTema(tema: string): string {
@@ -61,6 +78,11 @@ export function unirTemas(previos: string[] | null | undefined, nuevos: string[]
     return salida
 }
 
+function escaladoVigente(en: Date | null): boolean {
+    if (!en) return false
+    return Date.now() - new Date(en).getTime() < ESCALADO_PENDIENTE_VIGENCIA_MS
+}
+
 export async function cargarEstadoConversacion(clave?: string): Promise<EstadoConversacion> {
     if (!clave) return { ...VACIO }
     try {
@@ -76,12 +98,16 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 pack_presentado_nombre: string | null
                 pack_presentado_precio: any
                 temas_respondidos: string[] | null
+                escalado_pendiente_motivo: string | null
+                escalado_pendiente_resumen: string | null
+                escalado_pendiente_en: Date | null
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
                    variante_etiqueta, variante_precio, moto_confirmada,
                    pack_presentado_id, pack_presentado_nombre, pack_presentado_precio,
-                   COALESCE(temas_respondidos, '{}') AS temas_respondidos
+                   COALESCE(temas_respondidos, '{}') AS temas_respondidos,
+                   escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en
             FROM chat_conversacion_estado
             WHERE clave = ${clave}
             LIMIT 1
@@ -108,7 +134,14 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                       precio: Number(f.pack_presentado_precio) || 0
                   }
                 : null,
-            temasRespondidos: f.temas_respondidos || []
+            temasRespondidos: f.temas_respondidos || [],
+            escaladoPendiente: escaladoVigente(f.escalado_pendiente_en)
+                ? {
+                      motivo: f.escalado_pendiente_motivo || "otro",
+                      resumen: f.escalado_pendiente_resumen || "",
+                      en: (f.escalado_pendiente_en || new Date()).toISOString()
+                  }
+                : null
         }
     } catch (err) {
         console.warn("[estado] no se pudo leer chat_conversacion_estado:", (err as any)?.message)
@@ -130,7 +163,8 @@ export async function guardarEstadoConversacion(
         patch.varianteResuelta === undefined &&
         patch.motoConfirmada === undefined &&
         patch.packPresentado === undefined &&
-        patch.temasRespondidos === undefined
+        patch.temasRespondidos === undefined &&
+        patch.escaladoPendiente === undefined
     ) {
         return
     }
@@ -147,13 +181,15 @@ export async function guardarEstadoConversacion(
                 patch.packPresentado !== undefined ? patch.packPresentado : actual.packPresentado,
             // Los temas se ACUMULAN (nunca se pisan): lo que ya se contestó no
             // se "des-contesta" en un turno posterior.
-            temasRespondidos: unirTemas(actual.temasRespondidos, patch.temasRespondidos || [])
+            temasRespondidos: unirTemas(actual.temasRespondidos, patch.temasRespondidos || []),
+            escaladoPendiente:
+                patch.escaladoPendiente !== undefined ? patch.escaladoPendiente : actual.escaladoPendiente
         }
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -165,6 +201,9 @@ export async function guardarEstadoConversacion(
                 pack_presentado_nombre = EXCLUDED.pack_presentado_nombre,
                 pack_presentado_precio = EXCLUDED.pack_presentado_precio,
                 temas_respondidos = EXCLUDED.temas_respondidos,
+                escalado_pendiente_motivo = EXCLUDED.escalado_pendiente_motivo,
+                escalado_pendiente_resumen = EXCLUDED.escalado_pendiente_resumen,
+                escalado_pendiente_en = EXCLUDED.escalado_pendiente_en,
                 actualizado_en = NOW()`,
             clave,
             merged.grupoPineado?.id ?? null,
@@ -176,11 +215,70 @@ export async function guardarEstadoConversacion(
             merged.packPresentado?.id ?? null,
             merged.packPresentado?.nombre ?? null,
             merged.packPresentado?.precio ?? null,
-            merged.temasRespondidos ?? []
+            merged.temasRespondidos ?? [],
+            merged.escaladoPendiente?.motivo ?? null,
+            merged.escaladoPendiente?.resumen ?? null,
+            merged.escaladoPendiente?.en ? new Date(merged.escaladoPendiente.en) : null
         )
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)
     }
+}
+
+/**
+ * ¿El mensaje del cliente es solo una insistencia, sin contenido nuevo? ("??",
+ * "hola?", "ahi?", "y?"). Se usa para no gastar un turno de modelo cuando hay
+ * un escalado esperando respuesta del equipo: la insistencia se contesta sola
+ * cuando el compañero responde.
+ */
+export function esInsistenciaSinContenido(mensaje: string): boolean {
+    const texto = normalizarTexto(mensaje || "")
+    if (!texto) return true
+    if (texto.length > 24) return false
+    const insistencias = new Set([
+        "",
+        "y",
+        "y bien",
+        "ahi",
+        "ahi estas",
+        "estas",
+        "estas ahi",
+        "hola",
+        "hola hola",
+        "holaa",
+        "buenas",
+        "alo",
+        "hey",
+        "che",
+        "sigues ahi",
+        "seguis ahi",
+        "me contestas",
+        "no me contestas",
+        "hay alguien",
+        "alguien ahi",
+        "respondeme",
+        "contesta",
+        "contestame",
+        "esperando",
+        "sigo esperando"
+    ])
+    return insistencias.has(texto)
+}
+
+/**
+ * Cierra el escalado pendiente si un humano del equipo ya contestó en el chat
+ * después de que se escaló: a partir de ahí la charla es del compañero y la
+ * memoria no tiene que seguir arrastrando el pendiente.
+ */
+export async function cerrarEscaladoPendienteSiRespondioHumano(
+    clave: string | undefined,
+    ultimaRespuestaHumanaMs: number | null
+): Promise<void> {
+    if (!clave || !ultimaRespuestaHumanaMs) return
+    const estado = await cargarEstadoConversacion(clave)
+    if (!estado.escaladoPendiente) return
+    if (Date.parse(estado.escaladoPendiente.en) > ultimaRespuestaHumanaMs) return
+    await guardarEstadoConversacion(clave, { escaladoPendiente: null })
 }
 
 /** Borra el estado de una conversación (reinicio de chat). */
@@ -220,6 +318,12 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
     if (estado.temasRespondidos && estado.temasRespondidos.length > 0) {
         lineas.push(
             `- Temas que YA le contestaste en esta charla: ${estado.temasRespondidos.join(", ")}. Si el cliente vuelve a tocar uno de esos temas sin preguntar nada nuevo (te da un dato, aclara, corrige), NO re-expliques ese tema: ni el mismo texto, ni reformulado con otras palabras, ni "resumido". Respondé en UN renglón, natural, diciéndole qué significa ese dato para él (que llega igual, que no cambia nada, que queda anotado). Solo si hace una pregunta nueva sobre el tema, contestá esa pregunta y nada más.`
+        )
+    }
+
+    if (estado.escaladoPendiente?.resumen) {
+        lineas.push(
+            `- Consulta YA derivada al equipo y todavia SIN respuesta humana: "${estado.escaladoPendiente.resumen}". Un compañero la va a contestar. No la contestes vos, no la re-preguntes y no prometas nada sobre eso (ni "ya te averiguo", ni "te aviso"). Si el cliente vuelve sobre esa consulta o insiste (\"??\", \"hola?\", \"y?\"), ejecutá escalar_a_humano y guardá silencio total. Solo respondé si pregunta algo NUEVO y distinto que sí podés resolver con las herramientas.`
         )
     }
 

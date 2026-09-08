@@ -718,12 +718,12 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
   const currentPresetObj = DATE_PRESETS.find(p => p.id === datePreset) || DATE_PRESETS[0];
   const activePvNombres = puntosVenta.filter(p => p.active).map(p => p.nombre).join(" + ") || "Instagram y Mostrador";
 
-  // DATOS DE SALUD GLOBAL MACRO (del período para los canales seleccionados, sin depender de artículos asignados)
+  // DATOS DE SALUD GLOBAL MACRO (artículos asociados a campañas activas en Mostrador + Instagram)
   const macroHealth = useMemo(() => {
     const totalSpend = globalHealth?.totalSpend ?? campaigns.reduce((acc, c) => acc + c.spend, 0);
     const totalFacturacion = globalHealth?.totalFacturacion ?? 0;
-    const totalVentas = globalHealth?.totalVentas ?? 0; // Tickets de venta
-    const totalUnidades = globalHealth?.totalUnidades ?? 0; // Unidades físicas
+    const totalVentas = globalHealth?.totalVentas ?? 0; // Tickets con artículos asociados
+    const totalUnidades = globalHealth?.totalUnidades ?? 0; // Unidades físicas asociadas
     const totalMargenBruto = globalHealth?.totalMargenBruto ?? (totalFacturacion - (globalHealth?.totalCosto ?? 0));
     const totalMargenNeto = globalHealth?.totalMargenNeto ?? (totalMargenBruto - totalSpend);
     const globalRoas = totalSpend > 0 ? totalFacturacion / totalSpend : (totalFacturacion > 0 ? 999 : 0);
@@ -1554,7 +1554,7 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
             />
 
             <StatCard 
-              title="Facturación Total Período" 
+              title="Facturación Artículos Asociados" 
               value={`$${macroHealth.totalFacturacion.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
               icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
               subtitle={`${macroHealth.totalVentas} ventas / ${macroHealth.totalUnidades.toLocaleString('es-AR', { maximumFractionDigits: 2 })} un. (${activePvNombres})`}
@@ -1562,10 +1562,10 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
             />
 
             <StatCard 
-              title="Margen Neto Global" 
+              title="Margen Neto Artículos Asociados" 
               value={`${macroHealth.totalMargenNeto < 0 ? "-$" : "$"}${Math.abs(macroHealth.totalMargenNeto).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
               icon={<TrendingUp className={`h-4 w-4 ${macroHealth.totalMargenNeto >= 0 ? "text-emerald-600" : "text-rose-600"}`} />}
-              subtitle="Ganancia del período menos pauta publicitaria"
+              subtitle="Margen de artículos asociados menos pauta"
               borderColor={macroHealth.totalMargenNeto >= 0 ? "border-l-emerald-500" : "border-l-rose-500"}
               badge={
                 macroHealth.totalMargenNeto >= 0 ? (
@@ -1577,10 +1577,10 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
             />
 
             <StatCard 
-              title="ROAS Facturación General" 
+              title="ROAS Artículos Asociados" 
               value={macroHealth.totalSpend > 0 ? `${macroHealth.globalRoas.toFixed(2)}x` : "0,00x"} 
               icon={<Percent className="h-4 w-4 text-teal-600" />}
-              subtitle={`Facturación total / Inversión pauta`}
+              subtitle={`Facturación asociados / Inversión pauta`}
               borderColor="border-l-teal-500"
             />
 
@@ -1593,10 +1593,10 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
             />
 
             <StatCard 
-              title="Conversión Global Canales" 
+              title="Conversión Leads a Ventas" 
               value={`${macroHealth.globalConversionRate.toFixed(2)}%`} 
               icon={<Target className="h-4 w-4 text-purple-600" />}
-              subtitle={`${macroHealth.totalVentas} cierres / ${macroHealth.totalMessages} leads`}
+              subtitle={`${macroHealth.totalVentas} compras / ${macroHealth.totalMessages} leads`}
               borderColor="border-l-purple-500"
             />
           </div>

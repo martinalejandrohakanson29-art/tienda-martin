@@ -369,6 +369,31 @@ export async function getMarketingPerformance(options?: {
       }))
       .sort((a, b) => b.totalComponentes - a.totalComponentes);
 
+    // Costos unitarios de packs (suma de componentes)
+    const costoPackMap = new Map<string, number>();
+    for (const p of packsDef) {
+      let costTotal = 0;
+      for (const pi of p.packItems) {
+        const comp = articuloById.get(pi.componenteId);
+        const compCosto = comp ? Number(comp.costo || 0) : 0;
+        costTotal += compCosto * pi.cantidad;
+      }
+      costoPackMap.set(p.id, costTotal);
+    }
+
+    // Identificamos todos los artículos asociados a campañas activas
+    const articulosAsociadosMap = new Map<string, any>();
+    const nombresAsociadosSet = new Set<string>();
+
+    for (const camp of campaignsDB) {
+      for (const it of camp.items || []) {
+        if (it.articulo) {
+          articulosAsociadosMap.set(it.articuloId, it.articulo);
+          nombresAsociadosSet.add(it.articulo.nombre.toLowerCase().trim());
+        }
+      }
+    }
+
     // Contenedor de ventas por ID de artículo/pack
     const salesByProductKey: Record<string, { cantidad: number; facturacion: number; nombre: string }> = {};
 
@@ -380,18 +405,26 @@ export async function getMarketingPerformance(options?: {
       salesByProductKey[key].facturacion += monto;
     };
 
+    // Procesamos ventas de los canales seleccionados (Mostrador + Instagram)
+    // Contamos tickets que incluyen al menos un artículo asociado
+    let totalTicketsAsociados = 0;
+
     for (const venta of ventas) {
       const disp: Record<string, { qty: number; monto: number; nombre: string }> = {};
+      let ventaTieneAsociado = false;
 
       for (const item of venta.items) {
         if (item.esNota) continue;
 
         // Pack vendido directamente
         if (item.productoId?.startsWith("PACK-")) {
-          // Buscamos si coincide con algún pack por nombre
           const matchPack = packsDef.find(p => p.nombre.toLowerCase().trim() === item.nombre.toLowerCase().trim());
           const packKey = matchPack ? matchPack.id : item.nombre.toLowerCase().trim();
           acumularVenta(packKey, item.nombre, item.cantidad, Number(item.subtotal));
+
+          if (articulosAsociadosMap.has(packKey) || nombresAsociadosSet.has(item.nombre.toLowerCase().trim())) {
+            ventaTieneAsociado = true;
+          }
           continue;
         }
 
@@ -401,6 +434,10 @@ export async function getMarketingPerformance(options?: {
           const matchArt = articuloByNombre.get(item.nombre.toLowerCase().trim());
           const artKey = matchArt ? matchArt.id : item.nombre.toLowerCase().trim();
           acumularVenta(artKey, item.nombre, item.cantidad, Number(item.subtotal));
+
+          if (articulosAsociadosMap.has(artKey) || nombresAsociadosSet.has(item.nombre.toLowerCase().trim())) {
+            ventaTieneAsociado = true;
+          }
           continue;
         }
 
@@ -431,58 +468,58 @@ export async function getMarketingPerformance(options?: {
           montoPack += montoConsumido;
         }
         acumularVenta(pack.id, pack.nombre, copias, montoPack);
+
+        if (copias > 0 && (articulosAsociadosMap.has(pack.id) || nombresAsociadosSet.has(pack.nombre.toLowerCase().trim()))) {
+          ventaTieneAsociado = true;
+        }
       }
 
       // Componentes restantes
       for (const [pid, d] of Object.entries(disp)) {
-        if (d.qty > 0) acumularVenta(pid, d.nombre, d.qty, d.monto);
-      }
-    }
-
-    // Costos unitarios de packs (suma de componentes)
-    const costoPackMap = new Map<string, number>();
-    for (const p of packsDef) {
-      let costTotal = 0;
-      for (const pi of p.packItems) {
-        const comp = articuloById.get(pi.componenteId);
-        const compCosto = comp ? Number(comp.costo || 0) : 0;
-        costTotal += compCosto * pi.cantidad;
-      }
-      costoPackMap.set(p.id, costTotal);
-    }
-
-    // 4.5. Calculamos la facturación total y costo real del período para los canales seleccionados (Instagram, Mostrador, etc.)
-    let totalFacturacionCanales = 0;
-    let totalCostoCanales = 0;
-    let totalUnidadesCanales = 0;
-    const totalTicketsCanales = ventas.length;
-
-    for (const venta of ventas) {
-      const montoVenta = Number(venta.totalFinal || venta.total || 0);
-      let subtotalVenta = 0;
-      for (const it of venta.items) {
-        if (it.esNota) continue;
-        const cant = it.cantidad || 1;
-        subtotalVenta += Number(it.subtotal || (Number(it.precio_unit) * cant) || 0);
-        totalUnidadesCanales += cant;
-
-        // Determinar costo unitario
-        let unitCost = 0;
-        if (it.productoId?.startsWith("PACK-")) {
-          const matchPack = packsDef.find(p => p.nombre.toLowerCase().trim() === it.nombre.toLowerCase().trim());
-          if (matchPack) {
-            unitCost = costoPackMap.get(matchPack.id) || 0;
+        if (d.qty > 0) {
+          acumularVenta(pid, d.nombre, d.qty, d.monto);
+          if (articulosAsociadosMap.has(pid) || nombresAsociadosSet.has(d.nombre.toLowerCase().trim())) {
+            ventaTieneAsociado = true;
           }
-        } else if (it.productoId && articuloById.has(it.productoId)) {
-          const art = articuloById.get(it.productoId);
-          unitCost = art?.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art?.costo || 0);
-        } else {
-          const art = articuloByNombre.get(it.nombre.toLowerCase().trim());
-          unitCost = art ? (art.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art.costo || 0)) : 0;
         }
-        totalCostoCanales += unitCost * cant;
       }
-      totalFacturacionCanales += montoVenta > 0 ? montoVenta : subtotalVenta;
+
+      if (ventaTieneAsociado) {
+        totalTicketsAsociados++;
+      }
+    }
+
+    // 4.5. Calculamos la facturación, costo y unidades vendidas de los artículos asociados únicos
+    let totalFacturacionAsociada = 0;
+    let totalCostoAsociado = 0;
+    let totalUnidadesAsociadas = 0;
+
+    for (const [artId, art] of articulosAsociadosMap.entries()) {
+      const artCostoUnit = art.esPack 
+        ? (costoPackMap.get(art.id) || Number(art.costo || 0)) 
+        : Number(art.costo || 0);
+
+      const byId = salesByProductKey[art.id];
+      const byNombre = salesByProductKey[art.nombre.toLowerCase().trim()];
+      
+      let unidades = 0;
+      let facturacion = 0;
+      if (byId && byNombre && byId !== byNombre) {
+        unidades = byId.cantidad + byNombre.cantidad;
+        facturacion = byId.facturacion + byNombre.facturacion;
+      } else if (byId) {
+        unidades = byId.cantidad;
+        facturacion = byId.facturacion;
+      } else if (byNombre) {
+        unidades = byNombre.cantidad;
+        facturacion = byNombre.facturacion;
+      }
+
+      const costo = unidades * artCostoUnit;
+
+      totalUnidadesAsociadas += unidades;
+      totalFacturacionAsociada += facturacion;
+      totalCostoAsociado += costo;
     }
 
     // 5. Adaptamos campañas y calculamos métricas de salud
@@ -600,10 +637,20 @@ export async function getMarketingPerformance(options?: {
       const mapItemForTarget = (ci: any, targetSpend?: number, isCampaignLevel = false): MarketingCampaignItemData => {
         const art = ci.articulo;
         const artCostoUnit = art.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art.costo || 0);
-        const saleData = salesByProductKey[art.id] || salesByProductKey[art.nombre.toLowerCase().trim()] || { cantidad: 0, facturacion: 0, nombre: art.nombre };
-        
-        const totalVentasArticulo = saleData.cantidad;
-        const totalFacturacionArticulo = saleData.facturacion;
+        const byId = salesByProductKey[art.id];
+        const byNombre = salesByProductKey[art.nombre.toLowerCase().trim()];
+        let totalVentasArticulo = 0;
+        let totalFacturacionArticulo = 0;
+        if (byId && byNombre && byId !== byNombre) {
+          totalVentasArticulo = byId.cantidad + byNombre.cantidad;
+          totalFacturacionArticulo = byId.facturacion + byNombre.facturacion;
+        } else if (byId) {
+          totalVentasArticulo = byId.cantidad;
+          totalFacturacionArticulo = byId.facturacion;
+        } else if (byNombre) {
+          totalVentasArticulo = byNombre.cantidad;
+          totalFacturacionArticulo = byNombre.facturacion;
+        }
 
         // Si es a nivel campaña, se toma el 100% de la venta (sin dividir)
         // Si es a nivel anuncio, se calcula la proporción entre los anuncios que comparten este artículo
@@ -772,13 +819,13 @@ export async function getMarketingPerformance(options?: {
       };
     });
 
-    const totalMargenBrutoGlobal = totalFacturacionCanales - totalCostoCanales;
+    const totalMargenBrutoGlobal = totalFacturacionAsociada - totalCostoAsociado;
     const totalMargenNetoGlobal = totalMargenBrutoGlobal - totalSpendGlobal;
-    const globalRoas = totalSpendGlobal > 0 ? totalFacturacionCanales / totalSpendGlobal : (totalFacturacionCanales > 0 ? 999 : 0);
+    const globalRoas = totalSpendGlobal > 0 ? totalFacturacionAsociada / totalSpendGlobal : (totalFacturacionAsociada > 0 ? 999 : 0);
     const globalPoas = totalSpendGlobal > 0 ? totalMargenBrutoGlobal / totalSpendGlobal : (totalMargenBrutoGlobal > 0 ? 999 : 0);
-    const globalCpa = totalTicketsCanales > 0 ? totalSpendGlobal / totalTicketsCanales : 0;
+    const globalCpa = totalTicketsAsociados > 0 ? totalSpendGlobal / totalTicketsAsociados : 0;
     const costoPorLead = totalMessagesGlobal > 0 ? totalSpendGlobal / totalMessagesGlobal : 0;
-    const globalConversionRate = totalMessagesGlobal > 0 ? (totalTicketsCanales / totalMessagesGlobal) * 100 : 0;
+    const globalConversionRate = totalMessagesGlobal > 0 ? (totalTicketsAsociados / totalMessagesGlobal) * 100 : 0;
 
     return {
       campaigns,
@@ -786,10 +833,10 @@ export async function getMarketingPerformance(options?: {
       puntosVenta: puntosVentaFormatted,
       globalHealth: {
         totalSpend: totalSpendGlobal,
-        totalVentas: totalTicketsCanales,
-        totalUnidades: totalUnidadesCanales,
-        totalFacturacion: totalFacturacionCanales,
-        totalCosto: totalCostoCanales,
+        totalVentas: totalTicketsAsociados,
+        totalUnidades: totalUnidadesAsociadas,
+        totalFacturacion: totalFacturacionAsociada,
+        totalCosto: totalCostoAsociado,
         totalMargenBruto: totalMargenBrutoGlobal,
         totalMargenNeto: totalMargenNetoGlobal,
         globalRoas,

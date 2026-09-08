@@ -720,5 +720,39 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "El embudo ya está cerrado. Debe contestar solo que viene listo para armar y que la colocación la hace su mecánico, en 1 o 2 renglones."
         }
+    },
+    {
+        // Conv 3627 (08/09). El cliente pidio una recomendacion ("que me
+        // recomendas") y, al confirmar el recorrido largo, el bot le agrego un
+        // consejo tecnico inventado: "si tu motor ya es de largo, mantenelo
+        // largo... si buscaras mas estirada arriba, ahi se usa corto". El
+        // recorrido NO es una preferencia: lo define fisicamente el motor. El
+        // sistema no tiene ningun dato de rendimiento para opinar eso.
+        id: "caso-40-variante-no-es-preferencia",
+        titulo: "Confirma la variante sin inventar consejo de rendimiento",
+        mensajeCliente: "Recorrido largo",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" },
+            motoConfirmada: "Zanella 110"
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nA qué moto se lo querés poner?"
+            },
+            { rol: "user", contenido: "Tengo una zanella 110" },
+            { rol: "user", contenido: "Q me recomendas" },
+            { rol: "assistant", contenido: "Sabés si tu moto es recorrido corto o largo?" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Nada de comparar variantes ni hablar de rendimiento: no hay dato.
+            patronProhibido: /(torque|estirada|mantenelo|si busc|para calle|uso diario|m[aá]s salida|conviene m[aá]s|anda mejor|rinde m[aá]s)/i,
+            descripcionEsperada:
+                "Debe confirmar recorrido largo con su precio y cerrar corto. Prohibido justificar la eleccion o comparar con el corto: el recorrido lo define el motor, no el gusto del cliente."
+        }
     }
 ]

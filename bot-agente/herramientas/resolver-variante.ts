@@ -233,10 +233,37 @@ function matchearVariantes(texto: string, variantes: GrupoVariantes["variantes"]
 
 const RX_NO_SABE = /\b(no se|no lo se|ni idea|no tengo idea|no estoy segur|como me fijo|como se|como averiguo|no se cual|no sabria|nose)\b/
 
+/**
+ * Aviso que se suma a la guia cuando el cliente pide que le recomienden una
+ * variante. El bot no puede opinar: el sistema no tiene ningun dato de
+ * rendimiento y el eje es fisico, no una preferencia. En la conv 3627 invento
+ * que el corto da "mas estirada arriba" y el largo "mas torque abajo", como si
+ * fuera algo a elegir.
+ */
+const AVISO_NO_ES_PREFERENCIA = [
+    "OJO: el cliente esta pidiendo que le recomendes una variante.",
+    "La variante NO se elige por gusto ni por rendimiento: la define fisicamente el motor que ya tiene la moto. La que le corresponde es la unica que le entra.",
+    "Decile eso en un renglon (no va a eleccion, depende de lo que ya tiene la moto) y pasale la guia de como fijarse.",
+    "PROHIBIDO comparar las variantes entre si, opinar cual anda mejor o hablar de torque, estirada, potencia o tipo de uso: no tenes ningun dato de eso."
+].join("\n")
+
+/**
+ * Pedido de recomendacion sobre la variante ("que me recomendas", "cual me
+ * conviene", "cual es mejor").
+ *
+ * El eje de variante (recorrido corto/largo, medida de leva) NO es una
+ * preferencia del cliente: lo define fisicamente el motor de la moto. Por eso
+ * un pedido de recomendacion se trata igual que un "no se": se contesta con la
+ * guia de como fijarse, nunca con un consejo de rendimiento (conv 3627).
+ */
+const RX_PIDE_RECOMENDACION = /(que|cual|cuales)\s+(me\s+)?(recomend|conviene|sugeris|sugieres|sirve|llevo|compro|elijo|va mejor)|cual es (el |la )?mejor|me recomend/
+
 export async function resolverVariante(args: ArgsResolverVariante): Promise<ResultadoResolverVariante> {
     try {
         // El "no sé" se detecta también del texto, no solo del flag del modelo.
-        const clienteNoSabe = !!args.cliente_no_sabe || RX_NO_SABE.test(normalizarTexto(args.mensaje_cliente || ""))
+        const textoCliente = normalizarTexto(args.mensaje_cliente || "")
+        const pideRecomendacion = RX_PIDE_RECOMENDACION.test(textoCliente)
+        const clienteNoSabe = !!args.cliente_no_sabe || RX_NO_SABE.test(textoCliente) || pideRecomendacion
         const grupo = await cargarGrupo(args.combo || "")
         if (!grupo) {
             // Puede no ser un grupo sino un KIT SUELTO (sin variantes): el Kit
@@ -289,7 +316,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                         // opción con su precio. Re-confirmarla es el arranque de
                         // la respuesta larga que no venía a cuento (conv 2763).
                         ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.`
-                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente. No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
+                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
             }
         }
         if (hits.length > 1) {
@@ -298,7 +325,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 encontrado: true,
                 resuelta: false,
                 grupo_id: grupo.id,
-                mensaje_para_agente: `TODAVIA NO. Lo que dijo el cliente no distingue una variante sola. Volvé a preguntar claro: ${opciones}?`
+                mensaje_para_agente: `TODAVIA NO. Lo que dijo el cliente no distingue una variante sola. Volvé a preguntar claro: ${opciones}?${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
             }
         }
 
@@ -385,7 +412,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     ? (args.modelo_moto || compat.modelo_moto_detectado)
                     : undefined,
                 pregunta_directa: guia,
-                mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta la variante (el recorrido). Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}`
+                mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta la variante (el recorrido). Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
             }
         }
 
@@ -399,7 +426,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             resuelta: false,
             grupo_id: grupo.id,
             pregunta_directa: guia,
-            mensaje_para_agente: `Todavía falta saber la variante. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}`
+            mensaje_para_agente: `Todavía falta saber la variante. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
         }
     } catch (err: any) {
         console.error("Error en resolverVariante:", err)

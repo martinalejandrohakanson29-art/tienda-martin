@@ -6,6 +6,7 @@ import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDi
 import { obtenerConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla } from "./nucleo/texto"
+import { resolverMoto } from "./nucleo/motos"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
@@ -486,10 +487,28 @@ export async function ejecutarTurnoAgente(
                 esConversacionEnCurso: historialPrevio.length > 0
             })
 
+            // El cliente casi nunca manda SOLO la plantilla: uno o dos segundos
+            // después llega su pregunta real ("cuánto vale", "hacen envíos a
+            // Santiago del Estero?") y el debounce las junta en una sola ráfaga.
+            // Como el matcher usa `includes`, esa ráfaga entera daba match y el
+            // turno terminaba acá: la pregunta quedaba sin responder (convs 2977
+            // y 3657, 08/09). Ahora la bienvenida sale igual (letra exacta, foto,
+            // costo $0) y el resto se resuelve en un turno normal, que ya ve el
+            // kit como presentado y no repite la ficha.
+            const resto = restoFueraDePlantilla(
+                mensajeUsuario,
+                matchTexto ? matchTexto.plantillaNormalizada : ""
+            )
+
             // La moto ya la sabemos: la plantilla no puede volver a pedirla.
-            const textoFinal = estadoConv.motoConfirmada
-                ? quitarPreguntaDeMotoFinal(sanitizado.textoLimpio)
-                : sanitizado.textoLimpio
+            // Puede saberse de antes (memoria) o venir en la MISMA ráfaga:
+            // "quiero info del combo X" + "le anda a la wawe nf" cerraba igual
+            // con "A qué moto se lo querés poner?" (conv 3660, 08/09).
+            const motoEnLaRafaga = resto ? (await resolverMoto(resto)).confianza !== "ninguna" : false
+            const textoFinal =
+                estadoConv.motoConfirmada || motoEnLaRafaga
+                    ? quitarPreguntaDeMotoFinal(sanitizado.textoLimpio)
+                    : sanitizado.textoLimpio
 
             // Recordar que este kit/combo ya se presentó (ficha + foto): en los
             // turnos siguientes el modelo no repite la ficha ni se reenvía la
@@ -521,19 +540,6 @@ export async function ejecutarTurnoAgente(
                     mensaje_para_agente: `Match directo con la plantilla de anuncio de '${matchPlantilla.nombre}'. Se entrega la bienvenida oficial del catálogo instantáneamente (costo \$0).`
                 }
             }
-
-            // El cliente casi nunca manda SOLO la plantilla: uno o dos segundos
-            // después llega su pregunta real ("cuánto vale", "hacen envíos a
-            // Santiago del Estero?") y el debounce las junta en una sola ráfaga.
-            // Como el matcher usa `includes`, esa ráfaga entera daba match y el
-            // turno terminaba acá: la pregunta quedaba sin responder (convs 2977
-            // y 3657, 08/09). Ahora la bienvenida sale igual (letra exacta, foto,
-            // costo $0) y el resto se resuelve en un turno normal, que ya ve el
-            // kit como presentado y no repite la ficha.
-            const resto = restoFueraDePlantilla(
-                mensajeUsuario,
-                matchTexto ? matchTexto.plantillaNormalizada : ""
-            )
 
             if (resto) {
                 const turnoResto = await ejecutarTurnoAgente(

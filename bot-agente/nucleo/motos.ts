@@ -104,20 +104,38 @@ function coincideFamilia(textoNorm: string, m: MotoCanonica): boolean {
 }
 
 /**
- * Typo: una palabra del cliente (5+ letras) está a distancia OSA 1 de una
+ * Typo: una palabra del cliente (4+ letras) está a distancia OSA 1 de una
  * palabra del NOMBRE OFICIAL del modelo. Solo el nombre oficial, no los aliases
  * (los aliases ya traen typos a propósito: hacer fuzzy sobre "bliz" hacía que
- * "biz" (Honda Biz) resolviera a Motomel Blitz). Ambas 5+ para no colisionar
- * modelos cortos distintos.
+ * "biz" (Honda Biz) resolviera a Motomel Blitz).
+ *
+ * El mínimo era 5 para no colisionar modelos cortos distintos, pero dejaba
+ * afuera los nombres de 4 letras del catálogo — Wave, Skua, Trip — y "wawe"
+ * (conv 3660, 08/09) caía como moto desconocida y escalaba en silencio.
+ * En 4 letras un typo cambia demasiado la palabra, así que ahí se exige
+ * ADEMÁS la misma inicial: "wawe"→"wave" pasa, "nave"/"llave" no.
  */
+export function palabraUtilParaTypo(w: string): boolean {
+    return w.length >= 4 && isNaN(Number(w)) && !MARCAS.has(w)
+}
+
+/**
+ * Criterio ÚNICO de "esto es un typo de aquello". Vive acá para que
+ * `compatibilidad.ts`, que tiene su propio resolvedor, no vuelva a divergir.
+ */
+export function esTypoDe(tokenCliente: string, palabraNombre: string): boolean {
+    if (!palabraUtilParaTypo(tokenCliente) || !palabraUtilParaTypo(palabraNombre)) return false
+    if (distanciaOSA(tokenCliente, palabraNombre) !== 1) return false // incluye swap de letras pegadas ("blizt"->"blitz")
+    if (Math.min(tokenCliente.length, palabraNombre.length) >= 5) return true
+    return tokenCliente[0] === palabraNombre[0]
+}
+
 function coincidePorTypo(textoNorm: string, m: MotoCanonica): boolean {
-    const tokens = textoNorm.split(" ").filter((w) => w.length >= 5 && isNaN(Number(w)) && !MARCAS.has(w))
-    const nombreWords = normalizarTexto(m.nombre_completo)
-        .split(" ")
-        .filter((w) => w.length >= 5 && isNaN(Number(w)) && !MARCAS.has(w))
+    const tokens = textoNorm.split(" ")
+    const nombreWords = normalizarTexto(m.nombre_completo).split(" ")
     for (const tok of tokens) {
         for (const nw of nombreWords) {
-            if (distanciaOSA(tok, nw) === 1) return true // incluye swap de letras pegadas ("blizt"->"blitz")
+            if (esTypoDe(tok, nw)) return true
         }
     }
     return false

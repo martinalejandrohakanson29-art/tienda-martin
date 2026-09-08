@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
-import { resolverMoto, listarCandidatos } from "../nucleo/motos"
+import { resolverMoto, listarCandidatos, esTypoDe } from "../nucleo/motos"
 
 export interface ArgsCompatibilidad {
     modelo_moto: string
@@ -172,17 +172,14 @@ function resolverMotoCanonica(
     // 3. Tolerancia ortográfica (incluye swaps de letras pegadas) SOLO contra las
     //    palabras del nombre oficial — NO contra los aliases (que ya traen typos
     //    a propósito: hacer fuzzy sobre "bliz" hacía que "biz" (Honda Biz)
-    //    resolviera a Motomel Blitz). Ambas palabras 5+ para no colisionar
-    //    modelos cortos distintos.
-    const MARCAS_FUZZY = new Set(["honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller", "brava", "mondial", "guerrero", "bajaj"])
+    //    resolviera a Motomel Blitz). El criterio es el mismo que usa
+    //    `resolverMoto`: antes había una copia acá con umbral propio y las dos
+    //    versiones se fueron separando.
     for (const token of tokensCliente) {
-        if (token.length < 5 || !isNaN(Number(token)) || MARCAS_FUZZY.has(token)) continue
         for (const m of motosCanonicas) {
-            const nWords = normalizarTexto(m.nombre_completo)
-                .split(" ")
-                .filter((w) => w.length >= 5 && isNaN(Number(w)) && !MARCAS_FUZZY.has(w))
+            const nWords = normalizarTexto(m.nombre_completo).split(" ")
             for (const nw of nWords) {
-                if (distanciaOSA(token, nw) === 1) return m
+                if (esTypoDe(token, nw)) return m
             }
         }
     }
@@ -409,6 +406,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         // Buscamos coincidencia con puntuación
         let mejorMatch: typeof registros[0] | null = null
         let maxScore = 0
+        /** Motivo de respaldo por veredicto, ver más abajo. */
+        const respaldoDetalle = new Map<boolean, { score: number; detalle: string }>()
 
         for (const reg of registros) {
             // Filtro por kit inteligente (o match directo de kit_id)
@@ -494,10 +493,28 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
 
             // La MOTO tiene que haber matcheado de verdad (canónica, texto,
             // palabra distintiva o 5+ tokens). Solo el kit no alcanza.
-            if (scoreMoto >= 25 && score > maxScore && score >= 15) {
+            if (scoreMoto < 25 || score < 15) continue
+
+            // Mejor fila CON motivo cargado de cada veredicto. No compite por
+            // ganar: solo presta su `detalle` si el ganador vino pelado. El
+            // aprendizaje deja filas con la grafía exacta del cliente ("wawe
+            // Nf") y sin detalle, que por match literal le ganan a la fila
+            // curada del mismo modelo, y el cliente recibía un "no es
+            // compatible" sin motivo teniéndolo cargado al lado (conv 3660).
+            if (reg.detalle?.trim()) {
+                const previo = respaldoDetalle.get(reg.compatible)
+                if (!previo || score > previo.score) respaldoDetalle.set(reg.compatible, { score, detalle: reg.detalle })
+            }
+
+            if (score > maxScore) {
                 maxScore = score
                 mejorMatch = reg
             }
+        }
+
+        if (mejorMatch && !mejorMatch.detalle?.trim()) {
+            const respaldo = respaldoDetalle.get(mejorMatch.compatible)
+            if (respaldo) mejorMatch = { ...mejorMatch, detalle: respaldo.detalle }
         }
 
         if (mejorMatch) {

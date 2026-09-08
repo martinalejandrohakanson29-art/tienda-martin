@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { resolverMoto } from "../nucleo/motos"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
@@ -175,10 +176,20 @@ async function cargarPackSuelto(combo: string): Promise<{ id: number; nombre: st
     return { id: scored[0].p.id, nombre: scored[0].p.nombre, precio: Number(scored[0].p.precio) || 0 }
 }
 
-/** ¿El texto del cliente contiene un modelo de moto que el sistema reconoce? */
+/**
+ * ¿El texto del cliente contiene un modelo de moto que el sistema reconoce?
+ *
+ * Primero se pregunta al resolvedor con confianza (`resolverMoto`), que tolera
+ * typos: "wawe nf" caía como desconocida con el LIKE crudo de abajo y el bot
+ * escalaba en silencio una consulta de compatibilidad perfectamente
+ * respondible (conv 3660, 08/09). El LIKE queda como red: cubre la columna
+ * `modelo`, que el resolvedor no mira.
+ */
 async function motoReconocida(texto: string): Promise<boolean> {
     const t = normalizarTexto(texto)
     if (!t) return false
+    const resol = await resolverMoto(texto).catch(() => null)
+    if (resol && resol.confianza !== "ninguna") return true
     try {
         const filas = await prisma.$queryRaw<{ ok: boolean }[]>`
             SELECT EXISTS (

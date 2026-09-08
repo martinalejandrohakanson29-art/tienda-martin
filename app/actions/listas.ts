@@ -828,6 +828,7 @@ export async function obtenerProveedores() {
           aliasCbu: p.aliasCbu || "",
           esMayorista: p.esMayorista,
           esPrioritario: Boolean((p as any).esPrioritario),
+          createdAt: p.createdAt ? p.createdAt.toISOString() : null,
           ultimaCompra: (() => {
             const fechaVenta = p.ventasMostrador[0]?.createdAt ?? null;
             const fechaMovimiento = p.movimientos[0]?.fecha ?? null;

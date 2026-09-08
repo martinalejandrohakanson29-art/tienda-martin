@@ -30,7 +30,88 @@ interface Proveedor {
   aliasCbu?: string | null;
   esMayorista: boolean;
   esPrioritario: boolean;
+  createdAt?: string | null;
   ultimaCompra: string | null;
+}
+
+export type FiltroVencimiento = "todos" | "cualquiera" | "15" | "30" | "45+";
+
+export interface AtrasoInfo {
+  categoria: "15" | "30" | "45+";
+  label: string;
+  diasTexto: string;
+  diasNumero: number | null;
+}
+
+export function getAtrasoInfo(p: Proveedor): AtrasoInfo | null {
+  // Regla madre: solo personas que nos deben dinero a nosotros unicamente
+  if (p.total <= 0) return null;
+
+  const d15 = Number(p.dias15) || 0;
+  const d30 = Number(p.dias30) || 0;
+  const d45 = Number(p.dias45) || 0;
+  const d60 = Number(p.dias60) || 0;
+  const dMas60 = Number(p.mas60) || 0;
+  const tieneTangoVencido = d15 > 0 || d30 > 0 || d45 > 0 || d60 > 0 || dMas60 > 0;
+
+  let dias: number | null = null;
+  if (p.ultimaCompra) {
+    dias = Math.floor((Date.now() - new Date(p.ultimaCompra).getTime()) / (1000 * 60 * 60 * 24));
+  } else if (!tieneTangoVencido && p.createdAt) {
+    dias = Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  // Clasificación de mayor gravedad a menor
+  if (d45 > 0 || d60 > 0 || dMas60 > 0 || (dias !== null && dias > 45)) {
+    return {
+      categoria: "45+",
+      label: ">45 días",
+      diasTexto: dias !== null ? `${dias}d atraso` : ">45d atraso",
+      diasNumero: dias,
+    };
+  }
+  if (d30 > 0 || (dias !== null && dias >= 30)) {
+    return {
+      categoria: "30",
+      label: "30 días",
+      diasTexto: dias !== null ? `${dias}d atraso` : "30d atraso",
+      diasNumero: dias,
+    };
+  }
+  if (d15 > 0 || (dias !== null && dias >= 15)) {
+    return {
+      categoria: "15",
+      label: "15 días",
+      diasTexto: dias !== null ? `${dias}d atraso` : "15d atraso",
+      diasNumero: dias,
+    };
+  }
+
+  return null;
+}
+
+function BadgeAtraso({ proveedor }: { proveedor: Proveedor }) {
+  const info = getAtrasoInfo(proveedor);
+  if (!info) return null;
+
+  const colorClasses =
+    info.categoria === "45+"
+      ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/60"
+      : info.categoria === "30"
+      ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/60"
+      : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${colorClasses}`}
+      title={`Saldo vencido: ${info.label} (${info.diasTexto})`}
+    >
+      <span className="material-symbols-outlined text-[11px]">
+        {info.categoria === "45+" ? "warning" : "schedule"}
+      </span>
+      {info.diasTexto}
+    </span>
+  );
 }
 
 function BadgeMayorista({ ultimaCompra }: { ultimaCompra: string | null }) {
@@ -71,6 +152,7 @@ export default function CuentaCorrienteClient({
   const [proveedoresList, setProveedoresList] = useState<Proveedor[]>(proveedoresIniciales);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<FilterType>("todos");
+  const [filtroVencimiento, setFiltroVencimiento] = useState<FiltroVencimiento>("todos");
   const [sortBy, setSortBy] = useState<SortType>("nombre-asc");
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [isSaldosMenuOpen, setIsSaldosMenuOpen] = useState(false);
@@ -242,10 +324,24 @@ export default function CuentaCorrienteClient({
         (p.cuit && p.cuit.includes(searchTerm)) ||
         (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchesFilter =
-        filterBy === "todos" ? true :
-          filterBy === "deudores" ? p.total > 0 :
-            filterBy === "acreedores" ? p.total < 0 : true;
+      let matchesFilter = true;
+      if (filtroVencimiento !== "todos") {
+        // El filtro de saldos vencidos aplica exclusivamente a gente que nos debe a nosotros (total > 0)
+        if (p.total <= 0) return false;
+        const atraso = getAtrasoInfo(p);
+        if (!atraso) return false;
+
+        if (filtroVencimiento === "cualquiera") {
+          matchesFilter = true;
+        } else {
+          matchesFilter = atraso.categoria === filtroVencimiento;
+        }
+      } else {
+        matchesFilter =
+          filterBy === "todos" ? true :
+            filterBy === "deudores" ? p.total > 0 :
+              filterBy === "acreedores" ? p.total < 0 : true;
+      }
 
       return matchesSearch && matchesFilter;
     });
@@ -261,7 +357,7 @@ export default function CuentaCorrienteClient({
     });
 
     return result;
-  }, [proveedoresList, searchTerm, filterBy, sortBy]);
+  }, [proveedoresList, searchTerm, filterBy, sortBy, filtroVencimiento]);
 
   const formatCurrency = (amount: any) => {
     const value = typeof amount === "number" ? amount : parseFloat(amount);
@@ -326,16 +422,20 @@ export default function CuentaCorrienteClient({
   };
 
   const handleExportExcel = () => {
-    const dataToExport = processedProveedores.map((p) => ({
-      "Razon Social": p.razonSocial,
-      "Nombre Fantasia": p.nombreFantasia || "---",
-      "CUIT": p.cuit || "---",
-      "Email": p.email || "---",
-      "Telefono": p.telefono || "---",
-      "Celular": p.celular || "---",
-      "Saldo Total": p.total,
-      "Alias/CBU": p.aliasCbu || "---",
-    }));
+    const dataToExport = processedProveedores.map((p) => {
+      const atraso = getAtrasoInfo(p);
+      return {
+        "Razon Social": p.razonSocial,
+        "Nombre Fantasia": p.nombreFantasia || "---",
+        "CUIT": p.cuit || "---",
+        "Email": p.email || "---",
+        "Telefono": p.telefono || "---",
+        "Celular": p.celular || "---",
+        "Saldo Total": p.total,
+        "Atraso": atraso ? atraso.diasTexto : "Al día",
+        "Alias/CBU": p.aliasCbu || "---",
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -352,18 +452,26 @@ export default function CuentaCorrienteClient({
     doc.text(title, 14, 22);
     doc.setFontSize(10);
     doc.text(`Fecha: ${date}`, 14, 30);
-    doc.text(`Filtros: ${filterBy} | Orden: ${sortBy}`, 14, 35);
+    doc.text(
+      `Filtros: ${filtroVencimiento !== "todos" ? `Vencidos (${filtroVencimiento})` : filterBy} | Orden: ${sortBy}`,
+      14,
+      35
+    );
 
-    const tableData = processedProveedores.map((p) => [
-      p.razonSocial,
-      p.cuit || "---",
-      p.nombreFantasia || "---",
-      formatCurrency(p.total),
-    ]);
+    const tableData = processedProveedores.map((p) => {
+      const atraso = getAtrasoInfo(p);
+      return [
+        p.razonSocial,
+        p.cuit || "---",
+        p.nombreFantasia || "---",
+        atraso ? atraso.label : "---",
+        formatCurrency(p.total),
+      ];
+    });
 
     autoTable(doc, {
       startY: 40,
-      head: [["Proveedor", "CUIT", "Nombre Fantasía", "Saldo Total"]],
+      head: [["Proveedor", "CUIT", "Nombre Fantasía", "Atraso", "Saldo Total"]],
       body: tableData,
       theme: "striped",
       headStyles: { fillColor: [43, 140, 238] },
@@ -484,8 +592,13 @@ export default function CuentaCorrienteClient({
               {(["todos", "deudores", "acreedores"] as FilterType[]).map((f) => (
                 <button
                   key={f}
-                  onClick={() => setFilterBy(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterBy === f
+                  onClick={() => {
+                    setFilterBy(f);
+                    if (f === "acreedores") {
+                      setFiltroVencimiento("todos");
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterBy === f && filtroVencimiento === "todos"
                     ? "bg-[#2b8cee] text-white"
                     : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                     }`}
@@ -493,6 +606,75 @@ export default function CuentaCorrienteClient({
                   {f === "todos" ? "Todos" : f === "deudores" ? "Deudores (>0)" : "A quienes debemos (<0)"}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Filtro de Saldos Vencidos (Cobranzas / Deudores) */}
+          <div className="flex items-center gap-2 pr-4 border-r border-slate-200 dark:border-slate-800">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <span className="material-symbols-outlined text-amber-500 text-sm">schedule</span>
+              Vencidos:
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = filtroVencimiento === "15" ? "todos" : "15";
+                  setFiltroVencimiento(next);
+                  if (next !== "todos" && filterBy === "acreedores") setFilterBy("deudores");
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filtroVencimiento === "15"
+                    ? "bg-amber-500 text-white shadow-xs"
+                    : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                }`}
+                title="Filtrar clientes que nos deben con 15 días de atraso"
+              >
+                15 días
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = filtroVencimiento === "30" ? "todos" : "30";
+                  setFiltroVencimiento(next);
+                  if (next !== "todos" && filterBy === "acreedores") setFilterBy("deudores");
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filtroVencimiento === "30"
+                    ? "bg-orange-500 text-white shadow-xs"
+                    : "bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:hover:bg-orange-900/60"
+                }`}
+                title="Filtrar clientes que nos deben con 30 días de atraso"
+              >
+                30 días
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = filtroVencimiento === "45+" ? "todos" : "45+";
+                  setFiltroVencimiento(next);
+                  if (next !== "todos" && filterBy === "acreedores") setFilterBy("deudores");
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filtroVencimiento === "45+"
+                    ? "bg-red-500 text-white shadow-xs"
+                    : "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/60"
+                }`}
+                title="Filtrar clientes que nos deben con más de 45 días de atraso"
+              >
+                &gt;45 días
+              </button>
+              {filtroVencimiento !== "todos" && (
+                <button
+                  type="button"
+                  onClick={() => setFiltroVencimiento("todos")}
+                  className="px-2 py-1 text-xs text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex items-center gap-0.5"
+                  title="Limpiar filtro de saldos vencidos"
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                  Limpiar
+                </button>
+              )}
             </div>
           </div>
 
@@ -587,7 +769,13 @@ export default function CuentaCorrienteClient({
           </div>
 
           <div className="ml-auto text-xs font-medium text-slate-400">
-            {processedProveedores.length} proveedores encontrados
+            {filtroVencimiento !== "todos" ? (
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                {processedProveedores.length} cliente{processedProveedores.length === 1 ? "" : "s"} con mora ({filtroVencimiento === "15" ? "15 días" : filtroVencimiento === "30" ? "30 días" : ">45 días"})
+              </span>
+            ) : (
+              <span>{processedProveedores.length} proveedores encontrados</span>
+            )}
           </div>
         </div>
 
@@ -812,9 +1000,12 @@ export default function CuentaCorrienteClient({
                       <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(proveedor.total)}
                       </span>
-                      {proveedor.esMayorista && (
-                        <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
-                      )}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {proveedor.esMayorista && (
+                          <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
+                        )}
+                        <BadgeAtraso proveedor={proveedor} />
+                      </div>
                     </div>
                     <Link
                       href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
@@ -881,8 +1072,13 @@ export default function CuentaCorrienteClient({
                             : <span className="text-xs text-slate-300">—</span>
                           }
                         </td>
-                        <td className={`px-6 py-4 text-right text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
-                          {formatCurrency(proveedor.total)}
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
+                              {formatCurrency(proveedor.total)}
+                            </span>
+                            <BadgeAtraso proveedor={proveedor} />
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">

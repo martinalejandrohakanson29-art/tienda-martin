@@ -146,7 +146,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
                 <div className="flex items-center gap-2">
                   <h3 className="text-xl font-bold text-slate-900">Panel General Instagram</h3>
                   <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold text-xs">
-                    Canal: {filtros.puntoVentaNombre || "Instagram"}
+                    Canal: {filtros.puntoVentaNombre || "Instagram + Mostrador"}
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -259,7 +259,7 @@ export function InstagramGeneralClient({ initialData }: Props) {
             </div>
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3 text-emerald-600 inline" />
-              Facturación confirmada en {filtros.puntoVentaNombre || "Instagram"}
+              Facturación confirmada en {filtros.puntoVentaNombre || "Instagram + Mostrador"}
             </p>
           </CardContent>
         </Card>

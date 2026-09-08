@@ -195,20 +195,26 @@ export async function getInstagramGeneralDashboard(options?: {
       options?.fechaHasta
     )
 
-    // 1. Identificamos el Punto de Venta Instagram (o el seleccionado)
+    // 1. Identificamos los Puntos de Venta: siempre sumamos Instagram + Mostrador
     const puntosVenta = await prisma.puntoVenta.findMany({
       orderBy: { nombre: "asc" }
     })
 
-    let targetPv = puntosVenta.find(pv =>
-      pv.nombre.toLowerCase().includes("instagram")
-    )
+    const defaultPvs = puntosVenta.filter(pv => {
+      const nom = pv.nombre.toLowerCase()
+      return nom.includes("instagram") || nom.includes("mostrador")
+    })
+
+    let targetPvIds = defaultPvs.length > 0 ? defaultPvs.map(p => p.id) : puntosVenta.map(p => p.id)
+    let puntoVentaNombre = "Instagram + Mostrador"
+
     if (options?.puntoVentaId) {
       const found = puntosVenta.find(pv => pv.id === options.puntoVentaId)
-      if (found) targetPv = found
+      if (found) {
+        targetPvIds = [found.id]
+        puntoVentaNombre = found.nombre
+      }
     }
-    const puntoVentaId = targetPv?.id
-    const puntoVentaNombre = targetPv?.nombre || "Instagram"
 
     // 2. Traemos en paralelo datos de Meta Ads y Ventas de PostgreSQL
     const [metaData, ventas, packsDef, todosArticulos] = await Promise.all([
@@ -217,7 +223,7 @@ export async function getInstagramGeneralDashboard(options?: {
         where: {
           estadoPedido: { not: "CANCELADO" },
           createdAt: { gte: inicio, lte: fin },
-          ...(puntoVentaId ? { puntoVentaId } : {})
+          puntoVentaId: { in: targetPvIds }
         },
         include: {
           items: true
@@ -418,7 +424,7 @@ export async function getInstagramGeneralDashboard(options?: {
         preset,
         fechaDesde: strDesde,
         fechaHasta: strHasta,
-        puntoVentaId,
+        puntoVentaId: targetPvIds.length === 1 ? targetPvIds[0] : undefined,
         puntoVentaNombre
       },
       metricas: {

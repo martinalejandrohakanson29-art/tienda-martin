@@ -239,7 +239,12 @@ export function sanitizarMensajeSalida(
     // 0. Si la conversación ya está en curso (turno 2 en adelante o globos secundarios),
     // remover cualquier saludo inicial residual que el modelo o la plantilla hayan arrastrado
     if (opciones.esConversacionEnCurso) {
-        const rxSaludoInicial = /^(hola(\s+(bro|amigo|amiga|como va|como andas|buenas|buen dia|buenas tardes|buenas noches))?|buenas(\s+(tardes|dias|noches|bro|amigo))?|buen dia|buenas tardes|buenas noches)[!.,\s]*/i
+        // Incluye los saludos SUELTOS, sin "hola" adelante: las plantillas del
+        // catálogo abren con "Como va!" / "Que tal!" y a mitad de charla eso
+        // llega igual de robótico que un "Hola!" repetido (conv 3561, ficha del
+        // Kit 200 entregada en el turno 8).
+        const rxSaludoInicial =
+            /^(hola(\s+(bro|amigo|amiga|como va|como andas|buenas|buen dia|buenas tardes|buenas noches))?|buenas(\s+(tardes|dias|noches|bro|amigo))?|buen dia|buenas tardes|buenas noches|c[oó]mo (va|andas|andan|te va)|que tal|qu[eé] hac[eé]s)(\s+(bro|amigo|amiga))?[!.,?\s]*/i
         if (rxSaludoInicial.test(limpio)) {
             limpio = limpio.replace(rxSaludoInicial, "").trim()
             if (limpio.length > 0) {

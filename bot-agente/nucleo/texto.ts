@@ -195,3 +195,35 @@ export function puntuarItemCatalogo(
 
     return score
 }
+
+/**
+ * Saca la pregunta final "a qué moto se lo querés poner?" de una plantilla de
+ * bienvenida cuando la moto del cliente YA está confirmada.
+ *
+ * Las bienvenidas del catálogo cierran pidiendo la moto porque están escritas
+ * para el primer contacto. Si el cliente clickea un anuncio a mitad de una
+ * charla en la que ya dijo su moto, esa pregunta llega absurda (pasó en la
+ * conv 3561: se le preguntó la moto una hora después de que dijera "Motomel S2").
+ *
+ * Solo toca la ÚLTIMA línea con contenido y solo si es exactamente esa
+ * pregunta: si la plantilla cierra con otra cosa, no se modifica nada.
+ */
+const RX_PREGUNTA_MOTO_FINAL =
+    /^\s*(?:y\s+)?(?:a|para|en)\s+(?:qu[eé]|cu[aá]l)\s+(?:moto|modelo|moto\s+o\s+modelo)\b[^\n?]*\?\s*$/i
+
+export function quitarPreguntaDeMotoFinal(texto: string | null | undefined): string {
+    const original = (texto || "").trim()
+    if (!original) return ""
+
+    const lineas = original.split("\n")
+    let i = lineas.length - 1
+    while (i >= 0 && lineas[i].trim() === "") i--
+    if (i < 0) return original
+
+    if (!RX_PREGUNTA_MOTO_FINAL.test(lineas[i])) return original
+
+    const recortado = lineas.slice(0, i).join("\n").replace(/\n{3,}/g, "\n\n").trim()
+    // Nunca dejar el mensaje vacío: si la plantilla era solo esa pregunta, se
+    // manda tal cual (que no salga nada lo decide el motor, no este helper).
+    return recortado.length > 0 ? recortado : original
+}

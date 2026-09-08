@@ -288,5 +288,6 @@ Reglas que salieron de ahí:
 - **Una tool que no ve la conversación no puede decidir qué decir.** Lo que el modelo ya dijo lo sabe el motor (estado persistente), y se le inyecta a la tool por `ContextoEjecucion` — nunca por un argumento que el modelo pueda falsear.
 - **Los ejemplos del prompt son registro, no frases.** Van con la prohibición explícita de copiarlos palabra por palabra, y la repetición literal la corta el sanitizador (`quitarOracionesYaDichas`), que es higiene de texto y no una regla de negocio.
 - **Cuando un fix "obvio" sería un párrafo nuevo en el prompt, casi siempre el bug real está en otro lado.** Acá el duplicado de envíos no era un problema de redacción: era que la herramienta no tenía memoria.
+- **Una plantilla que no mira el estado es el mismo bug con otra ropa.** El match de anuncio de Instagram disparaba antes de cargar `MEMORIA DE ESTADO`, así que re-clickear el mismo anuncio re-volcaba la ficha y la foto, y una ficha nueva seguía cerrando con "a qué moto se lo querés poner?" con la moto ya confirmada. El estado ahora se carga **antes** de esa rama. Regla: cualquier atajo de costo $0 que devuelve texto sin pasar por el modelo tiene que ver el estado primero.
 
 

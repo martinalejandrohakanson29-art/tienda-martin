@@ -5,6 +5,7 @@ import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
 import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
+import { quitarPreguntaDeMotoFinal } from "./nucleo/texto"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
@@ -209,8 +210,14 @@ export async function ejecutarTurnoAgente(
     // que devuelven temprano (match de plantilla) también puedan escribir estado.
     const estadoKey = opciones.estadoKey || (opciones.conversationId != null ? String(opciones.conversationId) : undefined)
 
-    // Cargar configuración editable desde base de datos
-    const config = await obtenerConfiguracionAgente()
+    // Cargar configuración editable desde base de datos + lo que ya quedó
+    // resuelto en esta conversación. El estado se necesita ANTES del match de
+    // plantilla de anuncio: sin él, esa rama volvía a volcar la ficha de un kit
+    // ya presentado y preguntaba la moto que el cliente ya había dicho.
+    const [config, estadoConv] = await Promise.all([
+        obtenerConfiguracionAgente(),
+        cargarEstadoConversacion(estadoKey)
+    ])
 
     // Resolver modelo y baseUrl efectivos a partir de opciones o de chat_config
     let modelo = opciones.modelo
@@ -285,15 +292,32 @@ export async function ejecutarTurnoAgente(
         }
     }
 
-    // Match con una plantilla de anuncio de Instagram: INNEGOCIABLE — el
-    // mensaje publicitario llega tal cual del anuncio y se responde con la
-    // bienvenida oficial en automático (costo $0), SIEMPRE, no solo en el primer
-    // mensaje. Un cliente que re-clickea un anuncio (el mismo u otro producto)
-    // en medio de la charla también dispara su bienvenida.
+    // Match con una plantilla de anuncio de Instagram: el mensaje publicitario
+    // llega tal cual del anuncio y se responde con la bienvenida oficial en
+    // automático (costo $0), no solo en el primer mensaje: un cliente que
+    // clickea OTRO anuncio en medio de la charla también dispara su bienvenida.
+    //
+    // Dos excepciones, ambas por no mirar el estado (07/09):
+    //  a) Si el kit del anuncio es el que YA se le presentó, re-clickear el
+    //     MISMO anuncio le volvía a volcar la ficha entera y a reenviarle la
+    //     foto. Ahora cae al turno normal, donde el modelo ve la memoria y la
+    //     charla y contesta lo que corresponda.
+    //  b) Si la moto ya está confirmada, la bienvenida seguía cerrando con
+    //     "A qué moto se lo querés poner?" — una pregunta ya respondida.
     {
         const { detectarPlantillaAnuncio } = await import("./herramientas/catalogo-precios")
         const matchPlantilla = await detectarPlantillaAnuncio(mensajeUsuario)
-        if (matchPlantilla && matchPlantilla.mensajeBienvenida) {
+
+        const esElMismoKitYaPresentado =
+            !!matchPlantilla &&
+            ((matchPlantilla.tipo === "pack" && estadoConv.packPresentado?.id === matchPlantilla.id) ||
+                (matchPlantilla.tipo === "grupo" && estadoConv.grupoPineado?.id === matchPlantilla.id))
+
+        if (
+            matchPlantilla &&
+            matchPlantilla.mensajeBienvenida &&
+            !(esElMismoKitYaPresentado && historialPrevio.length > 0)
+        ) {
             const sanitizado = sanitizarMensajeSalida(matchPlantilla.mensajeBienvenida, {
                 palabrasProhibidas: config.palabrasProhibidas,
                 permitirBro: config.permitirBro,
@@ -301,6 +325,11 @@ export async function ejecutarTurnoAgente(
                 // cuerpo (kit, precio, pregunta) sale igual.
                 esConversacionEnCurso: historialPrevio.length > 0
             })
+
+            // La moto ya la sabemos: la plantilla no puede volver a pedirla.
+            const textoFinal = estadoConv.motoConfirmada
+                ? quitarPreguntaDeMotoFinal(sanitizado.textoLimpio)
+                : sanitizado.textoLimpio
 
             // Recordar que este kit/combo ya se presentó (ficha + foto): en los
             // turnos siguientes el modelo no repite la ficha ni se reenvía la
@@ -320,8 +349,8 @@ export async function ejecutarTurnoAgente(
             }
 
             return {
-                mensajeFinal: sanitizado.textoLimpio,
-                mensajesFinales: [sanitizado.textoLimpio],
+                mensajeFinal: textoFinal,
+                mensajesFinales: [textoFinal],
                 fotoUrl: matchPlantilla.fotoUrl || undefined,
                 herramientasEjecutadas: [
                     {
@@ -381,10 +410,7 @@ export async function ejecutarTurnoAgente(
     // Bloques que se inyectan SOLO cuando aplican (mantienen el prompt base chico):
     //  - situaciones: reglas de casos puntuales (chat_situaciones) que pegan con este mensaje
     //  - memoria de estado: lo que ya quedó resuelto en la conversación (moto, variante...)
-    const [situaciones, estadoConv] = await Promise.all([
-        detectarSituaciones(mensajeUsuario).catch(() => []),
-        cargarEstadoConversacion(estadoKey)
-    ])
+    const situaciones = await detectarSituaciones(mensajeUsuario).catch(() => [])
     const bloqueSituaciones = formatearBloqueSituaciones(situaciones)
     const bloqueEstado = formatearMemoriaEstado(estadoConv)
 

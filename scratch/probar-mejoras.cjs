@@ -9,9 +9,10 @@
 require("dotenv").config({ quiet: true })
 const jiti = require("jiti")(__filename, { alias: { "@": process.cwd() }, interopDefault: true })
 
-const { quitarOracionesYaDichas } = jiti("../bot-agente/guardrails/sanitizador.ts")
+const { quitarOracionesYaDichas, sanitizarMensajeSalida } = jiti("../bot-agente/guardrails/sanitizador.ts")
 const { partirEnHechos, construirGuiaInfoNegocio } = jiti("../bot-agente/herramientas/info-negocio.ts")
 const { unirTemas, formatearMemoriaEstado } = jiti("../bot-agente/nucleo/estado-persistente.ts")
+const { quitarPreguntaDeMotoFinal } = jiti("../bot-agente/nucleo/texto.ts")
 const { calcularEsperaCadenciaHumanaMs } = jiti("../lib/bot-agente-tiempo-real.ts")
 
 let pasados = 0
@@ -114,6 +115,62 @@ console.log("\n== formatearMemoriaEstado ==")
     check("prohibe re-explicar el tema, incluso reformulado", /NO re-expliques ese tema/.test(bloque) && /reformulado con otras palabras/.test(bloque), bloque)
     check("estado vacío no genera bloque", formatearMemoriaEstado({}) === "", formatearMemoriaEstado({}))
     check("temas vacíos no generan bloque", formatearMemoriaEstado({ temasRespondidos: [] }) === "", formatearMemoriaEstado({ temasRespondidos: [] }))
+}
+
+console.log("\n== saludo suelto a mitad de charla ==")
+{
+    const enCurso = { esConversacionEnCurso: true }
+    const primerTurno = { esConversacionEnCurso: false }
+    const casos = [
+        ["Como va!\n\nEl kit 200 sale $167.000.", /como va/i],
+        ["Cómo andas! El kit sale $167.000.", /como andas/i],
+        ["Que tal! El kit sale $167.000.", /que tal/i],
+        ["Hola bro! El kit sale $167.000.", /hola/i],
+    ]
+    for (const [texto, rx] of casos) {
+        const r = sanitizarMensajeSalida(texto, enCurso).textoLimpio
+        check(`saca "${texto.split(/[!\n]/)[0]}" a mitad de charla`, !rx.test(r), r)
+        check(`  y conserva el contenido`, /167\.000/.test(r), r)
+    }
+    // En el turno 1 el saludo SÍ va.
+    const t1 = sanitizarMensajeSalida("Como va! El kit sale $167.000.", primerTurno).textoLimpio
+    check("en el primer turno el saludo se conserva", /como va/i.test(t1), t1)
+}
+
+console.log("\n== quitarPreguntaDeMotoFinal ==")
+{
+    // Texto real del Kit 170 (chat_packs.mensaje_bienvenida, id 11).
+    const kit170 = "Cuesta $99.990 envio gratis.\nel kit incluye:\n✅cilindro con piston, aros y perno\n✅leva de calle de 7.80\n\nno precisa modificaciones.\n\nA que moto se lo queres poner?"
+    const r = quitarPreguntaDeMotoFinal(kit170)
+    check("saca 'A que moto se lo queres poner?'", !/a que moto/i.test(r), r)
+    check("conserva la ficha completa", /leva de calle de 7\.80/.test(r) && /99\.990/.test(r), r)
+}
+{
+    // Texto real del Kit 200 (el que se mandó en la conv 3561).
+    const kit200 = "🔥 KIT POTENCIADO 200cc 🔥\n✅ Cilindro Dakar 200\n\n💳 Precio: $167.000\n\na que moto se la queres poner?"
+    const r = quitarPreguntaDeMotoFinal(kit200)
+    check("saca la variante 'a que moto se la queres poner?'", !/a que moto/i.test(r), r)
+    check("conserva el precio", /167\.000/.test(r), r)
+}
+{
+    const conAcentos = "Combo Tapa CDI.\n\nPara qué moto lo estás buscando?"
+    check("saca 'Para qué moto lo estás buscando?'", !/moto/i.test(quitarPreguntaDeMotoFinal(conAcentos)), quitarPreguntaDeMotoFinal(conAcentos))
+}
+{
+    const otroCierre = "El kit sale $99.990.\n\nSabés si tu moto es recorrido corto o largo?"
+    check("NO toca otras preguntas de cierre", quitarPreguntaDeMotoFinal(otroCierre) === otroCierre, quitarPreguntaDeMotoFinal(otroCierre))
+}
+{
+    const sinPregunta = "El kit sale $99.990 con envío gratis."
+    check("sin pregunta final devuelve igual", quitarPreguntaDeMotoFinal(sinPregunta) === sinPregunta)
+}
+{
+    const enElMedio = "A que moto se lo queres poner?\n\nEl kit sale $99.990."
+    check("no toca la pregunta si no es la última línea", quitarPreguntaDeMotoFinal(enElMedio) === enElMedio, quitarPreguntaDeMotoFinal(enElMedio))
+}
+{
+    check("nunca deja el mensaje vacío", quitarPreguntaDeMotoFinal("A que moto se lo queres poner?").length > 0)
+    check("tolera vacío/null", quitarPreguntaDeMotoFinal("") === "" && quitarPreguntaDeMotoFinal(null) === "")
 }
 
 console.log("\n== calcularEsperaCadenciaHumanaMs (regresión) ==")

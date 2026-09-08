@@ -561,5 +561,59 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Debe confirmar la compatibilidad con la Motomel S2 Y contestar que no hay que modificar el cigüeñal. Perder la segunda pregunta es el fallo que se está cubriendo."
         }
+    },
+    {
+        // El match de plantilla de anuncio disparaba SIEMPRE, sin mirar el
+        // estado: un cliente que re-clickea el MISMO anuncio a mitad de charla
+        // recibía otra vez la ficha entera y la foto de nuevo. Ahora esa rama se
+        // saltea y el turno lo resuelve el modelo con la memoria y el historial.
+        id: "caso-35-reclick-mismo-anuncio-no-revuelca-ficha",
+        titulo: "Re-clickea el MISMO anuncio a mitad de charla: no se le vuelve a volcar la ficha",
+        mensajeCliente: "¡Hola! Quiero más información del kit170cc",
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 },
+            motoConfirmada: "motomel s2 190 cc"
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información del kit170cc" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\nel kit incluye:\n✅cilindro con piston, aros y perno, y tambien la junta de tapa y de base\n✅leva de calle de 7.80\n\nno precisa modificaciones.\n\nA que moto se lo queres poner?"
+            },
+            { rol: "user", contenido: "Un Motomel s2" },
+            { rol: "assistant", contenido: "Si, le va perfecto a la Motomel S2 190cc, directo sin modificar nada." }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // No puede repetir la lista de "qué incluye" ni volver a pedir la moto.
+            patronProhibido: /(kit incluye|a qu[eé] moto se lo)/i,
+            descripcionEsperada:
+                "El kit ya está presentado y la moto confirmada. Re-clickear el mismo anuncio no puede reiniciar la presentación: debe retomar la charla donde estaba."
+        }
+    },
+    {
+        // Conv 3561 (07/09): se le presentó un kit NUEVO cerrando con "a que moto
+        // se la queres poner?" cuando el cliente ya había dicho Motomel S2 una
+        // hora antes. La ficha del kit nuevo sí corresponde; la pregunta no.
+        id: "caso-36-anuncio-nuevo-no-repregunta-la-moto",
+        titulo: "Clickea otro anuncio con la moto ya confirmada: presenta el kit nuevo sin repreguntar la moto",
+        mensajeCliente: "Me pasarias que icluye el kit 200?",
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 },
+            motoConfirmada: "motomel s2 190 cc"
+        },
+        historial: [
+            { rol: "user", contenido: "Un Motomel s2" },
+            { rol: "assistant", contenido: "Si, le va perfecto a la Motomel S2 190cc, directo sin modificar nada." }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronProhibido: /a qu[eé] moto/i,
+            descripcionEsperada:
+                "Es un anuncio de otro producto: la ficha del kit 200 sí va. Lo que no puede es cerrar preguntando la moto, que el cliente ya dijo."
+        }
     }
 ]

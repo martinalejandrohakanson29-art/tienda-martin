@@ -137,6 +137,27 @@ console.log("\n== saludo suelto a mitad de charla ==")
     check("en el primer turno el saludo se conserva", /como va/i.test(t1), t1)
 }
 
+console.log("\n== matcheo de modelos de moto (compatibilidad) ==")
+{
+    const { tokensDeModeloCoinciden, contieneComoTokens } = jiti("../bot-agente/herramientas/compatibilidad.ts")
+
+    // El caso real: "nt" (Zanella NT 110) estaba dentro de "hunter" (Corven
+    // Hunter 150) y confirmaba compatibilidad de una moto por otra.
+    check("'nt' NO matchea 'hunter'", !tokensDeModeloCoinciden("nt", "hunter"))
+    check("'zb' NO matchea 'zbeta'", !tokensDeModeloCoinciden("zb", "zbeta"))
+    check("tokens cortos solo por igualdad", tokensDeModeloCoinciden("zb", "zb") && tokensDeModeloCoinciden("s2", "s2"))
+    check("contención sigue valiendo entre tokens largos", tokensDeModeloCoinciden("blitz", "blitz110"))
+    check("tolera vacíos", !tokensDeModeloCoinciden("", "hunter") && !tokensDeModeloCoinciden("nt", ""))
+
+    // El otro caso real: el alias "s 2" de la Motomel S2 caía dentro de
+    // "wave s 2022" y le daba la respuesta de una Honda Wave.
+    check("'s 2' NO está en 'wave s 2022'", !contieneComoTokens("wave s 2022", "s 2"))
+    check("'s 2' SÍ está en 'motomel s 2 150'", contieneComoTokens("motomel s 2 150", "s 2"))
+    check("respeta el inicio y el final", contieneComoTokens("zb 110", "zb") && contieneComoTokens("zb 110", "110"))
+    check("no matchea palabra cortada", !contieneComoTokens("crypton 110", "cry"))
+    check("tolera vacíos", !contieneComoTokens("", "zb") && !contieneComoTokens("zb 110", ""))
+}
+
 console.log("\n== esPlaceholderDeChatwoot ==")
 {
     const { esPlaceholderDeChatwoot } = jiti("../lib/chatwoot-bot.ts")

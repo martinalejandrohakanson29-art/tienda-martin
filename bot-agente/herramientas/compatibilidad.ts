@@ -56,6 +56,43 @@ export const definicionCompatibilidad: DefinicionHerramienta = {
 
 const palabrasDistintivasKit = ["tapa", "cdi", "escape", "pwr", "dakar", "varillero"]
 
+/**
+ * ¿Dos tokens de modelo se refieren al mismo modelo?
+ *
+ * La contención de substrings ("uno está dentro del otro") es indispensable
+ * para variantes como "zb" / "zb110", pero con tokens CORTOS produce falsos
+ * positivos entre motos que no tienen nada que ver: "nt" está dentro de
+ * "hu-NT-er", así que una fila de Zanella NT 110 confirmaba compatibilidad para
+ * una Corven Hunter 150 (otra marca, otra cilindrada, otro motor). Detectado en
+ * el barrido moto x kit del 07/09.
+ *
+ * Regla: igualdad siempre; contención solo cuando el token más corto tiene 4+
+ * caracteres, que es donde deja de ser casualidad. Los typos reales ("smach",
+ * "scua") ya los resuelve el catálogo canónico antes de llegar acá.
+ */
+export function tokensDeModeloCoinciden(a: string, b: string): boolean {
+    if (!a || !b) return false
+    if (a === b) return true
+    const corto = a.length <= b.length ? a : b
+    const largo = a.length <= b.length ? b : a
+    return corto.length >= 4 && largo.includes(corto)
+}
+
+/**
+ * ¿`frase` aparece dentro de `texto` como secuencia COMPLETA de palabras?
+ *
+ * `String.includes` a secas corta palabras por la mitad y confunde motos: el
+ * alias "s 2" de la Motomel S2 150 (está cargado así por "ese dos") matcheaba
+ * dentro de "wave **s 2**022", y una fila de Honda Wave S 2022 terminaba
+ * negándole la compatibilidad a una Motomel S2. Ambos textos ya vienen
+ * normalizados a tokens separados por espacio, así que alcanza con exigir
+ * bordes de palabra.
+ */
+export function contieneComoTokens(texto: string, frase: string): boolean {
+    if (!texto || !frase) return false
+    return ` ${texto} `.includes(` ${frase} `)
+}
+
 function coincideKitInteligente(kitBuscado?: string, kitRegistro?: string, contextoExtra?: string): boolean {
     if (!kitBuscado || !kitRegistro) return true
     const kNorm = normalizarTexto(kitBuscado)
@@ -406,13 +443,19 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                     scoreMoto += 80 // Ambas resuelven exactamente al mismo modelo canónico oficial
                 } else {
                     const nombreCanNorm = normalizarTexto(motoCanonicaResuelta.nombre_completo)
+                    // Contención por PALABRAS completas, no por substring suelto.
                     const coincideCanonica =
                         regMotoNorm === nombreCanNorm ||
-                        regMotoNorm.includes(nombreCanNorm) ||
-                        nombreCanNorm.includes(regMotoNorm) ||
+                        contieneComoTokens(regMotoNorm, nombreCanNorm) ||
+                        contieneComoTokens(nombreCanNorm, regMotoNorm) ||
                         motoCanonicaResuelta.aliases.some((a) => {
                             const an = normalizarTexto(a)
-                            return an.length >= 3 && (regMotoNorm === an || regMotoNorm.includes(an) || an.includes(regMotoNorm))
+                            return (
+                                an.length >= 3 &&
+                                (regMotoNorm === an ||
+                                    contieneComoTokens(regMotoNorm, an) ||
+                                    contieneComoTokens(an, regMotoNorm))
+                            )
                         })
                     if (coincideCanonica) {
                         scoreMoto += 60 // Gran impulso: resuelve cualquier typo ("smach", "scua", etc.) al modelo oficial
@@ -420,16 +463,19 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 }
             }
 
-            // 1. Coincidencia exacta de texto
+            // 1. Coincidencia exacta de texto (contención por palabras completas)
             if (motoBuscada === regMotoNorm) {
                 scoreMoto += 50
-            } else if (regMotoNorm.includes(motoBuscada) || motoBuscada.includes(regMotoNorm)) {
+            } else if (
+                contieneComoTokens(regMotoNorm, motoBuscada) ||
+                contieneComoTokens(motoBuscada, regMotoNorm)
+            ) {
                 scoreMoto += 25
             }
 
             // 2. Coincidencia de nombre distintivo del modelo (ej: "smash", "zb", "blitz", "trip", "crono", "energy", "rx", "s2", "skua")
             for (const d of distintivasBuscadas) {
-                if (distintivasReg.includes(d) || tokensReg.some((t) => t === d || t.includes(d) || d.includes(t))) {
+                if (distintivasReg.includes(d) || tokensReg.some((t) => tokensDeModeloCoinciden(t, d))) {
                     scoreMoto += 30 // Puntuación muy alta por modelo clave
                 }
             }

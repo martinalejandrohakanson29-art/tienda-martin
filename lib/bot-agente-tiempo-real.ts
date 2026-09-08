@@ -205,6 +205,49 @@ export function recortarMensajesDelTurno<T extends { contenido: string; saliente
     return transcripcion.slice(0, corte)
 }
 
+/**
+ * Silencio a partir del cual el tramo anterior del hilo se considera una charla
+ * distinta (el cliente volvio dias/semanas despues).
+ */
+const GAP_NUEVA_SESION_MS = 6 * 60 * 60 * 1000
+
+/**
+ * Arma el historial para el motor a partir del hilo previo (ya sin los mensajes
+ * del turno actual). Si adentro hay un silencio de +6hs, todo lo anterior a ese
+ * silencio es una charla vieja: se deja en el contexto pero con una nota para que
+ * el modelo la use como dato de fondo (la moto, el kit que miraba) y NO reabra
+ * preguntas que el cliente no volvio a mencionar.
+ *
+ * conv 2931 (08/09): el cliente volvio a los 11 dias con un "Hola" y el bot le
+ * contesto un "tienen levas levantadas?" de la charla vieja, ofreciendole un
+ * combo con escape que nunca pidio. Exportada para testear sin Chatwoot.
+ */
+export function armarHistorialPrevio<T extends { contenido: string; saliente: boolean; creadoEn: number }>(
+    hiloPrevio: T[]
+): MensajeChat[] {
+    const aMensaje = (m: T): MensajeChat => ({ rol: m.saliente ? "assistant" : "user", contenido: m.contenido })
+
+    let corte = 0
+    for (let i = 1; i < hiloPrevio.length; i++) {
+        if (hiloPrevio[i].creadoEn - hiloPrevio[i - 1].creadoEn > GAP_NUEVA_SESION_MS) corte = i
+    }
+    if (corte === 0) return hiloPrevio.map(aMensaje)
+
+    const dias = Math.max(1, Math.round((hiloPrevio[corte].creadoEn - hiloPrevio[corte - 1].creadoEn) / 86_400_000))
+    return [
+        ...hiloPrevio.slice(0, corte).map(aMensaje),
+        {
+            rol: "system",
+            contenido:
+                `[Lo de arriba es de una charla anterior de hace ~${dias} dia(s). ` +
+                `Puede tener preguntas del cliente que quedaron sin responder: NO las retomes por tu cuenta. ` +
+                `Responde solo lo que el cliente escribe ahora. Podes usar datos de esa charla (su moto, el kit que miraba) ` +
+                `pero no reabras temas que el no volvio a mencionar.]`,
+        },
+        ...hiloPrevio.slice(corte).map(aMensaje),
+    ]
+}
+
 async function registrarTurno(params: {
     conversationId: number
     accountId: number
@@ -391,10 +434,9 @@ async function procesarTurno(accountId: number, conversationId: number) {
         // silencio -- conv 3637 (08/09): se escalo "escape paolucci para
         // varillero s2 motomel", el cliente insistio con "??" y el modelo, que
         // ya no veia esa pregunta, contesto sobre el kit 170 de media hora antes.
-        const historialPrevio: MensajeChat[] = recortarMensajesDelTurno(transcripcion, mensajesDelTurno).map((m) => ({
-            rol: m.saliente ? "assistant" : "user",
-            contenido: m.contenido,
-        }))
+        const historialPrevio: MensajeChat[] = armarHistorialPrevio(
+            recortarMensajesDelTurno(transcripcion, mensajesDelTurno)
+        )
 
         const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
             conversationId,
@@ -740,10 +782,7 @@ export async function atenderEntrantesPendientes(
 
                 let cortIdx = transcripcion.length - 1
                 while (cortIdx >= 0 && !transcripcion[cortIdx].saliente) cortIdx--
-                const historialPrevio: MensajeChat[] = transcripcion.slice(0, cortIdx + 1).map((m) => ({
-                    rol: m.saliente ? "assistant" : "user",
-                    contenido: m.contenido,
-                }))
+                const historialPrevio: MensajeChat[] = armarHistorialPrevio(transcripcion.slice(0, cortIdx + 1))
                 const mensajeUsuario = transcripcion
                     .slice(cortIdx + 1)
                     .map((m) => m.contenido)
@@ -928,10 +967,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
 
             let cortIdx = transcripcion.length - 1
             while (cortIdx >= 0 && !transcripcion[cortIdx].saliente) cortIdx--
-            const historialPrevio: MensajeChat[] = transcripcion.slice(0, cortIdx + 1).map((m) => ({
-                rol: m.saliente ? "assistant" : "user",
-                contenido: m.contenido,
-            }))
+            const historialPrevio: MensajeChat[] = armarHistorialPrevio(transcripcion.slice(0, cortIdx + 1))
             const mensajeUsuario = transcripcion.slice(cortIdx + 1).map((m) => m.contenido).join("\n")
             const inicio = Date.now()
 

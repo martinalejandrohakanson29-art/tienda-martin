@@ -18,6 +18,7 @@ import {
   Package,
   History,
   CheckCircle,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -395,7 +396,7 @@ export function ListadoVentasTab({
               <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-xs">
                 <TableRow>
                   <TableHead className="w-10"></TableHead>
-                  <TableHead className="text-xs font-bold uppercase py-2.5">Venta / Fecha</TableHead>
+                  <TableHead className="text-xs font-bold uppercase py-2.5">Venta / Fecha y Hora</TableHead>
                   <TableHead className="text-xs font-bold uppercase py-2.5">Cliente</TableHead>
                   <TableHead className="text-xs font-bold uppercase py-2.5">Método de Pago</TableHead>
                   <TableHead className="text-xs font-bold uppercase py-2.5">Pto. Venta</TableHead>
@@ -454,13 +455,27 @@ export function ListadoVentasTab({
                                   </Badge>
                                 )}
                               </div>
-                              <span className="text-slate-400 text-[11px]">
-                                {new Date(v.createdAt).toLocaleDateString("es-AR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                })}
-                              </span>
+                              {v.createdAt ? (
+                                <div className="flex items-center gap-1.5 text-slate-400 text-[11px] whitespace-nowrap">
+                                  <span>
+                                    {new Date(v.createdAt).toLocaleDateString("es-AR", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      year: "numeric",
+                                    })}
+                                  </span>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="inline-flex items-center gap-0.5 text-slate-500 font-mono">
+                                    <Clock className="h-3 w-3 text-slate-400 shrink-0" />
+                                    {new Date(v.createdAt).toLocaleTimeString("es-AR", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })} hs
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-[11px]">-</span>
+                              )}
                             </div>
                           </TableCell>
 

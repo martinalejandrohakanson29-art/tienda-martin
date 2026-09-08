@@ -615,5 +615,67 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Es un anuncio de otro producto: la ficha del kit 200 sí va. Lo que no puede es cerrar preguntando la moto, que el cliente ya dijo."
         }
+    },
+    {
+        // Conv 3448 (07/09). El bot le ofrece al cliente identificar el recorrido
+        // por el color del cilindro; el cliente contesta con esa pista y el bot
+        // le repite la MISMA pregunta (tres veces seguidas). Era un hueco de
+        // datos: `sinonimos_variante` no cubría el vocabulario que el propio bot
+        // ofrece. Ver n8n-workflows/chat-variantes-sinonimos-pistas.sql
+        id: "caso-37-variante-por-pista-de-color",
+        titulo: "Contesta la variante con la pista que el bot le dio (color del cilindro)",
+        mensajeCliente: "Hola, el cilindro es color plateado",
+        estadoInicial: {
+            grupoPineado: { id: 1, nombre: "Kit 120 para 110" },
+            motoConfirmada: "Zanella ZB 110"
+        },
+        historial: [
+            { rol: "user", contenido: "Quiero potenciar mi Zanella zb 110" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Sabés si tu moto es recorrido corto o largo?\n\nSi no sabés, fijate así:\n👉🏼 Si el cilindro es negro fundición generalmente es corto; si es color aluminio plateado es largo.\n👉🏼 O contá los dientes de la corona: 28 dientes = corto, 32 dientes = largo."
+            }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["resolver_variante"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Tiene que resolver a LARGO y dar el precio, no repreguntar.
+            patronRespuesta: /115\.000|largo/i,
+            patronProhibido: /sab[eé]s si tu moto es recorrido corto o largo/i,
+            descripcionEsperada:
+                "'Plateado' es la pista que el propio bot le dio para 'largo'. Debe resolver la variante y pasar el precio, NO repetir la pregunta."
+        }
+    },
+    {
+        // Conv 3515 (07/09). "Blizt 2025" matcheaba una fila de compatibilidad
+        // cuyo modelo_moto era solo la marca ("motomel"), porque el nombre
+        // canónico de todos los Motomel la contiene. Resultado: se confirmaba
+        // "COMPATIBLE con motomel" y quedaba moto_confirmada="motomel" en el
+        // estado, que después se le decía al cliente ("para la Motomel").
+        id: "caso-38-typo-de-modelo-resuelve-al-modelo-no-a-la-marca",
+        titulo: "Typo del modelo (Blizt) resuelve al modelo real, no a la marca suelta",
+        mensajeCliente: "A un blizt 2025",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Lo grave era la contradicción: confirmar compatible y minutos
+            // después decir que no entra. No puede negar la compatibilidad acá.
+            patronProhibido: /(no es compatible|no le va|alesar)/i,
+            descripcionEsperada:
+                "La Motomel Blitz 110 SÍ es compatible con este combo. El typo 'blizt' debe resolver a ese modelo, no a la fila de marca 'motomel' ni a una moto de otra marca."
+        }
     }
 ]

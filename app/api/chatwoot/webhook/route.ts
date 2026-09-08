@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { guardarConversacionesEnEspejo } from "@/lib/chatwoot-chats-vivo"
 import { emitirEventoChatwoot, type EventoChatwootEnVivo } from "@/lib/chatwoot-events"
-import { calcularBotPausadoDesdeHistorial, chatwootConfig } from "@/lib/chatwoot-bot"
+import { calcularBotPausadoDesdeHistorial, chatwootConfig, esPlaceholderDeChatwoot } from "@/lib/chatwoot-bot"
 import {
     botAgenteGlobalActivo,
     esConversacionPiloto,
@@ -89,7 +89,11 @@ export async function POST(req: Request) {
             // faltaba, este bloque entero no se ejecutaba — el piloto nunca
             // recibió un turno por webhook y la cola no drenaba (07/09).
             const esDeCliente = !mensajeEntrante?.private
-            const textoEntrante = (mensajeEntrante?.content || "").toString().trim()
+            const textoCrudo = (mensajeEntrante?.content || "").toString().trim()
+            // "This message is unavailable." y similares son un cartel de
+            // Chatwoot, no algo que el cliente escribió: se tratan como si no
+            // hubiera texto (mismo camino que un adjunto sin caption).
+            const textoEntrante = esPlaceholderDeChatwoot(textoCrudo) ? "" : textoCrudo
 
             console.log(
                 `[webhook bot-agente] conv=${conversationId} event=${eventoNombre} mtype=${JSON.stringify(mensajeEntrante?.message_type)} priv=${mensajeEntrante?.private} senderType=${JSON.stringify(mensajeEntrante?.sender?.type)} entrante=${esEntrante} cliente=${esDeCliente} texto=${textoEntrante.length}`

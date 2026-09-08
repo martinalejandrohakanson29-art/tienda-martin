@@ -47,6 +47,32 @@ export type HorarioDia = {
     cierraMinutosTarde: number | null
 }
 
+/**
+ * Textos que Chatwoot pone EN LUGAR del mensaje cuando no lo puede mostrar
+ * (media que no pudo bajar, mensaje borrado, tipo no soportado). NO los escribió
+ * el cliente: son un cartel de la plataforma.
+ *
+ * Sin este filtro entraban al motor como si fueran la consulta del cliente. En
+ * la conv 3515 (07/09) "This message is unavailable." disparó un turno completo
+ * que terminó afirmándole al cliente que su moto NO era compatible.
+ */
+const PLACEHOLDERS_CHATWOOT = [
+    /^this message is unavailable\.?$/i,
+    /^this message was deleted\.?$/i,
+    /^message unavailable\.?$/i,
+    /^unsupported message type\.?$/i,
+    /^este mensaje no est[áa] disponible\.?$/i,
+    /^este mensaje fue eliminado\.?$/i,
+    /^mensaje no soportado\.?$/i,
+]
+
+/** ¿El texto es un cartel de Chatwoot y no algo que escribió el cliente? */
+export function esPlaceholderDeChatwoot(texto: string | null | undefined): boolean {
+    const t = (texto || "").trim()
+    if (!t) return false
+    return PLACEHOLDERS_CHATWOOT.some((rx) => rx.test(t))
+}
+
 export function chatwootConfig() {
     const api = process.env.CHATWOOT_API_URL || "https://chat.revolucionmotos.tech/api/v1"
     const token = process.env.CHATWOOT_API_TOKEN || ""

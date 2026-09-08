@@ -347,6 +347,26 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             SELECT id, nombre_completo, aliases FROM motos_modelos;
         `.catch(() => [])
 
+        // Marcas conocidas ("Motomel", "Honda", "Zanella"...). Una fila de
+        // compatibilidad que SOLO nombra la marca no puede confirmar ni negar un
+        // modelo concreto: el nombre canónico de todos los modelos de esa marca
+        // la contiene ("Motomel Blitz 110".includes("motomel")), así que sin este
+        // filtro una sola fila de marca decide por toda la marca.
+        // Real: la fila 119 de `compatibilidades` ("motomel" -> compatible con el
+        // combo Tapa CDI) hacía que "Blizt 2025" respondiera "CONFIRMADO: Es
+        // COMPATIBLE con motomel", y encima dejaba moto_confirmada="motomel" en
+        // el estado, que después se le decía al cliente ("para la Motomel").
+        const marcasConocidas = new Set(
+            (
+                await prisma.$queryRaw<{ marca: string | null }[]>`
+                    SELECT DISTINCT marca FROM motos_modelos WHERE marca IS NOT NULL
+                `.catch(() => [])
+            )
+                .map((m) => normalizarTexto(m.marca || ""))
+                .filter((m) => m.length >= 3)
+        )
+        const esSoloMarca = (texto: string) => marcasConocidas.has(normalizarTexto(texto))
+
         const motoCanonicaResuelta = resolverMotoCanonica(args.modelo_moto, motosCanonicas)
 
         // Buscamos coincidencia con puntuación
@@ -361,6 +381,14 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             }
 
             const regMotoNorm = normalizarTexto(reg.modelo_moto)
+
+            // Fila de MARCA sola: solo sirve si el cliente tampoco dio un modelo
+            // (dijo "tengo una Motomel" y nada más). Si el cliente nombró un
+            // modelo, esta fila no puede hablar por él.
+            if (esSoloMarca(regMotoNorm) && !esSoloMarca(args.modelo_moto)) {
+                continue
+            }
+
             const tokensReg = regMotoNorm.split(" ").filter((p) => p.length >= 2)
             const distintivasReg = tokensReg.filter((w) => !palabrasIgnoradas.has(w) && isNaN(Number(w)))
 

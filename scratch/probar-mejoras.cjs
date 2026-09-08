@@ -137,6 +137,18 @@ console.log("\n== saludo suelto a mitad de charla ==")
     check("en el primer turno el saludo se conserva", /como va/i.test(t1), t1)
 }
 
+console.log("\n== esPlaceholderDeChatwoot ==")
+{
+    const { esPlaceholderDeChatwoot } = jiti("../lib/chatwoot-bot.ts")
+    check("reconoce 'This message is unavailable.'", esPlaceholderDeChatwoot("This message is unavailable."))
+    check("reconoce sin punto final", esPlaceholderDeChatwoot("This message is unavailable"))
+    check("reconoce 'This message was deleted'", esPlaceholderDeChatwoot("This message was deleted"))
+    check("reconoce la variante en español", esPlaceholderDeChatwoot("Este mensaje no está disponible."))
+    check("NO toca un mensaje real del cliente", !esPlaceholderDeChatwoot("el cilindro es color plateado"))
+    check("NO toca un mensaje que solo menciona 'mensaje'", !esPlaceholderDeChatwoot("te mandé un mensaje antes, lo viste?"))
+    check("tolera vacío", !esPlaceholderDeChatwoot("") && !esPlaceholderDeChatwoot(null))
+}
+
 console.log("\n== quitarPreguntaDeMotoFinal ==")
 {
     // Texto real del Kit 170 (chat_packs.mensaje_bienvenida, id 11).
@@ -180,5 +192,50 @@ console.log("\n== calcularEsperaCadenciaHumanaMs (regresión) ==")
     check("nunca más que el máximo", calcularEsperaCadenciaHumanaMs(50, 70, 0, 1) === 70000)
 }
 
-console.log(`\n${pasados}/${pasados + fallados} OK  (${fallados} fallados)`)
-process.exit(fallados === 0 ? 0 : 1)
+// ── Invariante de datos: el bot tiene que ENTENDER lo que él mismo pregunta ──
+// Si `pregunta_variante` / `pregunta_variante_reintento` le ofrece al cliente
+// una pista numérica ("28 dientes es corto, 32 es largo", "leva corta (69mm)"),
+// ese número TIENE que estar en los `sinonimos_variante` de alguna variante del
+// grupo. Sin esto le pedimos al cliente que conteste en un idioma que después
+// no interpretamos: pasó en la conv 3448 y el bot repitió la misma pregunta 3
+// veces. Este check corre gratis y avisa apenas alguien edita un texto.
+async function chequearPistasCubiertas() {
+    console.log("\n== pistas de las preguntas de variante cubiertas por sinónimos ==")
+    const { Client } = require("pg")
+    const c = new Client({ connectionString: process.env.DATABASE_URL })
+    await c.connect()
+    try {
+        const grupos = await c.query(
+            `SELECT id, nombre, coalesce(pregunta_variante,'') || ' ' || coalesce(pregunta_variante_reintento,'') txt
+             FROM chat_pack_grupos WHERE activo = true ORDER BY id`
+        )
+        for (const g of grupos.rows) {
+            const packs = await c.query(
+                `SELECT sinonimos_variante FROM chat_packs WHERE grupo_id = $1 AND activo = true`,
+                [g.id]
+            )
+            const cubiertos = new Set()
+            for (const p of packs.rows) for (const s of p.sinonimos_variante || []) {
+                for (const n of String(s).match(/\d+/g) || []) cubiertos.add(n)
+            }
+            const mencionados = [...new Set((g.txt.match(/\b\d{2,3}\b/g) || []))]
+                // Los precios y las cilindradas del texto no son pistas de variante.
+                .filter((n) => !["110", "120", "125", "150", "170", "200", "220"].includes(n))
+            const faltantes = mencionados.filter((n) => !cubiertos.has(n))
+            check(
+                `[${g.id}] ${g.nombre}: pistas numéricas entendibles`,
+                faltantes.length === 0,
+                faltantes.length ? `menciona ${faltantes.join(", ")} pero ninguna variante los tiene como sinónimo` : undefined
+            )
+        }
+    } finally {
+        await c.end()
+    }
+}
+
+chequearPistasCubiertas()
+    .catch((e) => { fallados++; console.log(`  FAIL  chequeo de pistas: ${e.message}`) })
+    .then(() => {
+        console.log(`\n${pasados}/${pasados + fallados} OK  (${fallados} fallados)`)
+        process.exit(fallados === 0 ? 0 : 1)
+    })

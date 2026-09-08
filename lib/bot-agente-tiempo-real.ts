@@ -7,6 +7,7 @@ import {
     enviarImagenChatwoot,
     enviarMensajeChatwoot,
     enviarNotaPrivadaChatwoot,
+    esPlaceholderDeChatwoot,
 } from "@/lib/chatwoot-bot"
 import { ejecutarTurnoAgente } from "@/bot-agente/motor"
 import { escalarAHumano } from "@/bot-agente/herramientas/escalar-humano"
@@ -172,7 +173,9 @@ async function traerTranscripcion(accountId: number, conversationId: number): Pr
                 delBot: saliente && Number(m?.sender?.id) === botUserId,
             }
         })
-        .filter((m) => m.contenido.length > 0 && !m.privado)
+        // Los carteles de Chatwoot ("This message is unavailable.") no son parte
+        // de la charla: fuera del historial y fuera de lo que se responde.
+        .filter((m) => m.contenido.length > 0 && !m.privado && !esPlaceholderDeChatwoot(m.contenido))
         .sort((a, b) => a.creadoEn - b.creadoEn)
 }
 

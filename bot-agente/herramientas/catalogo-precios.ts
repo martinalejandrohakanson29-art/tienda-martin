@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
 
 export interface ArgsCatalogoPrecios {
     termino_busqueda?: string
     pack_id?: number
     grupo_id?: number
+    /**
+     * Lo inyecta el motor (no el LLM): en qué punto del embudo está la charla.
+     * Ver `ContextoEjecucion.embudo` en herramientas/index.ts.
+     */
+    __embudo?: EstadoEmbudo
 }
 
 export interface PackInfo {
@@ -382,13 +388,33 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             }
         }
 
-        // Caso de 1 sola opción: Entregar la ficha completa con variantes y detalles oficiales
-        const lineas: string[] = ["CATÁLOGO OFICIAL:"]
+        // Caso de 1 sola opción: Entregar la ficha completa con variantes y detalles oficiales.
+        //
+        // Salvo que el kit YA se le haya presentado al cliente en esta charla
+        // (`__embudo`): ahí la herramienta entrega datos secos en vez del libreto
+        // de bienvenida. Si no, ante una pregunta puntual ("ya viene listo para
+        // colocar?") el modelo obedece la guía del paso y re-manda la ficha
+        // entera, con precio y foto incluidos (conv 2763, 08/09).
+        const embudo = args.__embudo || {}
+        const grupoYaPresentado = (g: { id: number }) => embudo.grupoPineadoId === g.id
+        const packYaPresentado = (pk: { id: number }) => embudo.packPresentadoId === pk.id
+        const todoYaPresentado =
+            packsFiltrados.every(packYaPresentado) && gruposFiltrados.every(grupoYaPresentado)
+
+        const lineas: string[] = [
+            todoYaPresentado
+                ? "CATÁLOGO OFICIAL (DATOS SECOS — NO es un paso de presentación):"
+                : "CATÁLOGO OFICIAL:"
+        ]
 
         for (const p of packsFiltrados) {
             lineas.push(`• Kit Simple: "${p.nombre}" (ID: ${p.id})`)
             lineas.push(`   - Precio: ${formatearPrecio(p.precio)}${p.envio ? ` - Envío: ${p.envio}` : " - Envío gratis a todo el país"}`)
-            if (p.mensaje_bienvenida) {
+            if (packYaPresentado(p)) {
+                lineas.push(`   - YA PRESENTADO: el cliente ya recibió en esta charla la ficha completa, la foto y el precio de este kit.`)
+                lineas.push(`   - PROHIBIDO reenviar el mensaje de bienvenida, la lista de "qué incluye", la foto o repetir el precio que ya le diste.`)
+                lineas.push(`   - Estos datos son SOLO para que contestes con precisión lo que el cliente preguntó recién: contestá eso en 1 o 2 renglones y cerrá corto.`)
+            } else if (p.mensaje_bienvenida) {
                 lineas.push(`   - Mensaje oficial cargado en la app (respetar formato, listas y datos técnicos; si la charla ya está en curso, OMITIR el saludo inicial):\n${p.mensaje_bienvenida.trim()}`)
             }
             if (p.articulos_sueltos && p.articulos_sueltos.length > 0) {
@@ -409,17 +435,33 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 "Envío gratis a todo el país!"
             ].join("\n")
 
-            lineas.push(`   - PASO 2 (el cliente ya eligió este combo pero NO dio su moto ni su variante).`)
-            if (g.mensaje_bienvenida) {
-                lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (mandá el mensaje oficial tal cual, respetando saltos de renglón y viñetas; si la charla ya está en curso OMITÍ el saludo inicial y NADA MÁS):`)
-                lineas.push(g.mensaje_bienvenida.trim())
+            if (grupoYaPresentado(g)) {
+                // El combo ya se presentó (lo pineó una tool de un turno anterior
+                // o el equipo lo mandó a mano desde el panel de chats en vivo).
+                // Nada de libreto de bienvenida: datos secos para contestar lo
+                // puntual que preguntó el cliente.
+                lineas.push(`   - YA PRESENTADO: el cliente ya recibió en esta charla la ficha, la foto y las opciones con precio de este combo.`)
+                lineas.push(`   - PROHIBIDO reenviar el mensaje de bienvenida, la lista de "qué incluye", la foto o volver a listar las variantes.`)
+                if (embudo.varianteResuelta) {
+                    lineas.push(`   - Variante YA definida: "${embudo.varianteResuelta.etiqueta}" ${formatearPrecio(embudo.varianteResuelta.precio)} con envío gratis. Ya se lo dijiste: NO se lo repitas salvo que él pregunte el precio de nuevo.`)
+                } else {
+                    lineas.push(`   - Precios de referencia (solo por si el cliente vuelve a preguntar el precio): ${g.variantes.map((v) => `${v.criterio_variante || v.nombre} ${formatearPrecio(v.precio)}`).join(" / ")}.`)
+                }
+                lineas.push(`   - Estos datos son SOLO para que contestes con precisión lo que el cliente preguntó recién: contestá eso en 1 o 2 renglones y cerrá corto.`)
+                lineas.push(`   - Si el cliente vuelve a hablar de su moto o de la variante, usá resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo.`)
             } else {
-                lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (respetá cada 👉🏼 en su renglón):`)
-                lineas.push(`${bloqueVariantes}\n\nPara qué moto lo estás buscando?`)
+                lineas.push(`   - PASO 2 (el cliente ya eligió este combo pero NO dio su moto ni su variante).`)
+                if (g.mensaje_bienvenida) {
+                    lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (mandá el mensaje oficial tal cual, respetando saltos de renglón y viñetas; si la charla ya está en curso OMITÍ el saludo inicial y NADA MÁS):`)
+                    lineas.push(g.mensaje_bienvenida.trim())
+                } else {
+                    lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (respetá cada 👉🏼 en su renglón):`)
+                    lineas.push(`${bloqueVariantes}\n\nPara qué moto lo estás buscando?`)
+                }
+                lineas.push(`   - Precios de referencia (por si necesitás confirmarlos): ${g.variantes.map((v) => `${v.criterio_variante || v.nombre} ${formatearPrecio(v.precio)}`).join(" / ")}.`)
+                lineas.push(`   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`)
+                lineas.push(`   - En cuanto el cliente diga su moto O su variante (corto/largo/etc.), usá SIEMPRE resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo, NUNCA redactes el precio de memoria. Hacé lo que devuelva.`)
             }
-            lineas.push(`   - Precios de referencia (por si necesitás confirmarlos): ${g.variantes.map((v) => `${v.criterio_variante || v.nombre} ${formatearPrecio(v.precio)}`).join(" / ")}.`)
-            lineas.push(`   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`)
-            lineas.push(`   - En cuanto el cliente diga su moto O su variante (corto/largo/etc.), usá SIEMPRE resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo, NUNCA redactes el precio de memoria. Hacé lo que devuelva.`)
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of g.articulos_sueltos) {
@@ -430,15 +472,19 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             lineas.push("")
         }
 
-        lineas.push(`⚠️ REGLA COMERCIAL PARA PIEZAS SUELTAS / ARTÍCULOS POR SEPARADO:`)
-        lineas.push(`- Una consulta por pieza suelta requiere que el cliente EXPLÍCITAMENTE use palabras como "sola", "solo", "suelto", "separado", "nomás" (ej: "la tapa sola cuánto sale?", "vendés el carburador solo?").`)
-        lineas.push(`- Si el bot le preguntó qué opción busca y el cliente responde "tapa cdi", "el de tapa cdi" o "con tapa", EL CLIENTE ESTÁ ELIGIENDO EL COMBO COMPLETO, NO PIDIENDO UNA PIEZA SUELTA. En ese caso entregá la bienvenida y precios del combo completo (Paso 2). ¡PROHIBIDO responder con la pieza suelta si no dijo "sola"!`)
-        lineas.push(`- Si el cliente efectivamente pregunta expresamente por una pieza SOLA por separado:`)
-        lineas.push(`  1. Respondé ÚNICAMENTE su nombre comercial y el precio (ej: "La Tapa CDI 125 sola cuesta $124.999 con las dos coronitas de regalo").`)
-        lineas.push(`  2. CERO VOLCADO DE FICHA TÉCNICA: NO expliques válvulas, conductos, cielo, milímetros ni detalles técnicos a menos que el cliente haya preguntado específicamente sobre eso.`)
-        lineas.push(`  3. Podés invitar amablemente a coordinar: "Si te interesa avisame y coordinamos!"`)
-        lineas.push(`  4. ¡PROHIBIDO repetir el mensaje de bienvenida del combo completo cuando preguntan por una pieza suelta!`)
-        lineas.push(`  5. Solo podés ofrecer piezas sueltas que pertenezcan al kit del cual se está hablando en la conversación.`)
+        if (todoYaPresentado) {
+            lineas.push(`⚠️ PIEZAS SUELTAS: solo si el cliente las pide con palabras explícitas ("sola", "solo", "suelto", "separado", "nomás"). En ese caso, nombre comercial y precio, sin ficha técnica y sin repetir el combo completo.`)
+        } else {
+            lineas.push(`⚠️ REGLA COMERCIAL PARA PIEZAS SUELTAS / ARTÍCULOS POR SEPARADO:`)
+            lineas.push(`- Una consulta por pieza suelta requiere que el cliente EXPLÍCITAMENTE use palabras como "sola", "solo", "suelto", "separado", "nomás" (ej: "la tapa sola cuánto sale?", "vendés el carburador solo?").`)
+            lineas.push(`- Si el bot le preguntó qué opción busca y el cliente responde "tapa cdi", "el de tapa cdi" o "con tapa", EL CLIENTE ESTÁ ELIGIENDO EL COMBO COMPLETO, NO PIDIENDO UNA PIEZA SUELTA. En ese caso entregá la bienvenida y precios del combo completo (Paso 2). ¡PROHIBIDO responder con la pieza suelta si no dijo "sola"!`)
+            lineas.push(`- Si el cliente efectivamente pregunta expresamente por una pieza SOLA por separado:`)
+            lineas.push(`  1. Respondé ÚNICAMENTE su nombre comercial y el precio (ej: "La Tapa CDI 125 sola cuesta $124.999 con las dos coronitas de regalo").`)
+            lineas.push(`  2. CERO VOLCADO DE FICHA TÉCNICA: NO expliques válvulas, conductos, cielo, milímetros ni detalles técnicos a menos que el cliente haya preguntado específicamente sobre eso.`)
+            lineas.push(`  3. Podés invitar amablemente a coordinar: "Si te interesa avisame y coordinamos!"`)
+            lineas.push(`  4. ¡PROHIBIDO repetir el mensaje de bienvenida del combo completo cuando preguntan por una pieza suelta!`)
+            lineas.push(`  5. Solo podés ofrecer piezas sueltas que pertenezcan al kit del cual se está hablando en la conversación.`)
+        }
 
         return {
             encontrado: true,

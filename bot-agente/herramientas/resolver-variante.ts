@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
 import { consultarCompatibilidad } from "./compatibilidad"
 
@@ -29,6 +30,8 @@ export interface ArgsResolverVariante {
     mensaje_cliente: string // lo último que dijo el cliente
     modelo_moto?: string    // si lo dijo
     cliente_no_sabe?: boolean // true si el cliente dijo que no sabe / cómo se fija
+    /** Lo inyecta el motor (no el LLM). Ver `ContextoEjecucion.embudo`. */
+    __embudo?: EstadoEmbudo
 }
 
 export interface ResultadoResolverVariante {
@@ -280,7 +283,13 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 variante_pack_id: v.id,
                 etiqueta: v.etiqueta,
                 precio: v.precio,
-                mensaje_para_agente: `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente. No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
+                mensaje_para_agente:
+                    args.__embudo?.varianteResuelta?.packId === v.id
+                        // Ya estaba resuelta de antes: el cliente ya escuchó esta
+                        // opción con su precio. Re-confirmarla es el arranque de
+                        // la respuesta larga que no venía a cuento (conv 2763).
+                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.`
+                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente. No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
             }
         }
         if (hits.length > 1) {

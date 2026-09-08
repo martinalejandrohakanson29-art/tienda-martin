@@ -627,7 +627,18 @@ export async function ejecutarTurnoAgente(
                     temasYaRespondidos: [
                         ...(estadoConv.temasRespondidos || []),
                         ...(patchEstado.temasRespondidos || [])
-                    ]
+                    ],
+                    // Punto del embudo: SOLO lo que venía de turnos anteriores
+                    // (`estadoConv`), nunca lo que se resolvió recién en este
+                    // turno. "Ya presentado" significa "el cliente ya lo leyó";
+                    // si en la primera vuelta `resolver_variante` pinea el combo
+                    // y en la segunda se consulta el catálogo, la ficha todavía
+                    // no salió y hay que entregarla.
+                    embudo: {
+                        grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
+                        packPresentadoId: estadoConv.packPresentado?.id ?? null,
+                        varianteResuelta: estadoConv.varianteResuelta ?? null
+                    }
                 })
                 herramientasEjecutadas.push(ejecucion)
 

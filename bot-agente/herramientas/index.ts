@@ -27,6 +27,26 @@ export interface ContextoEjecucion {
      * el bloque entero.
      */
     temasYaRespondidos?: string[]
+    /**
+     * En qué punto del embudo está la conversación (del estado persistente).
+     * Lo inyecta el motor, el LLM no lo ve ni lo puede falsear.
+     *
+     * Sin esto, `consultar_catalogo_y_precios` devolvía SIEMPRE el libreto de
+     * presentación ("PASO 2 — mandá el mensaje oficial tal cual") aunque el
+     * cliente ya tuviera la ficha, la foto y el precio desde hace 3 mensajes:
+     * la herramienta no sabía en qué punto de la charla estaba y el modelo le
+     * hace más caso a la guía de la herramienta que al "no repitas" del prompt.
+     * Mismo principio que `temasYaRespondidos` para `consultar_info_negocio`.
+     * Ver conv 2763 (08/09).
+     */
+    embudo?: EstadoEmbudo
+}
+
+/** Lo que ya quedó firme en la charla, para que las tools no re-presenten. */
+export interface EstadoEmbudo {
+    grupoPineadoId?: number | null
+    packPresentadoId?: number | null
+    varianteResuelta?: { packId: number; etiqueta: string; precio: number } | null
 }
 
 /**
@@ -64,6 +84,13 @@ export async function ejecutarHerramienta(
     // persistente), no el modelo. Sin esto la herramienta re-vuelca el bloque.
     if (nombre === "consultar_info_negocio") {
         argsParsed.__temas_ya_respondidos = contexto.temasYaRespondidos || []
+    }
+
+    // Idem con el punto del embudo: las tools de catálogo y de variante cambian
+    // su guía cuando el kit YA se presentó o la variante YA está resuelta, para
+    // no volver a mandar la ficha entera ante una pregunta puntual.
+    if (nombre === "consultar_catalogo_y_precios" || nombre === "resolver_variante") {
+        argsParsed.__embudo = contexto.embudo || {}
     }
 
     const resultado = await ejecutor.ejecutar(argsParsed)

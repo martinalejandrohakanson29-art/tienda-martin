@@ -26,6 +26,7 @@ import {
     type MensajeConversacion,
 } from "@/lib/chatwoot-bot"
 import { emitirEventoChatwoot } from "@/lib/chatwoot-events"
+import { guardarEstadoConversacion } from "@/bot-agente/nucleo/estado-persistente"
 import { TEMAS_NEGOCIO } from "@/lib/temas-negocio"
 
 // La app no puede hablarle directo al Redis del bot (firewall de IP), así que
@@ -212,6 +213,46 @@ export async function enviarNotaInternaChatVivo(
     return { success: true, mensaje }
 }
 
+/**
+ * Marca en `chat_conversacion_estado` que este kit ya se le presentó al cliente,
+ * usando la misma clave que el motor (`String(conversationId)`). Si el pack
+ * pertenece a un grupo de variantes se pinea el GRUPO (es lo que el cliente vio
+ * como combo); si es un kit suelto se marca como pack presentado.
+ *
+ * Best-effort: si falla, el envío del mensaje no se cae por esto.
+ */
+async function sembrarKitPresentadoEnMemoria(conversationId: number, packId: number): Promise<void> {
+    try {
+        const filas = await prisma.$queryRaw<
+            { id: number; nombre: string; precio: number | string | null; grupo_id: number | null; grupo_nombre: string | null }[]
+        >`
+            SELECT cp.id, cp.nombre, cp.precio, cp.grupo_id, g.nombre AS grupo_nombre
+            FROM chat_packs cp
+            LEFT JOIN chat_pack_grupos g ON g.id = cp.grupo_id
+            WHERE cp.id = ${packId}
+            LIMIT 1
+        `
+        const pack = filas?.[0]
+        if (!pack) return
+
+        if (pack.grupo_id) {
+            await guardarEstadoConversacion(String(conversationId), {
+                grupoPineado: { id: Number(pack.grupo_id), nombre: pack.grupo_nombre || pack.nombre },
+            })
+        } else {
+            await guardarEstadoConversacion(String(conversationId), {
+                packPresentado: {
+                    id: Number(pack.id),
+                    nombre: pack.nombre,
+                    precio: pack.precio != null ? Number(pack.precio) : 0,
+                },
+            })
+        }
+    } catch (error) {
+        console.error("No se pudo sembrar el kit presentado en la memoria del bot-agente:", error)
+    }
+}
+
 export type KitEnvioRapido = {
     id: number
     nombre: string
@@ -372,6 +413,17 @@ export async function enviarMensajeComposerChatVivo(params: {
             avisoFoto = error instanceof Error ? error.message : "No se pudo mandar la imagen"
             console.error("No se pudo mandar la imagen (composer chats-vivo):", error)
         }
+    }
+
+    if (kit) {
+        // Sembrar la memoria del bot-agente: para el motor, un kit que mandó el
+        // equipo a mano es un kit YA PRESENTADO. Sin esto la conversación le
+        // llega con la memoria en blanco y, ante la primera pregunta puntual,
+        // vuelve a mandar la ficha entera con precio y foto (conv 2763, 08/09).
+        // NO se marca la variante como resuelta: que el equipo mande la info de
+        // una variante no significa que el cliente la haya elegido, y dar por
+        // definida la variante equivocada vende el producto equivocado.
+        await sembrarKitPresentadoEnMemoria(conversationId, kit.id)
     }
 
     let avisoPin: string | null = null

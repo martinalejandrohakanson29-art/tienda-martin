@@ -19,6 +19,7 @@ export interface CasoPrueba {
         motoConfirmada?: string
         packPresentado?: { id: number; nombre: string; precio: number }
         grupoPineado?: { id: number; nombre: string }
+        varianteResuelta?: { packId: number; etiqueta: string; precio: number }
         temasRespondidos?: string[]
     }
     resultadoEsperado: {
@@ -676,6 +677,48 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             patronProhibido: /(no es compatible|no le va|alesar)/i,
             descripcionEsperada:
                 "La Motomel Blitz 110 SÍ es compatible con este combo. El typo 'blizt' debe resolver a ese modelo, no a la fila de marca 'motomel' ni a una moto de otra marca."
+        }
+    },
+    {
+        // Conv 2763 (08/09). Con el combo ya presentado y la variante ya
+        // resuelta, el cliente preguntó una sola cosa ("ya viene listo para
+        // colocar?") y el bot le re-mandó la ficha entera (nombre, precio,
+        // envío, lista de "qué incluye") + la foto de nuevo. Causa: la guía de
+        // `consultar_catalogo_y_precios` era siempre la del PASO 2 ("mandá el
+        // mensaje oficial tal cual"), porque la tool no sabía en qué punto de
+        // la charla estaba. Ahora el motor le pasa el embudo por contexto.
+        id: "caso-39-pregunta-puntual-no-re-presenta-el-combo",
+        titulo: "Pregunta puntual con el combo ya presentado: respuesta corta, sin ficha ni foto",
+        mensajeCliente: "Y ya viene listo para colocar en la moto?",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" },
+            varianteResuelta: { packId: 7, etiqueta: "Recorrido corto", precio: 175000 },
+            motoConfirmada: "Gilera Smash 110 Full"
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola como va! el combo de TAPA CDI + CILINDRO 120 + corona de distribucion de regalo, vienen 2 modelos, recorrido corto $175.000 y recorrido largo $189.000, envio gratis! A que moto se lo queres poner?"
+            },
+            { rol: "user", contenido: "Ah un Gilera smash 110 full" },
+            { rol: "assistant", contenido: "Genial, es compatible. Tu moto es recorrido corto o largo?" },
+            { rol: "user", contenido: "Sisi recorrido corto" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Genial, entonces le va perfecto el combo de Tapa CDI + Cilindro 120 recorrido corto — $175.000, envío gratis a todo el país. Si te interesa avisanos y coordinamos."
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Nada de re-presentar: ni el precio que ya dio, ni el "qué incluye",
+            // ni el envío gratis que ya nombró dos veces.
+            patronProhibido: /(175\.000|incluye:|env[ií]o gratis)/i,
+            descripcionEsperada:
+                "El embudo ya está cerrado. Debe contestar solo que viene listo para armar y que la colocación la hace su mecánico, en 1 o 2 renglones."
         }
     }
 ]

@@ -794,5 +794,44 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "La composicion oficial del kit dakar 200 no tiene leva. Debe decir que no viene incluida (puede aclarar que va aparte), sin re-mandar la ficha."
         }
+    },
+    {
+        // Conv 3677 (08/09). Combo elegido y moto confirmada; el bot pregunto el
+        // recorrido y el cliente contesto "No como se eso ?" -> le devolvio
+        // "Recorrido corto ($175.000) o Recorrido largo ($189.000)?" en vez de la
+        // guia de como fijarse, y lo repitio cuando el cliente insistio con "nose
+        // si lo tengo corta o larga". Hubo que apagar el bot y contestar a mano.
+        //
+        // Causa: en `resolver_variante` el chequeo de "el cliente nombro las dos
+        // variantes" (hits > 1) corria ANTES que el de `cliente_no_sabe` y lo
+        // pisaba. Un cliente que NO sabe casi siempre nombra las dos al negarlas
+        // ("no se si lo tengo corta o larga"), y para el matcher eso es
+        // indistinguible de nombrarlas a proposito.
+        id: "caso-42-no-sabe-la-variante-gana-sobre-ambiguo",
+        titulo: "No sabe que variante tiene: va la guia de como fijarse, no los precios otra vez",
+        mensajeCliente: "Si pero nose si lo tengo corta o larga",
+        estadoInicial: {
+            motoConfirmada: "zb 110"
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!"
+            },
+            { rol: "user", contenido: "Una zb 110" },
+            { rol: "assistant", contenido: "Perfecto para la ZB 110.\n\nSabés si tu motor es recorrido corto o largo?" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Alguna de las pistas de `pregunta_variante_reintento`.
+            patronRespuesta: /(fundici[oó]n|aluminio|plateado|dientes|corona)/i,
+            // Y no puede volver a tirarle los precios que ya le dio.
+            patronProhibido: /175\.?000|189\.?000/,
+            descripcionEsperada:
+                "El cliente dijo que NO SABE. Debe pasarle la guia de como fijarse (cilindro negro de fundicion = corto / aluminio plateado = largo, o 28 vs 32 dientes de la corona), sin repetir los precios."
+        }
     }
 ]

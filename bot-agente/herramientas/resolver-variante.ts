@@ -330,13 +330,29 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                         : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
             }
         }
-        if (hits.length > 1) {
-            const opciones = grupo.variantes.map((v) => `${v.etiqueta} (${formatearPrecio(v.precio)})`).join(" o ")
+        // El "no sé" GANA sobre el ambiguo. Un cliente que no sabe qué variante
+        // tiene casi siempre nombra las dos al negarlas ("no sé si lo tengo corta
+        // o larga"), y para `matchearVariantes` eso es indistinguible de alguien
+        // que nombró ambas a propósito: se comía el `cliente_no_sabe` y devolvía
+        // la repregunta con los precios en vez de la guía de cómo fijarse
+        // (conv 3677). Si dijo que no sabe, se sigue de largo hasta la guía.
+        if (hits.length > 1 && !clienteNoSabe) {
+            const opciones = grupo.variantes.map((v) => v.etiqueta).join(" o ")
+            // Sin precios: el cliente ya los escuchó al presentarle el combo, y
+            // repetirlos acá es justo lo que se lee como "me volvió a tirar el
+            // precio" en vez de ayudarlo a definir la variante.
+            const guiaAmbiguo = (grupo.pregunta_variante_reintento || "").trim()
             return {
                 encontrado: true,
                 resuelta: false,
                 grupo_id: grupo.id,
-                mensaje_para_agente: `TODAVIA NO. Lo que dijo el cliente no distingue una variante sola. Volvé a preguntar claro: ${opciones}?${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
+                pregunta_directa: guiaAmbiguo || undefined,
+                mensaje_para_agente: [
+                    `TODAVIA NO. El cliente nombró las dos opciones (${opciones}) pero no dijo cuál tiene.`,
+                    `Preguntále cuál de las dos es, con tu voz. NO repitas los precios: ya se los diste.`,
+                    guiaAmbiguo ? `Si no sabe cómo fijarse, pasale esta guía:\n${guiaAmbiguo}` : "",
+                    pideRecomendacion ? `\n${AVISO_NO_ES_PREFERENCIA}` : ""
+                ].filter(Boolean).join("\n")
             }
         }
 

@@ -381,9 +381,19 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 }
             }
 
-            // Incompatible SOLO si la moto es un modelo reconocido: para una moto
-            // inventada/desconocida no afirmamos "no te va", se escala.
-            if (compat.encontrado && compat.compatible === false && reconocida) {
+            // Incompatible SOLO si sabemos de qué moto habla el cliente: para una
+            // moto inventada/desconocida no afirmamos "no te va", se escala.
+            //
+            // "Saber" es o el catálogo `motos_modelos`, o un match LITERAL contra
+            // la tabla de compatibilidad. Las dos tablas no están sincronizadas:
+            // `motos_modelos` tiene 26 modelos y compat tiene filas curadas de
+            // motos que no están ahí (Biz, Crypton, Wave NF). Exigir solo el
+            // catálogo hacía que el bot escalara en silencio teniendo el veredicto
+            // y el motivo cargados — la Biz 105 de la conv 503, y 6 de los 16
+            // escalados por `moto_no_registrada` de la semana del 07/09.
+            // Una moto realmente inventada no llega acá: da `encontrado: false`.
+            const motoIdentificada = reconocida || compat.coincidencia_moto === "exacta"
+            if (compat.encontrado && compat.compatible === false && motoIdentificada) {
                 return {
                     encontrado: true,
                     resuelta: false,

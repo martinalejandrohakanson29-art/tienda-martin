@@ -23,6 +23,16 @@ export interface ResultadoCompatibilidad {
      *    los `candidatos`.
      */
     confianza?: "firme" | "parcial"
+    /**
+     * Qué tan literal fue el match de la moto contra la fila ganadora:
+     *  - "exacta": el modelo distintivo que dijo el cliente ("biz", "nf")
+     *    aparece TAL CUAL en la fila, o ambos resuelven al mismo modelo
+     *    canónico. La fila habla de la moto del cliente, no de una parecida.
+     *  - "aproximada": llegó por typo, abreviatura o tokens sueltos.
+     * Lo consume `resolver-variante` para decidir si se anima a negar la
+     * compatibilidad de una moto que no está en `motos_modelos`.
+     */
+    coincidencia_moto?: "exacta" | "aproximada"
     candidatos?: string[]
     detalle?: string | null
     mensaje_para_agente: string
@@ -454,8 +464,15 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         }
 
         // Marcas y palabras genéricas que a veces se cruzan o el LLM inventa
+        // Las marcas salen de `MARCAS_COMPAT`, la MISMA lista que usa el resto
+        // del archivo. Estaban duplicadas a mano y se desincronizaron: acá
+        // faltaban "bajaj" y "suzuki", así que "bajaj" contaba como palabra
+        // distintiva de modelo y una fila de "Bajaj Boxer 150" (compatible con
+        // el cilindro 120) le confirmaba compatibilidad a una Bajaj Rouser NS
+        // 200. Es el mismo agujero que el de los alias de marca (conv 3730),
+        // por la puerta de las dos marcas que faltaban.
         const palabrasIgnoradas = new Set([
-            "honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller", "brava", "mondial", "guerrero",
+            ...MARCAS_COMPAT,
             "moto", "cc", "para", "una", "el", "la", "todas", "las",
             ...palabrasVariante
         ])
@@ -501,6 +518,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         // Buscamos coincidencia con puntuación
         let mejorMatch: typeof registros[0] | null = null
         let maxScore = 0
+        /** ¿La fila ganadora nombra literalmente el modelo que dijo el cliente? */
+        let mejorCoincidenciaExacta = false
         /** Motivo de respaldo por veredicto, ver más abajo. */
         const respaldoDetalle = new Map<boolean, { score: number; detalle: string }>()
 
@@ -528,12 +547,16 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             // esto, una fila de otra moto del mismo combo pasaba el piso y el bot
             // confirmaba/negaba citando una moto que el cliente nunca nombró.
             let scoreMoto = 0
+            // El modelo distintivo del cliente aparece TAL CUAL en esta fila
+            // (no por typo ni por abreviatura). Ver `coincidencia_moto`.
+            let coincidenciaExacta = false
 
             // 0. Coincidencia a través de Modelo Canónico y sus Alias
             if (motoCanonicaResuelta) {
                 const regCanonica = resolverMotoCanonica(reg.modelo_moto, motosCanonicas)
                 if (regCanonica && regCanonica.id === motoCanonicaResuelta.id) {
                     scoreMoto += 80 // Ambas resuelven exactamente al mismo modelo canónico oficial
+                    coincidenciaExacta = true
                 } else {
                     const nombreCanNorm = normalizarTexto(motoCanonicaResuelta.nombre_completo)
                     // Contención por PALABRAS completas, no por substring suelto.
@@ -559,6 +582,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             // 1. Coincidencia exacta de texto (contención por palabras completas)
             if (motoBuscada === regMotoNorm) {
                 scoreMoto += 50
+                coincidenciaExacta = true
             } else if (
                 contieneComoTokens(regMotoNorm, motoBuscada) ||
                 contieneComoTokens(motoBuscada, regMotoNorm)
@@ -570,6 +594,9 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             for (const d of distintivasBuscadas) {
                 if (distintivasReg.includes(d) || tokensReg.some((t) => tokensDeModeloCoinciden(t, d))) {
                     scoreMoto += 30 // Puntuación muy alta por modelo clave
+                    // Literal: la fila dice "biz" y el cliente dijo "biz".
+                    // `tokensDeModeloCoinciden` tolera typos y NO cuenta acá.
+                    if (distintivasReg.includes(d)) coincidenciaExacta = true
                 }
             }
 
@@ -603,6 +630,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             if (score > maxScore) {
                 maxScore = score
                 mejorMatch = reg
+                mejorCoincidenciaExacta = coincidenciaExacta
             }
         }
 
@@ -650,6 +678,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 return {
                     encontrado: true,
                     modelo_moto_detectado: mejorMatch.modelo_moto,
+                    coincidencia_moto: mejorCoincidenciaExacta ? "exacta" : "aproximada",
                     kit: args.kit_nombre_o_id,
                     compatible: true,
                     detalle: mejorMatch.detalle,
@@ -678,6 +707,7 @@ REGLA DE MOSTRADOR (PASO 1 DEL EMBUDO - IDENTIFICAR EL COMBO):
                     return {
                         encontrado: true,
                         modelo_moto_detectado: mejorMatch.modelo_moto,
+                        coincidencia_moto: mejorCoincidenciaExacta ? "exacta" : "aproximada",
                         kit: mejorMatch.kit,
                         compatible: true,
                         detalle: mejorMatch.detalle,
@@ -705,6 +735,7 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
                 return {
                     encontrado: true,
                     modelo_moto_detectado: mejorMatch.modelo_moto,
+                    coincidencia_moto: mejorCoincidenciaExacta ? "exacta" : "aproximada",
                     kit: mejorMatch.kit,
                     compatible: true,
                     detalle: mejorMatch.detalle,
@@ -715,6 +746,7 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
             return {
                 encontrado: true,
                 modelo_moto_detectado: mejorMatch.modelo_moto,
+                coincidencia_moto: mejorCoincidenciaExacta ? "exacta" : "aproximada",
                 kit: mejorMatch.kit,
                 compatible: mejorMatch.compatible,
                 detalle: mejorMatch.detalle,

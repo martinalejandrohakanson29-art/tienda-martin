@@ -4,7 +4,9 @@ import { getInstagramGeneralDashboard } from "@/app/actions/instagram-dashboard"
 import { InstagramGeneralClient } from "./instagram-general-client"
 import { InstagramSalesClient } from "./instagram-sales-client"
 import { MarketingClient } from "./marketing-client"
+import { InstagramIaClient } from "./instagram-ia-client"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Sparkles } from "lucide-react"
 
 export default async function InstagramSalesPage() {
   // Traemos los datos de todas las secciones en paralelo
@@ -26,14 +28,18 @@ export default async function InstagramSalesPage() {
 
       <Tabs defaultValue="general" className="w-full space-y-6">
         <TabsList className="bg-white border shadow-sm p-1">
-          <TabsTrigger value="general" className="px-8 font-semibold data-[state=active]:bg-slate-100 data-[state=active]:text-slate-900">
+          <TabsTrigger value="general" className="px-6 font-semibold data-[state=active]:bg-slate-100 data-[state=active]:text-slate-900">
             Panel General Instagram
           </TabsTrigger>
-          <TabsTrigger value="marketing" className="px-8 font-semibold data-[state=active]:bg-slate-100">
+          <TabsTrigger value="marketing" className="px-6 font-semibold data-[state=active]:bg-slate-100">
             Tablero de Salud & Marketing
           </TabsTrigger>
-          <TabsTrigger value="ventas" className="px-8 font-semibold data-[state=active]:bg-slate-100">
+          <TabsTrigger value="ventas" className="px-6 font-semibold data-[state=active]:bg-slate-100">
             Ventas Instagram Directas
+          </TabsTrigger>
+          <TabsTrigger value="consulta-ia" className="px-6 font-semibold data-[state=active]:bg-purple-50 data-[state=active]:text-purple-900 flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            Consulta IA
           </TabsTrigger>
         </TabsList>
 
@@ -50,6 +56,13 @@ export default async function InstagramSalesPage() {
 
         <TabsContent value="ventas" className="space-y-4 border-none p-0 outline-none">
           <InstagramSalesClient data={salesData} />
+        </TabsContent>
+
+        <TabsContent value="consulta-ia" className="space-y-4 border-none p-0 outline-none">
+          <InstagramIaClient 
+            initialGeneralData={generalData}
+            initialMarketingData={marketingData}
+          />
         </TabsContent>
       </Tabs>
     </div>

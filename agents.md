@@ -33,7 +33,7 @@ Este proyecto existe para no repetir la explosión de nodos de n8n. **Un caso nu
 Siempre correr `pruebas/correr-banco.ts` antes de cerrar un cambio del bot.
 
 ### 1. Directorio y Componentes Clave
-- `bot-agente/motor.ts`: Núcleo de ejecución. Recibe mensaje + historial + `conversationId` opcional, inyecta contexto temporal de Córdoba, el bloque `MEMORIA DE ESTADO` y las situaciones detectadas, y maneja el ciclo ReAct (máx. 6 pasos, `fetch` con timeout 30s + 1 reintento).
+- `bot-agente/motor.ts`: Núcleo de ejecución. Recibe mensaje + historial + `conversationId` opcional y maneja el ciclo ReAct (máx. 6 pasos). El contexto temporal de Córdoba, el bloque `MEMORIA DE ESTADO`, el anuncio de origen y las situaciones detectadas van en un **segundo mensaje de sistema, después del historial** — NO arriba del prompt: ver §10. Cada paso se pide con `llamarLLM` (timeout 60s, 3 intentos con backoff ante 429/408/5xx, y salto al proveedor suplente si el principal se cae del todo).
 - `bot-agente/prompts/sistema.ts`: Prompt maestro ACOTADO (~60% más chico que antes): identidad, voz, puntuación WhatsApp, contrato de grounding y resumen del embudo. Nada de listas largas de casos.
 - `bot-agente/nucleo/`: núcleo compartido — `texto.ts` (normalización + `puntuarItemCatalogo`, antes duplicado) y `estado-persistente.ts` (memoria del embudo en `chat_conversacion_estado`).
 - `bot-agente/situaciones/index.ts`: lee `chat_situaciones` (con fallback en código si no existe la tabla) y devuelve las reglas cuyo disparador pega con el mensaje.
@@ -106,3 +106,26 @@ El bot atiende como un vendedor de mostrador de Córdoba: conciso, buena onda, s
   3. Queda prohibido indagar variantes de carrera/leva hasta que el combo principal esté seleccionado.
 
 
+
+### 10. Costo por Turno y Proveedor de Modelo
+Desde el 09/09 el proveedor es **`deepseek-v4-flash`** con **`gpt-5` de suplente**. Se eligió midiendo, no por precio de lista: DeepSeek puntúa 38-39/42 en el banco (gpt-5 da 41/42, gpt-5-mini 36/42) a ~30x menos costo que gpt-5.
+
+**Todo se cambia desde `chat_config`, sin deploy:**
+- `proveedor_activo` (`deepseek:deepseek-v4-flash`) — volver a gpt-5 es cambiar esta fila.
+- `proveedor_fallback` (`openai:gpt-5`) — retoma el turno donde quedó si el principal se cae. Vacío = sin red.
+- `reasoning_effort` (`low`) — solo aplica a gpt-5 y serie o. Un valor inválido (ej. `off`) hace que no se mande el parámetro y el proveedor use su default (`medium`).
+
+**Las tres reglas que NO hay que romper:**
+1. **Nada variable arriba del prompt de sistema.** El prefijo estable (prompt + definiciones de tools, ~3.400 tokens) se cachea al 90%. Meter ahí la hora, el estado o las situaciones lo rompe y duplica el costo de entrada. Por eso van en un segundo mensaje de sistema después del historial.
+2. **`reasoning_effort` en `low`.** En `medium` (el default del proveedor) gpt-5 quema ~2.400 tokens de razonamiento invisible por turno, cobrados a precio de salida. Era el 95% del output.
+3. **El costo NO es la métrica que decide un modelo: lo es la tasa de escalados.** Un modelo que escala de más cambia dólares de API por horas de mostrador. Es lo que descartó a gpt-5-mini, que era barato pero derivaba a un humano consultas que gpt-5 resolvía solo.
+
+**Cómo analizarlo (una sola instrucción):**
+```
+npx tsx scripts/comparar-modelos.ts 7   # costo + tasa de escalados por modelo y por día
+npx tsx scripts/costo-bot.ts 7          # desglose de costo, cache%, razon%, fallback
+npx tsx scripts/correr-banco.ts --modelo deepseek-v4-flash   # banco de regresión desde la CLI
+```
+En `costo-bot.ts` mirar `fallback` (si sube, el principal está fallando y lo cubre el caro), `cache%` (si se desploma, se rompió la regla 1) y `razon%`.
+
+Los tokens de cada turno quedan en `bot_agente_turnos_reales.tokens` (jsonb: prompt, cacheados, razonamiento, pasos, modelo, fallback). **Si se agrega un punto de registro de turno nuevo, pasarle `tokens`** o ese turno queda fuera del análisis de costo.

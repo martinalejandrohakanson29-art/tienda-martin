@@ -99,6 +99,26 @@ function coincideExacto(textoNorm: string, m: MotoCanonica): boolean {
  */
 function coincideFamilia(textoNorm: string, m: MotoCanonica): boolean {
     const palabras = palabrasModelo(m.nombre_completo)
+
+    // Alias COMPLETO (con sus números) presente como secuencia de palabras.
+    //
+    // La vía de abajo le saca los números al alias para reconocer la familia, y
+    // eso deja afuera a los modelos con nombre corto o alfanumérico: la Motomel
+    // S2 150 tiene "s2", "s2 150" y "s 2", que sin números quedan en una sola
+    // letra y nunca llegan al mínimo de 3. Resultado real (conv 3694, 09/09):
+    // `resolverMoto("s2 150")` daba EXACTA, pero la misma moto dentro de la frase
+    // del cliente ("para mi s2 150 para hacerlo 190... Año 2025") daba NINGUNA, y
+    // el bot le repreguntaba una moto que ya le había dicho.
+    //
+    // Se exige la secuencia completa y con bordes de palabra: "brava 110" no pega
+    // con "brava altino 150" (el falso positivo de la conv 3730) ni "s 2" con
+    // "wave s 2022".
+    const conBordes = ` ${textoNorm} `
+    for (const a of [m.nombre_completo, ...m.aliases]) {
+        const aNorm = normalizarTexto(a)
+        if (aNorm.length >= 2 && conBordes.includes(` ${aNorm} `)) return true
+    }
+
     for (const a of m.aliases) {
         const aNorm = normalizarTexto(a)
         const soloLetras = aNorm.replace(/[0-9\s]/g, "")

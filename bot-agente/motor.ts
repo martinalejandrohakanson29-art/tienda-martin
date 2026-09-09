@@ -671,14 +671,25 @@ export async function ejecutarTurnoAgente(
                     resto,
                     [
                         ...historialPrevio,
-                        ...(matchRef
-                            ? [
-                                  {
-                                      rol: "system" as const,
-                                      contenido: `[El cliente entro por el anuncio de "${matchPlantilla.nombre}" y ya se le mando la ficha oficial de ese combo con la foto. Contesta lo que escribio sin volver a presentarlo.]`
-                                  }
-                              ]
-                            : []),
+                        // El sub-turno tiene que saber DE QUÉ combo se trata, venga
+                        // el kit del referral o de la plantilla escrita: si el
+                        // cliente nombró su moto ahí, la consulta de compatibilidad
+                        // hay que hacerla contra ESTE kit y no contra el que el
+                        // modelo suponga. Antes el contexto se pasaba solo en el
+                        // camino del referral (conv 3736, 09/09: le mandó el precio
+                        // del combo y en vez de decirle que a la Wave NF no le entra,
+                        // le repreguntó el modelo).
+                        {
+                            rol: "system" as const,
+                            contenido:
+                                `[El cliente entro por el anuncio de "${matchPlantilla.nombre}" y ya se le mando la ficha oficial de ese combo con la foto. ` +
+                                `Contesta lo que escribio sin volver a presentarlo. ` +
+                                `Si nombro su moto, verifica la compatibilidad contra ESE combo ("${matchPlantilla.nombre}") y, si no le entra, decíselo ` +
+                                `— acaba de recibir el precio, no lo dejes creyendo que le sirve. ` +
+                                (textoFinal.includes("?") && /moto/i.test(textoFinal)
+                                    ? `La ficha que ya salió cierra preguntandole la moto, asi que NO se la vuelvas a preguntar: quedaria preguntada dos veces seguidas.]`
+                                    : `]`)
+                        },
                         { rol: "user", contenido: mensajeUsuario },
                         { rol: "assistant", contenido: textoFinal }
                     ],

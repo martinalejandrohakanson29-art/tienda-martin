@@ -42,7 +42,7 @@ export const definicionCompatibilidad: DefinicionHerramienta = {
                 },
                 kit_nombre_o_id: {
                     type: "string",
-                    description: "Nombre o ID del kit consultado (ej: 'Kit 120 para 110', 'Kit 170 varillero', 'Tapa CDI')."
+                    description: "NOMBRE del kit consultado, como figura en el catálogo (ej: 'Kit 120 para 110', 'Kit 170 varillero', 'Tapa CDI'). No pases un número suelto: los ids de packs, grupos y artículos se pisan entre sí."
                 },
                 variante_elegida: {
                     type: "string",
@@ -55,6 +55,44 @@ export const definicionCompatibilidad: DefinicionHerramienta = {
 }
 
 const palabrasDistintivasKit = ["tapa", "cdi", "escape", "pwr", "dakar", "varillero"]
+
+/** Marcas: nombran una fábrica, no un modelo. Nunca definen familia por sí solas. */
+const MARCAS_COMPAT = new Set([
+    "honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller",
+    "brava", "mondial", "guerrero", "bajaj", "suzuki",
+])
+
+/** De qué tabla salió una fila: cada una tiene su propio espacio de ids. */
+type OrigenCompat = "pack" | "grupo" | "articulo" | "legacy"
+
+/**
+ * ¿La fila corresponde al kit que se preguntó?
+ *
+ * El `kit_id` de cada tabla vive en un espacio distinto (pack 8 = "Combo Tapa CDI
+ * + Cilindro 120", artículo 8 = "Carburador CG 125"), así que un id numérico
+ * pelado no identifica nada: `kit_nombre_o_id: "8"` matcheaba las dos filas y
+ * llegó a devolver COMPATIBLE citando el carburador. Por eso el match por id
+ * exige ahora que se diga de qué espacio es ("pack:8", "grupo:3", "articulo:8");
+ * un número suelto cae al match por nombre, que con "8" no pega con nada.
+ */
+function coincideKitPedido(
+    kitBuscado: string | undefined,
+    reg: { kit: string; kit_id: number | null; grupo_id: number | null; origen: OrigenCompat; contexto_extra: string | null }
+): boolean {
+    const pedido = (kitBuscado || "").trim()
+    if (!pedido) return true
+
+    const conPrefijo = pedido.match(/^(pack|grupo|articulo|artículo|legacy)\s*:\s*(\d+)$/i)
+    if (conPrefijo) {
+        const espacio = normalizarTexto(conPrefijo[1]).replace("artículo", "articulo") as OrigenCompat
+        const id = conPrefijo[2]
+        const idFila = espacio === "grupo" ? reg.grupo_id : reg.kit_id
+        return reg.origen === espacio && idFila !== null && String(idFila) === id
+    }
+
+    // Número pelado: NO se resuelve por id (no sabemos de qué tabla es).
+    return coincideKitInteligente(pedido, reg.kit, reg.contexto_extra || undefined)
+}
 
 /**
  * ¿Dos tokens de modelo se refieren al mismo modelo?
@@ -237,6 +275,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 compatible: boolean
                 detalle: string | null
                 contexto_extra: string | null
+                origen: OrigenCompat
             }[]
         >`
             SELECT 
@@ -247,7 +286,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 cc.grupo_id,
                 cc.compatible,
                 cc.detalle,
-                COALESCE(p.mensaje_bienvenida, g.mensaje_bienvenida, '') as contexto_extra
+                COALESCE(p.mensaje_bienvenida, g.mensaje_bienvenida, '') as contexto_extra,
+                CASE WHEN cc.kit_id IS NOT NULL THEN 'pack' ELSE 'grupo' END as origen
             FROM chat_combo_compatibilidad cc
             LEFT JOIN chat_packs p ON p.id = cc.kit_id
             LEFT JOIN chat_pack_grupos g ON g.id = cc.grupo_id
@@ -264,6 +304,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 compatible: boolean
                 detalle: string | null
                 contexto_extra: string | null
+                origen: OrigenCompat
             }[]
         >`
             SELECT 
@@ -274,7 +315,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 null as grupo_id,
                 ac.compatible,
                 ac.detalle,
-                ca.alias as contexto_extra
+                ca.alias as contexto_extra,
+                'articulo' as origen
             FROM chat_articulo_compatibilidad ac
             JOIN chat_articulos ca ON ca.id = ac.articulo_id
             LEFT JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
@@ -292,6 +334,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 compatible: boolean
                 detalle: string | null
                 contexto_extra: string | null
+                origen: OrigenCompat
             }[]
         >`
             SELECT 
@@ -302,7 +345,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 null as grupo_id,
                 compatible,
                 detalle,
-                null as contexto_extra
+                null as contexto_extra,
+                'legacy' as origen
             FROM compatibilidades
         `
 
@@ -323,18 +367,69 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         if (resol && resol.confianza === "ambigua") {
             const familiaTokens = normalizarTexto(args.modelo_moto)
                 .split(" ")
-                .filter((w) => w.length >= 3 && isNaN(Number(w)))
+                // La marca sola no define familia: "honda" traería la CG, la Biz
+                // y media tabla a la lista de "modelos de esa familia".
+                .filter((w) => w.length >= 3 && isNaN(Number(w)) && !MARCAS_COMPAT.has(w))
             // Estado de cada modelo de la familia PARA ESTE kit (si hay filas).
             const estadoFilas: string[] = []
+            const veredictos = new Set<boolean>()
+            let detalleUnanime = ""
             const vistos = new Set<string>()
             for (const reg of registros) {
-                const coincideId = args.kit_nombre_o_id && reg.kit_id && String(reg.kit_id) === String(args.kit_nombre_o_id).trim()
-                if (!coincideId && !coincideKitInteligente(args.kit_nombre_o_id, reg.kit, reg.contexto_extra || undefined)) continue
+                if (!coincideKitPedido(args.kit_nombre_o_id, reg)) continue
                 const regNorm = normalizarTexto(reg.modelo_moto)
                 if (!familiaTokens.some((t) => regNorm.includes(t))) continue
                 if (vistos.has(regNorm)) continue
                 vistos.add(regNorm)
+                veredictos.add(reg.compatible)
+                if (!detalleUnanime && reg.detalle) detalleUnanime = reg.detalle
                 estadoFilas.push(`  • ${reg.modelo_moto}: ${reg.compatible ? "COMPATIBLE" : "NO compatible"}${reg.detalle ? ` (${reg.detalle})` : ""}`)
+            }
+
+            // La ambigüedad solo importa si cambia la respuesta. Cuando TODOS los
+            // modelos cargados de esa familia dan el mismo veredicto para este
+            // kit, saber cuál de ellos tiene el cliente no aporta nada: repreguntar
+            // solo demora la respuesta que ya sabemos.
+            //
+            // Real (conv 3736, 09/09): "quiero saber que le puedo poner al wave NF
+            // 100". La 100 no consta en `motos_modelos` (solo la Wave 110), así que
+            // la moto quedaba "ambigua" y el bot preguntaba "tu Wave es la 110?"
+            // — mientras las CUATRO filas de la familia Wave para ese combo decían
+            // NO compatible por el mismo motivo (hay que alesar los cárteres).
+            //
+            // La regla NO es simétrica. Si la ambigüedad viene de una cilindrada
+            // que no consta en el catálogo (el cliente nombró una moto que no
+            // tenemos), el "todas dan que SÍ" no habla de la suya: es justo el bug
+            // de la conv 3032, donde una "Corven Energy 125" se llevaba un
+            // COMPATIBLE porque la única fila cargada es la Energy 110. El "todas
+            // dan que NO" sí se puede extender —  el motivo es estructural (no
+            // entra sin alesar) y además es la respuesta conservadora.
+            const cilindradaQueNoConsta = resol.cilindradaCliente !== undefined
+            const compatibleUnanime = veredictos.size === 1 ? [...veredictos][0] : null
+            if (compatibleUnanime !== null && !(compatibleUnanime && cilindradaQueNoConsta)) {
+                const compatible = compatibleUnanime
+                return {
+                    encontrado: true,
+                    modelo_moto_detectado: args.modelo_moto,
+                    kit: args.kit_nombre_o_id,
+                    compatible,
+                    detalle: detalleUnanime || undefined,
+                    mensaje_para_agente: compatible
+                        ? [
+                              `CONFIRMADO: Es COMPATIBLE con la ${args.modelo_moto}. Todas las versiones de esa familia que tengo cargadas le van a este kit, así que no hace falta que le preguntes cuál tiene.`,
+                              detalleUnanime ? `Detalle técnico: ${detalleUnanime}` : "",
+                              `Confirmáselo corto al cliente, con tu voz. Si preguntó algo más en el mismo mensaje (envío, demora, pago...), respondé eso también antes de cerrar.`,
+                          ]
+                              .filter(Boolean)
+                              .join("\n")
+                        : [
+                              `NO ES COMPATIBLE con la ${args.modelo_moto}.${detalleUnanime ? ` Motivo: ${detalleUnanime}` : ""}`,
+                              `Ninguna versión de esa familia le entra a este kit, así que NO le preguntes cuál modelo tiene: la respuesta es la misma para todas.`,
+                              `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,
+                              `- NO ofrezcas otros combos ni "alternativas" ni te ofrezcas a "buscar opciones compatibles": no tenés ninguna confirmada por el sistema.`,
+                              `- Cerrá corto (ej: "Cualquier otra cosa que necesites, avisame.").`,
+                          ].join("\n"),
+                }
             }
 
             const lineas = [
@@ -411,8 +506,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
 
         for (const reg of registros) {
             // Filtro por kit inteligente (o match directo de kit_id)
-            const coincideId = args.kit_nombre_o_id && reg.kit_id && String(reg.kit_id) === String(args.kit_nombre_o_id).trim()
-            if (!coincideId && !coincideKitInteligente(args.kit_nombre_o_id, reg.kit, reg.contexto_extra || undefined)) {
+            if (!coincideKitPedido(args.kit_nombre_o_id, reg)) {
                 continue
             }
 

@@ -308,13 +308,13 @@ export function PendientesClient({
 
                     {yaEnviada ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">
-                            <Check className="h-4 w-4" /> Nota enviada al equipo — el bot le va a contestar al cliente
-                            solo apenas la procese. Actualizá en unos segundos para verla salir de la lista.
+                            <Check className="h-4 w-4" /> Nota interna guardada en la conversación. Al cliente
+                            contestale desde Chats en vivo: esta nota no le llega.
                         </p>
                     ) : (
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                             <Textarea
-                                placeholder="Escribí la respuesta como si fuera la nota privada en Chatwoot…"
+                                placeholder="Nota interna para el equipo (el cliente no la ve)…"
                                 value={respuestas[clave] || ""}
                                 onChange={(e) => setRespuestas((prev) => ({ ...prev, [clave]: e.target.value }))}
                                 rows={2}
@@ -398,8 +398,8 @@ export function PendientesClient({
 
                     {yaEnviada && !aliasGuardado[clave] ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">
-                            <Check className="h-4 w-4" /> Guardado — el bot le va a contestar al cliente solo apenas
-                            lo procese. Actualizá en unos segundos para verla salir de la lista.
+                            <Check className="h-4 w-4" /> Compatibilidad guardada y respuesta enviada al cliente. El
+                            bot ya la usa para esta moto de acá en más.
                         </p>
                     ) : !yaEnviada && (
                         <div className="space-y-4">
@@ -602,9 +602,10 @@ export function PendientesClient({
                     </Link>
                     <h1 className="text-3xl font-bold tracking-tight">Consultas pendientes</h1>
                     <p className="max-w-2xl text-gray-500">
-                        Preguntas que el bot no supo responder y escaló como nota privada. Respondé acá mismo: se manda
-                        como nota privada a la conversación real de Chatwoot, y el bot arma y manda la respuesta al
-                        cliente solo, igual que si hubieras contestado la nota a mano en Chatwoot.
+                        Preguntas que el bot no supo responder y derivó al equipo. Las técnicas se resuelven acá: al
+                        guardar, la compatibilidad queda cargada para el bot y la respuesta le sale al cliente. Las
+                        demás se mandan como nota interna (apunte para el equipo): al cliente contestale desde
+                        Chats en vivo.
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={refrescar} disabled={pendiente}>
@@ -626,8 +627,8 @@ export function PendientesClient({
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
                         Falta <code>CHATWOOT_ADMIN_API_TOKEN</code> en el servicio de la web: tiene que ser el token de
-                        un agente humano (no el del bot), para que el workflow reconozca la nota como respuesta real
-                        del equipo. Cargalo en Easypanel y reiniciá el contenedor.
+                        un agente humano (no el del bot), para que la respuesta salga a nombre del equipo y no del
+                        bot. Cargalo en Easypanel y reiniciá el contenedor.
                     </span>
                 </p>
             )}

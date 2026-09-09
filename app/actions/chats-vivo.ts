@@ -27,7 +27,15 @@ import {
 } from "@/lib/chatwoot-bot"
 import { emitirEventoChatwoot } from "@/lib/chatwoot-events"
 import { guardarEstadoConversacion } from "@/bot-agente/nucleo/estado-persistente"
+import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
 import { TEMAS_NEGOCIO } from "@/lib/temas-negocio"
+import {
+    aprenderCompatibilidad,
+    listarDestinosCompat,
+    resolverDestinoPorNombre,
+    type DestinoCompat,
+    type ResultadoAprendizaje,
+} from "@/lib/aprendizaje-compatibilidad"
 
 // La app no puede hablarle directo al Redis del bot (firewall de IP), así que
 // para "pinear" un kit se le pega a un workflow n8n aparte — mismo patrón que
@@ -567,3 +575,286 @@ export async function marcarConversacionComoLeida(conversationId: number): Promi
     return { success: true }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Escalados del bot dentro del chat
+//
+// El bot deriva al equipo insertando una fila en una de las 4 tablas de
+// pendientes, y nada más: no deja nota en Chatwoot ni marca el hilo. Hasta acá
+// el único rastro visible era el badge de categoría en la lista, así que el
+// equipo veía "Técnica" sin saber qué se había derivado, y lo cerraba con el
+// check "Marcar como resuelto" — que borra el pendiente sin aprender nada.
+//
+// Estas acciones traen el escalado al chat: se ve qué se derivó y se responde
+// desde ahí. Para la bandeja técnica, responder ADEMÁS carga la compatibilidad
+// en las tablas que lee el bot (lib/aprendizaje-compatibilidad.ts), que es lo
+// que hacía el workflow de n8n antes de apagarse.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TipoEscalado = "tecnica" | "precio" | "negocio" | "sin_match"
+
+export type EscaladoChatVivo = {
+    tipo: TipoEscalado
+    id: number
+    conversationId: number
+    /** Resumen que escribió el bot al derivar. */
+    resumen: string
+    /** Motivo canónico del turno que escaló (de bot_agente_turnos_reales), si se pudo cruzar. */
+    motivo?: string
+    modeloMoto?: string
+    kit?: string
+    /** Kit del catálogo al que apunta la pendiente, ya resuelto (solo bandeja técnica). */
+    destinoSugerido?: DestinoCompat
+    creadoEn: string
+}
+
+export type OpcionesAprendizaje = {
+    destinos: DestinoCompat[]
+    mensajeIncompatibilidad: string
+}
+
+/** Escalados abiertos de una conversación, los 4 tipos, más nuevo primero. */
+export async function listarEscaladosChatVivo(conversationId: number): Promise<EscaladoChatVivo[]> {
+    await requireAdmin()
+    const id = BigInt(conversationId)
+
+    const [tecnicas, precios, negocio, sinMatch, turnos] = await Promise.all([
+        prisma.$queryRaw<
+            {
+                id: number
+                modelo_moto: string | null
+                kit: string | null
+                kit_id: number | null
+                es_grupo: boolean | null
+                pregunta_original: string
+                creado_en: Date
+            }[]
+        >`
+            SELECT id, modelo_moto, kit, kit_id, es_grupo, pregunta_original, creado_en
+            FROM preguntas_tecnicas_pendientes
+            WHERE estado = 'pendiente' AND conversation_id = ${id}
+            ORDER BY creado_en DESC
+        `,
+        prisma.$queryRaw<{ id: number; producto: string | null; pregunta_original: string; creado_en: Date }[]>`
+            SELECT id, producto, pregunta_original, creado_en
+            FROM preguntas_precio_pendientes
+            WHERE estado = 'pendiente' AND conversation_id = ${id}
+            ORDER BY creado_en DESC
+        `,
+        prisma.$queryRaw<{ id: number; tema: string | null; pregunta_original: string; creado_en: Date }[]>`
+            SELECT id, tema, pregunta_original, creado_en
+            FROM preguntas_negocio_pendientes
+            WHERE estado = 'pendiente' AND conversation_id = ${id}
+            ORDER BY creado_en DESC
+        `,
+        prisma.$queryRaw<{ id: number; pregunta_original: string; creado_en: Date }[]>`
+            SELECT id, pregunta_original, creado_en
+            FROM preguntas_sin_match_pendientes
+            WHERE estado = 'pendiente' AND conversation_id = ${id}
+            ORDER BY creado_en DESC
+        `,
+        // El motivo canónico no se guarda en la tabla de pendientes, pero sí en el
+        // registro del turno: se cruza por cercanía temporal (el escalado se
+        // persiste dentro del mismo turno, con segundos de diferencia).
+        prisma.$queryRaw<{ motivo_escalado: string | null; creado_en: Date }[]>`
+            SELECT motivo_escalado, creado_en
+            FROM bot_agente_turnos_reales
+            WHERE conversation_id = ${id} AND escalado_humano = true
+            ORDER BY creado_en DESC
+            LIMIT 20
+        `,
+    ])
+
+    const motivoCercano = (fecha: Date): string | undefined => {
+        let mejor: { motivo: string; delta: number } | undefined
+        for (const t of turnos) {
+            if (!t.motivo_escalado) continue
+            const delta = Math.abs(t.creado_en.getTime() - fecha.getTime())
+            if (delta > 60_000) continue // más de un minuto no es el mismo turno
+            if (!mejor || delta < mejor.delta) mejor = { motivo: t.motivo_escalado, delta }
+        }
+        return mejor?.motivo
+    }
+
+    const destinos = tecnicas.length > 0 ? await listarDestinosCompat() : []
+    const escalados: EscaladoChatVivo[] = []
+
+    for (const f of tecnicas) {
+        // El kit puede venir ya resuelto (escalados nuevos) o solo como texto
+        // libre (los de antes de que el escalado guardara kit_id).
+        let destinoSugerido: DestinoCompat | undefined
+        if (f.kit_id != null) {
+            const tipo = f.es_grupo ? "grupo" : "pack"
+            destinoSugerido = destinos.find((d) => d.tipo === tipo && d.id === Number(f.kit_id))
+        }
+        if (!destinoSugerido) {
+            destinoSugerido = (await resolverDestinoPorNombre(f.kit, destinos)) ?? undefined
+        }
+
+        escalados.push({
+            tipo: "tecnica",
+            id: f.id,
+            conversationId,
+            resumen: f.pregunta_original,
+            motivo: motivoCercano(f.creado_en),
+            modeloMoto: f.modelo_moto || undefined,
+            kit: f.kit || undefined,
+            destinoSugerido,
+            creadoEn: f.creado_en.toISOString(),
+        })
+    }
+
+    for (const f of precios) {
+        escalados.push({
+            tipo: "precio",
+            id: f.id,
+            conversationId,
+            resumen: f.pregunta_original,
+            motivo: motivoCercano(f.creado_en),
+            kit: f.producto || undefined,
+            creadoEn: f.creado_en.toISOString(),
+        })
+    }
+
+    for (const f of negocio) {
+        escalados.push({
+            tipo: "negocio",
+            id: f.id,
+            conversationId,
+            resumen: f.pregunta_original,
+            motivo: motivoCercano(f.creado_en) || f.tema || undefined,
+            creadoEn: f.creado_en.toISOString(),
+        })
+    }
+
+    for (const f of sinMatch) {
+        escalados.push({
+            tipo: "sin_match",
+            id: f.id,
+            conversationId,
+            resumen: f.pregunta_original,
+            motivo: motivoCercano(f.creado_en),
+            creadoEn: f.creado_en.toISOString(),
+        })
+    }
+
+    return escalados.sort((a, b) => b.creadoEn.localeCompare(a.creadoEn))
+}
+
+/** Kits del catálogo y texto de incompatibilidad, para el formulario de aprendizaje. */
+export async function opcionesAprendizajeChatVivo(): Promise<OpcionesAprendizaje> {
+    await requireAdmin()
+    const [destinos, config] = await Promise.all([
+        listarDestinosCompat(),
+        obtenerConfiguracionAgente().catch(() => null),
+    ])
+    return {
+        destinos,
+        mensajeIncompatibilidad:
+            config?.mensajeIncompatibilidad?.trim() || "Lamentablemente este kit no es compatible.",
+    }
+}
+
+const TABLA_POR_TIPO: Record<TipoEscalado, string> = {
+    tecnica: "preguntas_tecnicas_pendientes",
+    precio: "preguntas_precio_pendientes",
+    negocio: "preguntas_negocio_pendientes",
+    sin_match: "preguntas_sin_match_pendientes",
+}
+
+/**
+ * Cierra UN escalado sin aprender nada. Es el equivalente por fila del check
+ * "Marcar como resuelto" (que cierra los 4 tipos de toda la conversación de una)
+ * y existe para que descartar un escalado sea una decisión explícita y no el
+ * camino por defecto: se marca `descartada`, no `respondida`, así se distingue
+ * de lo que sí se contestó.
+ */
+export async function descartarEscaladoChatVivo(tipo: TipoEscalado, id: number): Promise<{ success: boolean }> {
+    await requireAdmin()
+    await prisma.$executeRawUnsafe(
+        `UPDATE ${TABLA_POR_TIPO[tipo]} SET estado = 'descartada' WHERE id = $1::int`,
+        id
+    )
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true }
+}
+
+/**
+ * Responde un escalado TÉCNICO: carga la compatibilidad en las tablas del bot y
+ * (si se pide) le manda la respuesta al cliente por WhatsApp.
+ *
+ * Lo que hacía n8n al procesar la nota privada con la marca [[RM_TECNICA:...]],
+ * ahora sin IA de por medio ni nota intermedia: el Sí/No y el detalle que cargó
+ * el equipo se guardan tal cual, y el texto que sale al cliente es el que el
+ * equipo vio y pudo editar antes de enviarlo.
+ */
+export async function responderEscaladoTecnicoChatVivo(params: {
+    pendienteId: number
+    conversationId: number
+    destino: DestinoCompat
+    modeloMoto: string
+    compatible: boolean
+    detalle?: string
+    aplicarAPiezas?: boolean
+    /** Texto a enviarle al cliente. Vacío o ausente = solo aprender, sin escribirle. */
+    mensajeCliente?: string
+    /** Dejar que el bot siga a cargo de la conversación en vez de pausarlo. */
+    reanudarBot?: boolean
+}): Promise<{ success: boolean; aprendido: ResultadoAprendizaje; mensajeEnviado: boolean }> {
+    await requireAdmin()
+
+    const aprendido = await aprenderCompatibilidad({
+        destino: params.destino,
+        modeloMoto: params.modeloMoto,
+        compatible: params.compatible,
+        detalle: params.detalle,
+        aplicarAPiezas: params.aplicarAPiezas,
+    })
+
+    // La pendiente se cierra recién con el dato ya guardado: si el aprendizaje
+    // falla, el escalado sigue abierto y el equipo lo vuelve a ver.
+    await prisma.$executeRaw`
+        UPDATE preguntas_tecnicas_pendientes SET estado = 'respondida' WHERE id = ${params.pendienteId}
+    `
+
+    const texto = (params.mensajeCliente || "").trim()
+    let mensajeEnviado = false
+
+    if (texto) {
+        await enviarMensajeManualChatwoot({
+            accountId: ACCOUNT_ID,
+            conversationId: params.conversationId,
+            content: texto,
+        })
+        // Lo manda el equipo: pausa el bot como cualquier respuesta manual, salvo
+        // que se pida explícitamente que el bot siga a cargo.
+        await registrarMensajeSalienteEnEspejo(params.conversationId, texto, {
+            pausarBot: !params.reanudarBot,
+        })
+        mensajeEnviado = true
+
+        emitirEventoChatwoot({
+            tipo: "message_created",
+            conversationId: params.conversationId,
+            botPausado: params.reanudarBot ? undefined : true,
+            mensaje: {
+                id: Date.now(),
+                contenido: texto,
+                privado: false,
+                saliente: true,
+                remitente: "Nosotros",
+                creadoEn: new Date().toISOString(),
+            },
+        })
+    }
+
+    if (params.reanudarBot) {
+        // El motor guarda "hay una consulta derivada" en su memoria y calla hasta
+        // que un humano conteste. Ya se contestó: se limpia para que el bot pueda
+        // seguir la charla en vez de quedarse mudo.
+        await guardarEstadoConversacion(String(params.conversationId), { escaladoPendiente: null }).catch(() => {})
+    }
+
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true, aprendido, mensajeEnviado }
+}

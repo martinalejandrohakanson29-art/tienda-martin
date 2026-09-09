@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { BandejaEscalado, MOTIVOS_CANONICOS, clasificarMotivoEscalado } from "../nucleo/motivos-escalado"
+import { resolverDestinoPorNombre } from "@/lib/aprendizaje-compatibilidad"
 
 export interface ArgsEscalarHumano {
     motivo: string
@@ -85,13 +86,22 @@ export async function escalarAHumano(args: ArgsEscalarHumano): Promise<Resultado
 
     try {
         if (bandeja === "tecnica") {
+            // `kit_id` / `es_grupo` son lo que después le permite al equipo cargar
+            // la compatibilidad desde el chat sin adivinar a qué kit corresponde
+            // (ver lib/aprendizaje-compatibilidad.ts). El modelo escala con el
+            // nombre del kit en texto libre, así que se resuelve acá contra el
+            // catálogo; si no matchea con claridad quedan en null y el formulario
+            // pide elegir el kit a mano.
+            const destino = args.kit ? await resolverDestinoPorNombre(args.kit).catch(() => null) : null
             await prisma.$executeRawUnsafe(
-                `INSERT INTO preguntas_tecnicas_pendientes (conversation_id, modelo_moto, kit, pregunta_original, estado, es_grupo, creado_en)
-                 VALUES ($1, $2, $3, $4, 'pendiente', false, NOW())`,
+                `INSERT INTO preguntas_tecnicas_pendientes (conversation_id, modelo_moto, kit, kit_id, pregunta_original, estado, es_grupo, creado_en)
+                 VALUES ($1, $2, $3, $4, $5, 'pendiente', $6, NOW())`,
                 args.conversation_id || null,
                 args.modelo_moto || args.resumen_consulta,
                 args.kit || null,
-                args.resumen_consulta
+                destino?.id ?? null,
+                args.resumen_consulta,
+                destino?.tipo === "grupo"
             )
         } else if (bandeja === "precio") {
             await prisma.$executeRawUnsafe(

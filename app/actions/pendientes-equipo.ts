@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
 import {
+    enviarMensajeManualChatwoot,
     enviarNotaPrivadaChatwoot,
     tieneTokenEquipo,
     getMensajesConversacion,
@@ -11,15 +12,26 @@ import {
     type MensajeConversacion,
 } from "@/lib/chatwoot-bot"
 
+import { registrarMensajeSalienteEnEspejo } from "@/lib/chatwoot-chats-vivo"
+import {
+    aprenderCompatibilidad,
+    armarMensajeCompatibilidad,
+    listarDestinosCompat,
+    resolverDestinoPorNombre,
+    type DestinoCompat,
+} from "@/lib/aprendizaje-compatibilidad"
+
 export type { MensajeConversacion, AdjuntoConversacion }
 
-// Bandeja unificada de las preguntas que el bot escaló al equipo (nota privada
-// en Chatwoot) porque no tenía el dato a mano. Responder desde acá manda esa
-// misma nota privada a la conversación real; el workflow de n8n la procesa
-// igual que si alguien la hubiera escrito a mano en Chatwoot (extrae el dato,
-// lo guarda, y le contesta al cliente solo). Ver preguntas_tecnicas_pendientes
-// / preguntas_precio_pendientes / preguntas_negocio_pendientes y el nodo
-// "¿Es respuesta de mi equipo?" del workflow.
+// Bandeja unificada de las preguntas que el bot escaló al equipo porque no
+// tenía el dato a mano (tablas preguntas_tecnicas / precio / negocio /
+// sin_match _pendientes).
+//
+// Las técnicas se responden acá mismo: se guarda la compatibilidad y se le
+// contesta al cliente (ver `responderPendienteTecnica`). Las otras tres
+// bandejas siguen saliendo como nota privada, que era la entrada del workflow
+// de n8n — con n8n apagado esa nota hoy no la procesa nadie, así que sirve
+// como apunte interno, no como respuesta automática al cliente.
 
 export type TipoPendiente = "tecnica" | "precio" | "negocio" | "sin_match"
 
@@ -107,9 +119,11 @@ export async function listarPendientesEquipo(): Promise<PanelPendientes> {
 
 /**
  * Manda la respuesta como nota privada a la conversación real de Chatwoot.
- * No marca acá el "estado" de la pregunta: eso lo hace el workflow al
- * procesar la nota (puede tardar unos segundos), así que la fila sigue
- * apareciendo como pendiente hasta que se actualice sola.
+ *
+ * OJO: la nota queda como apunte interno. Cuando n8n estaba prendido, él la
+ * leía, aprendía y le contestaba al cliente; hoy no la procesa nadie, así que
+ * al cliente hay que contestarle desde el chat en vivo. Por eso tampoco se
+ * cierra la pendiente acá: sigue abierta hasta que alguien la resuelva.
  */
 export async function responderPendienteEquipo(params: {
     tipo: TipoPendiente
@@ -138,32 +152,82 @@ export async function getMensajesPendiente(conversationId: number): Promise<Mens
 
 /**
  * Responde una pendiente TÉCNICA (compatibilidad) con datos estructurados en vez
- * de texto libre. Sigue mandando una nota privada como siempre — así el
- * workflow de n8n la procesa por el mismo camino de hoy (nada cambia en cómo
- * le llega la respuesta al cliente) — pero la nota lleva una marca fija al
- * principio ([[RM_TECNICA:id=...;compatible=...]]) que un paso nuevo, sin IA,
- * del workflow reconoce y usa para guardar EXACTAMENTE compatible/detalle acá
- * elegidos en `compatibilidades`, sin que un modelo redacte/repita cosas de más.
- * Notas escritas a mano en Chatwoot (sin esta marca) siguen yendo por el
- * camino viejo con IA, sin cambios.
+ * de texto libre: el Sí/No y la aclaración se guardan tal cual en las tablas de
+ * compatibilidad que lee el bot, y se le manda la respuesta al cliente.
+ *
+ * Antes esto mandaba una nota privada con la marca [[RM_TECNICA:id=...]] y el
+ * que aprendía era el workflow de n8n. Con n8n apagado (07/09) esa nota no la
+ * leía nadie: el equipo cargaba la respuesta, la pendiente quedaba abierta y el
+ * dato se perdía. Ahora el aprendizaje corre acá mismo — el mismo camino que
+ * usa el panel de chats en vivo (lib/aprendizaje-compatibilidad.ts).
  */
 export async function responderPendienteTecnica(params: {
     id: number
     conversationId: number
     compatible: boolean
     detalle: string
+    /** Kit al que corresponde la regla. Si no viene, se deduce de la pendiente. */
+    destino?: DestinoCompat
+    /** Texto para el cliente. Si no viene, se arma con el veredicto y el detalle. */
+    mensajeCliente?: string
 }) {
     await requireAdmin()
     const detalle = params.detalle.trim()
-    const marca = `[[RM_TECNICA:id=${params.id};compatible=${params.compatible}]]`
-    const contenido = detalle ? `${marca}\n${detalle}` : marca
 
-    await enviarNotaPrivadaChatwoot({
+    const filas = await prisma.$queryRaw<
+        { modelo_moto: string | null; kit: string | null; kit_id: number | null; es_grupo: boolean | null }[]
+    >`
+        SELECT modelo_moto, kit, kit_id, es_grupo
+        FROM preguntas_tecnicas_pendientes WHERE id = ${params.id} LIMIT 1
+    `
+    const fila = filas[0]
+    if (!fila) throw new Error("La pregunta pendiente ya no existe")
+    const modeloMoto = (fila.modelo_moto || "").trim()
+    if (!modeloMoto) throw new Error("La pendiente no tiene modelo de moto: cargala desde el chat en vivo")
+
+    // El kit puede venir elegido a mano o salir de la pendiente. Las filas viejas
+    // de n8n guardaban `kit_id` sin distinguir grupo de pack, así que el nombre
+    // manda cuando el id no resuelve.
+    let destino = params.destino ?? null
+    if (!destino && fila.kit_id != null) {
+        const destinos = await listarDestinosCompat()
+        const tipo = fila.es_grupo ? "grupo" : "pack"
+        destino = destinos.find((d) => d.tipo === tipo && d.id === Number(fila.kit_id)) ?? null
+        if (!destino) destino = await resolverDestinoPorNombre(fila.kit, destinos)
+    } else if (!destino) {
+        destino = await resolverDestinoPorNombre(fila.kit)
+    }
+    if (!destino) {
+        throw new Error(
+            `No se pudo identificar a qué kit corresponde "${fila.kit || "(sin kit)"}": respondela desde el chat en vivo, donde se elige a mano.`
+        )
+    }
+
+    await aprenderCompatibilidad({ destino, modeloMoto, compatible: params.compatible, detalle })
+
+    await prisma.$executeRaw`
+        UPDATE preguntas_tecnicas_pendientes SET estado = 'respondida' WHERE id = ${params.id}
+    `
+
+    const texto =
+        params.mensajeCliente?.trim() ||
+        (await armarMensajeCompatibilidad({
+            compatible: params.compatible,
+            modeloMoto,
+            kitNombre: destino.nombre,
+            detalle,
+        }))
+
+    await enviarMensajeManualChatwoot({
         accountId: ACCOUNT_ID,
         conversationId: params.conversationId,
-        content: contenido,
+        content: texto,
     })
+    // Contesta un humano: el bot queda pausado en esa charla, igual que cuando se
+    // responde desde el chat en vivo.
+    await registrarMensajeSalienteEnEspejo(params.conversationId, texto, { pausarBot: true })
 
     revalidatePath("/admin/chatwoot/pendientes")
-    return { success: true }
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true, mensajeEnviado: texto, kit: destino.nombre }
 }

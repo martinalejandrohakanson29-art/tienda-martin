@@ -27,6 +27,7 @@ import {
 } from "@/app/actions/chats-vivo"
 import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
 import { CheckEstadoMensaje, ImageLightboxModal, MensajeAdjuntos } from "@/components/chatwoot/chat-media-viewer"
+import { EscaladosPanel } from "./escalados-panel"
 
 // Panel de chats en vivo. Lee directamente desde la tabla espejo en PostgreSQL
 // para carga instantánea (< 20ms); la categoría de cada una sale de
@@ -2100,6 +2101,16 @@ export function ChatsVivoClient({
                                     )}
                                 <div ref={mensajesEndRef} />
                             </div>
+
+                            {/* Consultas que el bot derivó al equipo en esta charla.
+                                El escalado es mudo para el cliente y hasta acá también
+                                lo era para nosotros: solo se veía el badge de categoría
+                                en la lista. */}
+                            <EscaladosPanel
+                                conversationId={seleccionada.id}
+                                refrescoExterno={hiloActual?.length ?? 0}
+                                onResuelto={() => refrescar(periodoDias)}
+                            />
 
                             {/* Barra para escribir y responder manualmente (4 renglones) */}
                             <div

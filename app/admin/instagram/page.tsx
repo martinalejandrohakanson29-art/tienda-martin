@@ -5,17 +5,26 @@ import { InstagramGeneralClient } from "./instagram-general-client"
 import { InstagramSalesClient } from "./instagram-sales-client"
 import { MarketingClient } from "./marketing-client"
 import { InstagramIaClient } from "./instagram-ia-client"
+import { EmbudoWhatsappClient } from "./embudo-whatsapp-client"
+import { calcularEmbudoWhatsapp } from "@/lib/embudo-whatsapp"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Sparkles } from "lucide-react"
+import { MessagesSquare, Sparkles } from "lucide-react"
 
 export default async function InstagramSalesPage() {
   // Traemos los datos de todas las secciones en paralelo
-  const [generalData, salesData, marketingData, articulosData] = await Promise.all([
+  const [generalData, salesData, marketingData, articulosData, embudoData] = await Promise.all([
     getInstagramGeneralDashboard({ preset: "last_15d" }),
     getInstagramArticlesSummary(),
     getMarketingPerformance(),
-    obtenerArticulosParaAsignacion()
+    obtenerArticulosParaAsignacion(),
+    calcularEmbudoWhatsapp(15).catch(() => null)
   ]);
+
+  // Mismo link "Abrir en Chatwoot" que usa /admin/chatwoot/chats-vivo.
+  const chatwootUrl = (process.env.CHATWOOT_API_URL || "https://chat.revolucionmotos.tech/api/v1").replace(
+    /\/api\/v1\/?$/,
+    ""
+  );
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 bg-slate-50 min-h-screen">
@@ -37,6 +46,10 @@ export default async function InstagramSalesPage() {
           <TabsTrigger value="ventas" className="px-6 font-semibold data-[state=active]:bg-slate-100">
             Ventas Instagram Directas
           </TabsTrigger>
+          <TabsTrigger value="embudo-whatsapp" className="px-6 font-semibold data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-900 flex items-center gap-1.5">
+            <MessagesSquare className="w-4 h-4 text-emerald-600" />
+            Embudo WhatsApp
+          </TabsTrigger>
           <TabsTrigger value="consulta-ia" className="px-6 font-semibold data-[state=active]:bg-purple-50 data-[state=active]:text-purple-900 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-purple-600" />
             Consulta IA
@@ -56,6 +69,10 @@ export default async function InstagramSalesPage() {
 
         <TabsContent value="ventas" className="space-y-4 border-none p-0 outline-none">
           <InstagramSalesClient data={salesData} />
+        </TabsContent>
+
+        <TabsContent value="embudo-whatsapp" className="space-y-4 border-none p-0 outline-none">
+          <EmbudoWhatsappClient inicial={embudoData} chatwootUrl={chatwootUrl} />
         </TabsContent>
 
         <TabsContent value="consulta-ia" className="space-y-4 border-none p-0 outline-none">

@@ -30,6 +30,7 @@ Este proyecto existe para no repetir la explosión de nodos de n8n. **Un caso nu
 - Resolver qué variante lleva el cliente (corto/largo, color, mm — cualquier eje) → herramienta `resolver_variante` + `chat_packs.sinonimos_variante text[]` (dato que carga Martín en `/admin/chatwoot/catalogo`). Match determinista, agnóstico al eje. Agregar un eje nuevo = cargar sinónimos, cero código.
 - "Ya confirmé combo/moto/variante, no repreguntar" → `bot-agente/nucleo/estado-persistente.ts` + tabla `chat_conversacion_estado` (bloque `MEMORIA DE ESTADO`). El motor la escribe al final de cada turno con lo que resolvieron las herramientas; NO se parsea el historial.
 - Scoring/normalización de términos → `bot-agente/nucleo/texto.ts` (único scorer).
+- Higiene de texto (no repetir lo ya dicho, saludos residuales) → `bot-agente/guardrails/sanitizador.ts`. NO es regla de negocio: no va al prompt. `quitarOracionesYaDichas` atrapa la oración calcada; `quitarHechosYaDichos` atrapa el dato repetido aunque esté parafraseado, respetando los "hechos frescos" (lo que salió de una herramienta de ESE turno es la respuesta, no una repetición).
 Siempre correr `pruebas/correr-banco.ts` antes de cerrar un cambio del bot.
 
 ### 1. Directorio y Componentes Clave

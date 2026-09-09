@@ -195,6 +195,145 @@ function claveOracion(oracion: string): string {
  *     (que no se mande nada lo decide el motor, no este filtro).
  *   - No toca preguntas: repreguntar algo es legítimo.
  */
+/**
+ * Extrae los "hechos duros" de un texto: todo numero con la unidad que lo sigue.
+ * Es lo que un cliente reconoce como dato repetido — el plazo, el precio, la
+ * cantidad — a diferencia de la redaccion, que puede cambiar libremente.
+ *
+ *   "demora 4 a 6 dias habiles"  -> ["4 dias", "6 dias"]
+ *   "sale $99.990"               -> ["99990"]
+ *   "el envio es gratis"         -> ["gratis"]
+ */
+export function extraerHechos(texto: string): Set<string> {
+    const hechos = new Set<string>()
+
+    // Normalizacion propia, NO `normalizarTexto`: ese reemplaza el punto por un
+    // espacio y parte "99.990" en "99 990", con lo cual ningun precio matcheaba.
+    // Aca los separadores de miles se unen ANTES de limpiar la puntuacion.
+    const plano = (texto || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/(\d)[.,\s](?=\d{3}\b)/g, "$1")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+
+    // Numeros con su unidad: "4 dias", "48 hs", "2 semanas". La unidad se toma
+    // de la primera palabra que sigue, salteando conectores de rango.
+    const RANGO = /(\d[\d.,]*)\s*(?:a|y|-)?\s*(?:(\d[\d.,]*)\s*)?([a-z]+)?/g
+    let m: RegExpExecArray | null
+    while ((m = RANGO.exec(plano)) !== null) {
+        const unidad = m[3] && m[3].length > 1 ? m[3] : ""
+        for (const n of [m[1], m[2]]) {
+            if (!n) continue
+            const limpio = n.replace(/[.,]/g, "")
+            if (!limpio) continue
+            hechos.add(unidad ? `${limpio} ${unidad}` : limpio)
+            // Los numeros grandes (precios) se registran TAMBIEN pelados: la
+            // palabra que los sigue cambia con la redaccion ("$99.990 con la
+            // leva" / "$99.990 y coordinamos") y atarlos a ella los volvia
+            // invisibles. Los chicos siguen necesitando su unidad para no
+            // confundir "4 dias" con "kit 4".
+            if (Number(limpio) >= 1000) hechos.add(limpio)
+        }
+    }
+
+    // "gratis" funciona como un hecho: repetirlo suena igual de robotico que
+    // repetir un precio, y no lleva numero que lo delate.
+    if (/\bgratis\b/.test(plano)) hechos.add("gratis")
+
+    return hechos
+}
+
+/**
+ * Quita las frases que vuelven a decir un HECHO que el bot ya dio en esta
+ * conversacion (un plazo, un precio, "gratis"), aunque esten redactadas de otra
+ * forma.
+ *
+ * Por que existe: `quitarOracionesYaDichas` compara oraciones exactas, asi que
+ * solo atrapa el copy-paste. Un modelo que parafrasea se le escapa entero —
+ * "demora 4 a 6 dias habiles" y "son esos 4 a 6 dias hasta alla" son oraciones
+ * distintas y el cliente igual esta leyendo el mismo dato dos veces. Se vio con
+ * deepseek-v4-flash en el caso-33 del banco (09/09), que ni siquiera llama a
+ * `consultar_info_negocio`: recita del historial, donde el dato siempre esta a
+ * la vista. Como el problema es del texto y no del embudo, se resuelve aca y no
+ * sumando un parrafo al prompt (que ya lo pide, en `estado-persistente.ts`).
+ *
+ * Conservador a proposito:
+ *   - Si el cliente PREGUNTA algo, no filtra nada: volver a dar un dato que te
+ *     acaban de pedir es responder, no repetirse.
+ *   - No toca preguntas del bot ni frases sin hechos.
+ *   - Recorta la frase justa, no la oracion entera, para no perder lo nuevo que
+ *     venia pegado.
+ *   - Nunca deja el mensaje vacio: si todo era repetido, devuelve el original.
+ */
+export function quitarHechosYaDichos(
+    texto: string,
+    mensajesPreviosDelBot: string[],
+    mensajeDelCliente?: string,
+    hechosFrescos?: Set<string>
+): string {
+    if (!texto?.trim() || !mensajesPreviosDelBot?.length) return texto
+
+    // El cliente pregunta => contestar con el dato es lo correcto, no repetirse.
+    if (mensajeDelCliente && /\?/.test(mensajeDelCliente)) return texto
+
+    const yaDichos = new Set<string>()
+    for (const previo of mensajesPreviosDelBot) {
+        for (const h of extraerHechos(previo || "")) yaDichos.add(h)
+    }
+    // Un hecho que salió de una herramienta EN ESTE TURNO no es una repetición:
+    // es la respuesta. Cuando el cliente elige la variante, el precio final ya
+    // estaba en la ficha del combo — y aun así confirmarlo es el cierre de la
+    // venta, no ruido. Sin esta excepción el guardrail borraba justo el precio
+    // (casos 24 y 29 del banco).
+    if (hechosFrescos) {
+        for (const h of hechosFrescos) yaDichos.delete(h)
+    }
+    if (yaDichos.size === 0) return texto
+
+    const lineas = texto.split(/\n/)
+    const salida: string[] = []
+
+    for (const linea of lineas) {
+        const oraciones = linea.split(/(?<=[.!?])\s+/)
+        const oracionesLimpias: string[] = []
+
+        for (const oracion of oraciones) {
+            if (oracion.trim().endsWith("?")) {
+                oracionesLimpias.push(oracion)
+                continue
+            }
+
+            // Se recorta por frase (coma / "y" / ";"), no por oracion entera:
+            // "El envio es gratis y son esos 4 a 6 dias" tiene que perder el
+            // plazo pero no obliga a tirar el resto de lo que diga.
+            const frases = oracion.split(/(?:,|;| y (?=[a-z]))/)
+            const conservadas = frases.filter((frase) => {
+                const hechos = extraerHechos(frase)
+                if (hechos.size === 0) return true
+                return ![...hechos].some((h) => yaDichos.has(h))
+            })
+
+            if (conservadas.length === frases.length) {
+                oracionesLimpias.push(oracion)
+            } else if (conservadas.some((f) => f.trim().length > 0)) {
+                let rearmada = conservadas.join(", ").replace(/\s+,/g, ",").replace(/,\s*,/g, ",").trim()
+                rearmada = rearmada.replace(/^[,;\s]+/, "").replace(/[,;\s]+$/, "")
+                if (rearmada) {
+                    if (!/[.!?]$/.test(rearmada)) rearmada += "."
+                    oracionesLimpias.push(rearmada.charAt(0).toUpperCase() + rearmada.slice(1))
+                }
+            }
+        }
+
+        salida.push(oracionesLimpias.join(" ").trim())
+    }
+
+    const resultado = salida.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+    return resultado.length > 0 ? resultado : texto
+}
+
 export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: string[]): string {
     if (!texto?.trim() || !mensajesPreviosDelBot?.length) return texto
 

@@ -2,7 +2,7 @@ import { MensajeChat, RespuestaAgente, HerramientaEjecutadaInfo, LlamadaHerramie
 import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla } from "./nucleo/texto"
@@ -1009,6 +1009,23 @@ export async function ejecutarTurnoAgente(
                 .filter((m) => m.rol === "assistant" && m.contenido)
                 .map((m) => m.contenido)
 
+            /**
+             * Hechos que salieron de una herramienta EN ESTE TURNO: son la
+             * respuesta a lo que el cliente acaba de pedir, no una repetición,
+             * y el guardrail de hechos no los toca.
+             *
+             * Se excluye lo que `consultar_info_negocio` devuelve con
+             * `ya_respondido: true`: ahí la herramienta misma está diciendo que
+             * ese tema ya se contestó, así que sus datos no cuentan como frescos.
+             */
+            const hechosDeEsteTurno = new Set<string>()
+            for (const ej of herramientasEjecutadas) {
+                if (ej.resultado?.ya_respondido === true) continue
+                for (const h of extraerHechos(JSON.stringify(ej.resultado ?? ""))) {
+                    hechosDeEsteTurno.add(h)
+                }
+            }
+
             const mensajesFinalesSanitizados: string[] = []
             for (let i = 0; i < partes.length; i++) {
                 const parte = partes[i]
@@ -1019,12 +1036,14 @@ export async function ejecutarTurnoAgente(
                     esConversacionEnCurso: esEnCurso
                 })
                 // Los globos ya emitidos en este mismo turno también cuentan.
-                const sinRepetidos = quitarOracionesYaDichas(sanitizado.textoLimpio, [
-                    ...dichoPorElBot,
-                    ...mensajesFinalesSanitizados
-                ])
-                if (sinRepetidos && !pareceRespuestaNoConfiable(sinRepetidos)) {
-                    mensajesFinalesSanitizados.push(sinRepetidos)
+                const yaDichoPorElBot = [...dichoPorElBot, ...mensajesFinalesSanitizados]
+                const sinRepetidos = quitarOracionesYaDichas(sanitizado.textoLimpio, yaDichoPorElBot)
+                // Segunda pasada: la de arriba solo atrapa la oración calcada.
+                // Un modelo que parafrasea le pasa por al lado y el cliente
+                // igual lee el mismo plazo o el mismo precio dos veces.
+                const sinHechosRepetidos = quitarHechosYaDichos(sinRepetidos, yaDichoPorElBot, mensajeUsuario, hechosDeEsteTurno)
+                if (sinHechosRepetidos && !pareceRespuestaNoConfiable(sinHechosRepetidos)) {
+                    mensajesFinalesSanitizados.push(sinHechosRepetidos)
                 }
             }
 

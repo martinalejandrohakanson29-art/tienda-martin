@@ -459,6 +459,10 @@ export type ChatPack = {
     grupo_id: number | null
     criterio_variante: string | null
     sinonimos_variante: string[] | null
+    /** Lo que este pack NO puede cambiar, ej. "recorrido corto" (ver chat-catalogo-atributo-fijo.sql). */
+    atributo_fijo: string | null
+    /** Sinónimos que desmienten el atributo fijo: si el cliente dice uno, este pack no le sirve. */
+    atributo_fijo_contradice: string[] | null
     categoria: string | null
     componentes: ChatPackComponente[]
 }
@@ -477,6 +481,8 @@ export type ChatPackInput = {
     grupoId: number | null
     criterioVariante: string
     sinonimosVariante: string
+    atributoFijo: string
+    atributoFijoContradice: string
     categoria: string
 }
 
@@ -488,7 +494,9 @@ export type ChatPackComponenteInput = {
 export async function getChatPacks(): Promise<ChatPack[]> {
     await requireAdmin()
 
-    const packs = await prisma.$queryRaw<Omit<ChatPack, "componentes" | "sinonimos_variante">[]>`
+    const packs = await prisma.$queryRaw<
+        Omit<ChatPack, "componentes" | "sinonimos_variante" | "atributo_fijo" | "atributo_fijo_contradice">[]
+    >`
         SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, plantillas_referral, detalle, activo, creado_en, grupo_id, criterio_variante, categoria
         FROM chat_packs
         ORDER BY creado_en DESC
@@ -507,6 +515,19 @@ export async function getChatPacks(): Promise<ChatPack[]> {
         /* columna inexistente: sin sinónimos */
     }
 
+    // Ídem para el atributo fijo (n8n-workflows/chat-catalogo-atributo-fijo.sql).
+    let fijoPorPack = new Map<number, { atributo_fijo: string | null; atributo_fijo_contradice: string[] | null }>()
+    try {
+        const fijoRows = await prisma.$queryRaw<
+            { id: number; atributo_fijo: string | null; atributo_fijo_contradice: string[] | null }[]
+        >`
+            SELECT id, atributo_fijo, atributo_fijo_contradice FROM chat_packs
+        `
+        fijoPorPack = new Map(fijoRows.map((r) => [r.id, r]))
+    } catch {
+        /* columnas inexistentes: sin atributo fijo */
+    }
+
     const componentes = await prisma.$queryRaw<(ChatPackComponente & { pack_id: number })[]>`
         SELECT pa.pack_id, pa.articulo_id, am.nombre, a.alias, a.precio, pa.cantidad, pa.orden
         FROM chat_pack_articulos pa
@@ -518,6 +539,8 @@ export async function getChatPacks(): Promise<ChatPack[]> {
     return packs.map((pack) => ({
         ...pack,
         sinonimos_variante: sinonimosPorPack.get(pack.id) ?? [],
+        atributo_fijo: fijoPorPack.get(pack.id)?.atributo_fijo ?? null,
+        atributo_fijo_contradice: fijoPorPack.get(pack.id)?.atributo_fijo_contradice ?? [],
         componentes: componentes.filter((c) => c.pack_id === pack.id),
     }))
 }
@@ -581,6 +604,28 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
         )
     } catch {
         /* columna inexistente: se ignora hasta correr la migración */
+    }
+
+    // Atributo fijo: ídem (n8n-workflows/chat-catalogo-atributo-fijo.sql).
+    // Sin atributo cargado no se guarda ninguna contradicción — una lista de
+    // frases que descartan el pack sin decir de qué atributo hablan no se
+    // puede explicar después ni al equipo ni al modelo.
+    const atributoFijo = data.atributoFijo?.trim() || null
+    const atributoFijoContradice = atributoFijo
+        ? (data.atributoFijoContradice || "")
+              .split(/[\n,]/)
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean)
+        : []
+    try {
+        await prisma.$executeRawUnsafe(
+            `UPDATE chat_packs SET atributo_fijo = $1, atributo_fijo_contradice = $2 WHERE id = $3`,
+            atributoFijo,
+            atributoFijoContradice,
+            packId
+        )
+    } catch {
+        /* columnas inexistentes: se ignora hasta correr la migración */
     }
 
     await prisma.$executeRaw`DELETE FROM chat_pack_articulos WHERE pack_id = ${packId}`

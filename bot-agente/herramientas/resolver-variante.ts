@@ -92,7 +92,64 @@ interface GrupoVariantes {
     nombre: string
     pregunta_variante: string | null
     pregunta_variante_reintento: string | null
-    variantes: { id: number; nombre: string; etiqueta: string; precio: number; sinonimos: string[] }[]
+    variantes: {
+        id: number
+        nombre: string
+        etiqueta: string
+        precio: number
+        sinonimos: string[]
+        /** Lo que este pack NO puede cambiar, ej. "recorrido corto". Ver `contradicen()`. */
+        atributoFijo: string | null
+        /** Sinónimos que DESMIENTEN el atributo fijo: si el cliente dice uno, este pack no le sirve. */
+        contradice: string[]
+    }[]
+}
+
+/**
+ * Columnas del atributo fijo, en query aparte y tolerante: si todavía no se
+ * corrió `n8n-workflows/chat-catalogo-atributo-fijo.sql` el motor sigue
+ * funcionando como antes en vez de romper todo el resolver.
+ */
+async function cargarAtributosFijos(
+    packIds: number[]
+): Promise<Map<number, { atributoFijo: string | null; contradice: string[] }>> {
+    if (packIds.length === 0) return new Map()
+    try {
+        const filas = await prisma.$queryRaw<
+            { id: number; atributo_fijo: string | null; atributo_fijo_contradice: string[] | null }[]
+        >`
+            SELECT id, atributo_fijo, atributo_fijo_contradice
+            FROM chat_packs
+            WHERE id = ANY(${packIds})
+        `
+        return new Map(
+            (filas || []).map((f) => [
+                f.id,
+                {
+                    atributoFijo: (f.atributo_fijo || "").trim() || null,
+                    contradice: (f.atributo_fijo_contradice || []).map((s) => normalizarTexto(s)).filter(Boolean)
+                }
+            ])
+        )
+    } catch {
+        return new Map()
+    }
+}
+
+/**
+ * ¿Lo que dijo el cliente DESMIENTE el atributo fijo de este pack?
+ *
+ * Match literal por frase completa contra los sinónimos cargados a mano — la
+ * misma mecánica determinista que `matchearVariantes`. No hay razonamiento: si
+ * Martín cargó "recorrido largo" como contradicción del combo corto, un cliente
+ * que escribe "es recorrido largo" descarta ese pack.
+ */
+function contradiceAtributoFijo(texto: string, contradice: string[]): boolean {
+    const t = normalizarTexto(texto)
+    if (!t || contradice.length === 0) return false
+    return contradice.some(
+        (c) => c.length >= 3 && new RegExp(`(^|\\s)${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(t)
+    )
 }
 
 async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
@@ -130,6 +187,8 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
         ORDER BY precio ASC
     `
 
+    const fijos = await cargarAtributosFijos((packs || []).map((p) => p.id))
+
     return {
         id: elegido.id,
         nombre: elegido.nombre,
@@ -140,7 +199,9 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
             nombre: p.nombre,
             etiqueta: p.criterio_variante || p.nombre,
             precio: Number(p.precio) || 0,
-            sinonimos: (p.sinonimos_variante || []).map((s) => normalizarTexto(s)).filter(Boolean)
+            sinonimos: (p.sinonimos_variante || []).map((s) => normalizarTexto(s)).filter(Boolean),
+            atributoFijo: fijos.get(p.id)?.atributoFijo ?? null,
+            contradice: fijos.get(p.id)?.contradice ?? []
         }))
     }
 }
@@ -149,7 +210,20 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
  * Kit SUELTO (pack sin grupo de variantes) que matchea el nombre pedido.
  * Mismo umbral de puntaje que `cargarGrupo` para no inventar matches.
  */
-async function cargarPackSuelto(combo: string): Promise<{ id: number; nombre: string; precio: number } | null> {
+async function cargarPackSuelto(
+    combo: string
+): Promise<{ id: number; nombre: string; precio: number; atributoFijo: string | null; contradice: string[] } | null> {
+    const conFijo = async (p: { id: number; nombre: string; precio: any }) => {
+        const fijo = (await cargarAtributosFijos([p.id])).get(p.id)
+        return {
+            id: p.id,
+            nombre: p.nombre,
+            precio: Number(p.precio) || 0,
+            atributoFijo: fijo?.atributoFijo ?? null,
+            contradice: fijo?.contradice ?? []
+        }
+    }
+
     const comboTrim = (combo || "").trim()
     if (!comboTrim) return null
 
@@ -162,14 +236,14 @@ async function cargarPackSuelto(combo: string): Promise<{ id: number; nombre: st
 
     if (/^\d+$/.test(comboTrim)) {
         const porId = packs.find((p) => p.id === Number(comboTrim))
-        if (porId) return { id: porId.id, nombre: porId.nombre, precio: Number(porId.precio) || 0 }
+        if (porId) return await conFijo(porId)
     }
 
     const scored = packs
         .map((p) => ({ p, score: puntuarItemCatalogo(comboTrim, p.nombre) }))
         .sort((a, b) => b.score - a.score)
     if (!scored[0] || scored[0].score < 30) return null
-    return { id: scored[0].p.id, nombre: scored[0].p.nombre, precio: Number(scored[0].p.precio) || 0 }
+    return await conFijo(scored[0].p)
 }
 
 /**
@@ -265,6 +339,28 @@ const AVISO_NO_ES_PREFERENCIA = [
  */
 const RX_PIDE_RECOMENDACION = /(que|cual|cuales)\s+(me\s+)?(recomend|conviene|sugeris|sugieres|sirve|llevo|compro|elijo|va mejor)|cual es (el |la )?mejor|me recomend/
 
+/**
+ * Cómo se llama el EJE de variante de este grupo ("leva", "recorrido",
+ * "color"): la palabra que comparten todas las etiquetas del grupo.
+ *
+ * Existe porque los mensajes internos decían "falta la variante (el
+ * recorrido)" aun en grupos cuyo eje es la LEVA. Ese texto es parte de lo que
+ * llevó al bot a mezclar los dos conceptos en la conv 3791: el propio sistema
+ * le sugería que variante = recorrido.
+ */
+function nombreEje(variantes: GrupoVariantes["variantes"]): string | null {
+    if (variantes.length < 2) return null
+    const [primera, ...resto] = variantes.map((v) => new Set(palabrasEtiqueta(v.etiqueta)))
+    const comunes = [...primera].filter((w) => resto.every((s) => s.has(w)))
+    return comunes.length === 1 ? comunes[0] : null
+}
+
+/** "la variante" / "la variante (la leva)" — sin inventarle género a la palabra. */
+function textoEje(variantes: GrupoVariantes["variantes"]): string {
+    const eje = nombreEje(variantes)
+    return eje ? `la variante (${eje})` : "la variante"
+}
+
 export async function resolverVariante(args: ArgsResolverVariante): Promise<ResultadoResolverVariante> {
     try {
         // El "no sé" se detecta también del texto, no solo del flag del modelo.
@@ -280,6 +376,19 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             // que metía 1.500 caracteres de ficha y reglas en el contexto para
             // responder una pregunta técnica (conv 3561, pregunta del cigüeñal).
             const suelto = await cargarPackSuelto(args.combo || "")
+            if (suelto && contradiceAtributoFijo(args.mensaje_cliente || "", suelto.contradice)) {
+                return {
+                    encontrado: true,
+                    resuelta: false,
+                    escalar: true,
+                    motivo: "producto_no_catalogado",
+                    mensaje_para_agente: [
+                        `EL CLIENTE PIDE ALGO QUE ESTE PRODUCTO NO ES. "${suelto.nombre}" es SIEMPRE ${suelto.atributoFijo}, y lo que dijo el cliente lo desmiente.`,
+                        `NO se lo confirmes ni le cotices este pack: le estarías vendiendo otra cosa.`,
+                        `Ejecutá escalar_a_humano(motivo: 'producto_no_catalogado') y guardá silencio total cara al cliente.`
+                    ].join("\n")
+                }
+            }
             if (suelto) {
                 return {
                     encontrado: true,
@@ -306,69 +415,79 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             }
         }
 
-        // 1. ¿El cliente ya nombró la variante?
-        const hits = matchearVariantes(args.mensaje_cliente || "", grupo.variantes)
-        if (hits.length === 1) {
-            const v = hits[0]
-            return {
-                encontrado: true,
-                resuelta: true,
-                grupo_id: grupo.id,
-                variante_pack_id: v.id,
-                etiqueta: v.etiqueta,
-                precio: v.precio,
-                mensaje_para_agente:
-                    args.__embudo?.varianteResuelta?.packId === v.id
-                        // Ya estaba resuelta de antes: el cliente ya escuchó esta
-                        // opción con su precio. Re-confirmarla es el arranque de
-                        // la respuesta larga que no venía a cuento (conv 2763).
-                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.`
-                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.`
-            }
-        }
-        // El "no sé" GANA sobre el ambiguo. Un cliente que no sabe qué variante
-        // tiene casi siempre nombra las dos al negarlas ("no sé si lo tengo corta
-        // o larga"), y para `matchearVariantes` eso es indistinguible de alguien
-        // que nombró ambas a propósito: se comía el `cliente_no_sabe` y devolvía
-        // la repregunta con los precios en vez de la guía de cómo fijarse
-        // (conv 3677). Si dijo que no sabe, se sigue de largo hasta la guía.
-        if (hits.length > 1 && !clienteNoSabe) {
-            const opciones = grupo.variantes.map((v) => v.etiqueta).join(" o ")
-            // Sin precios: el cliente ya los escuchó al presentarle el combo, y
-            // repetirlos acá es justo lo que se lee como "me volvió a tirar el
-            // precio" en vez de ayudarlo a definir la variante.
-            const guiaAmbiguo = (grupo.pregunta_variante_reintento || "").trim()
+        // 0. ¿Lo que dijo el cliente DESMIENTE algo que este combo NO puede
+        //    cambiar? El grupo "Kit 120 corto + Leva 6.40" lleva SIEMPRE el
+        //    cilindro corto: el recorrido no es su eje de variante, está fijo.
+        //    En la conv 3791 el cliente dijo "es recorrido largo", el sistema
+        //    solo miró la leva y le confirmó "va el recorrido largo, $99.000"
+        //    cotizándole el pack corto.
+        //
+        //    Las variantes desmentidas quedan fuera: no se pueden matchear ni
+        //    ofrecer. Si no queda ninguna, el producto que pide no existe
+        //    armado -> se escala. No se improvisa un reemplazo (el Kit 120 de
+        //    recorrido largo existe suelto, pero NO en combo con leva).
+        const descartadas = grupo.variantes.filter((v) =>
+            contradiceAtributoFijo(args.mensaje_cliente || "", v.contradice)
+        )
+        if (descartadas.length > 0 && descartadas.length === grupo.variantes.length) {
             return {
                 encontrado: true,
                 resuelta: false,
                 grupo_id: grupo.id,
-                pregunta_directa: guiaAmbiguo || undefined,
+                escalar: true,
+                motivo: "producto_no_catalogado",
                 mensaje_para_agente: [
-                    `TODAVIA NO. El cliente nombró las dos opciones (${opciones}) pero no dijo cuál tiene.`,
-                    `Preguntále cuál de las dos es, con tu voz. NO repitas los precios: ya se los diste.`,
-                    guiaAmbiguo ? `Si no sabe cómo fijarse, pasale esta guía:\n${guiaAmbiguo}` : "",
-                    pideRecomendacion ? `\n${AVISO_NO_ES_PREFERENCIA}` : ""
-                ].filter(Boolean).join("\n")
+                    `EL CLIENTE PIDE ALGO QUE ESTE COMBO NO ES. "${grupo.nombre}" es SIEMPRE ${descartadas[0].atributoFijo}, y lo que dijo el cliente lo desmiente.`,
+                    `NO le confirmes este combo ni le pases su precio: sería venderle otra cosa.`,
+                    `NO le ofrezcas un reemplazo por tu cuenta: no hay ninguno confirmado por el sistema.`,
+                    `Ejecutá escalar_a_humano(motivo: 'producto_no_catalogado') y guardá silencio total cara al cliente.`
+                ].join("\n")
             }
         }
+        const variantes = grupo.variantes.filter((v) => !descartadas.includes(v))
 
-        // 2. Vino la moto -> chequear compatibilidad de ese combo
-        if (args.modelo_moto && args.modelo_moto.trim()) {
+        // 1. LA MOTO MANDA: se chequea ANTES del match de variante.
+        //
+        //    El orden importaba y estaba al revés. Como el paso de la variante
+        //    retornaba apenas encontraba un match, un cliente que decía la moto
+        //    Y la variante en el mismo mensaje ("tengo una crypton, leva larga")
+        //    se llevaba "VARIANTE RESUELTA — $99.000" sin que nadie mirara la
+        //    moto, aunque la Crypton esté cargada como NO compatible. La misma
+        //    moto sin nombrar la variante sí se chequeaba: el bot era incoherente
+        //    consigo mismo según cómo viniera redactado el mensaje.
+        //
+        //    Medido sobre los 1.125 turnos reales del 06-09/09: de 35 variantes
+        //    resueltas por el match, 25 traían moto y ninguna se validó. 23 de
+        //    esas 25 ya estaban confirmadas (no cambia nada), 1 pasa a repreguntar
+        //    el modelo y 1 pasa a escalar.
+        const motoDelMensaje = (args.modelo_moto || "").trim()
+        // Fallback: la moto que ya quedó confirmada en turnos anteriores. Sin
+        // esto el chequeo no corre cuando el cliente dijo la moto hace 3 turnos
+        // y el modelo no la vuelve a pasar (10 de esas 35 veces).
+        const motoDelEmbudo = (args.__embudo?.motoConfirmada || "").trim()
+        const motoTexto = motoDelMensaje || motoDelEmbudo
+        let motoConfirmadaOk: string | undefined
+
+        if (motoTexto) {
             const [compat, reconocida] = await Promise.all([
-                consultarCompatibilidad({ modelo_moto: args.modelo_moto, kit_nombre_o_id: grupo.nombre }),
-                motoReconocida(args.modelo_moto)
+                consultarCompatibilidad({ modelo_moto: motoTexto, kit_nombre_o_id: grupo.nombre }),
+                motoReconocida(motoTexto)
             ])
 
             // La moto no resuelve a un modelo firme (cilindrada que no consta,
             // familia con varios modelos). NO confirmamos ni escalamos: la IA
             // repregunta cuál modelo con los candidatos.
-            if (compat.confianza === "parcial") {
+            //
+            // Solo si la moto vino en ESTE mensaje: una moto del embudo ya pasó
+            // por acá y quedó confirmada, repreguntar el modelo de nuevo sería
+            // volver sobre algo ya cerrado.
+            if (motoDelMensaje && compat.confianza === "parcial") {
                 return {
                     encontrado: true,
                     resuelta: false,
                     grupo_id: grupo.id,
                     mensaje_para_agente: [
-                        `NO CONFIRMES NADA de "${args.modelo_moto}" todavía: no resuelve a un modelo único.`,
+                        `NO CONFIRMES NADA de "${motoDelMensaje}" todavía: no resuelve a un modelo único.`,
                         compat.candidatos?.length ? `Modelos posibles (DATO INTERNO, no se los recites al cliente como "tengo cargada la X"): ${compat.candidatos.join(" / ")}.` : "",
                         `Si el cliente ya dijo cuál tiene, volvé a llamar resolver_variante con ese modelo exacto.`,
                         `Si no, preguntale con naturalidad SOLO por el dato que falta (ej: "es la 110 o la 125?"). Nunca le nombres un modelo distinto al que él dijo.`,
@@ -388,6 +507,10 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             // y el motivo cargados — la Biz 105 de la conv 503, y 6 de los 16
             // escalados por `moto_no_registrada` de la semana del 07/09.
             // Una moto realmente inventada no llega acá: da `encontrado: false`.
+            //
+            // Este veredicto SÍ vale también para la moto del embudo: si hay una
+            // fila que dice que no le entra, no se la vendemos, se haya dicho la
+            // moto en este mensaje o tres turnos atrás.
             const motoIdentificada = reconocida || compat.coincidencia_moto === "exacta"
             if (compat.encontrado && compat.compatible === false && motoIdentificada) {
                 return {
@@ -396,7 +519,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     grupo_id: grupo.id,
                     incompatible: true,
                     mensaje_para_agente: [
-                        `NO ES COMPATIBLE con ${args.modelo_moto}.${compat.detalle ? ` Motivo: ${compat.detalle}.` : ""}`,
+                        `NO ES COMPATIBLE con ${motoTexto}.${compat.detalle ? ` Motivo: ${compat.detalle}.` : ""}`,
                         `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,
                         `- NO ofrezcas otros combos ni "alternativas": no tenés ninguna confirmada por el sistema.`,
                         `- NO le vuelvas a preguntar la moto (ya te la dijo).`,
@@ -420,45 +543,112 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             // por la fila genérica `110` de la tabla de compatibilidad, que matchea
             // "una 110", "tengo un 110" y hasta marcas que no tenemos cargadas
             // ("Okinoi 110"). Una XR 150 no matchea esa fila, y por eso escala.
+            //
+            // Con la moto del EMBUDO no se escala: esa moto ya venía confirmada de
+            // un turno anterior y un "no confirmada" acá sería inventar escalados
+            // sobre charlas que ya estaban encaminadas. El fallback del embudo
+            // existe para atajar el veredicto NEGATIVO, no para volver a auditar
+            // lo que ya se dio por bueno.
             const confirmadaCompatible = compat.encontrado && compat.compatible === true
-            if (!confirmadaCompatible) {
+            if (!confirmadaCompatible && motoDelMensaje) {
                 return {
                     encontrado: true,
                     resuelta: false,
                     grupo_id: grupo.id,
                     escalar: true,
                     motivo: "moto_no_registrada",
-                    mensaje_para_agente: `Compatibilidad de "${args.modelo_moto}" no confirmada para este combo. Ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio total cara al cliente.`
+                    mensaje_para_agente: `Compatibilidad de "${motoDelMensaje}" no confirmada para este combo. Ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio total cara al cliente.`
                 }
             }
+            if (confirmadaCompatible) {
+                motoConfirmadaOk = motoDelMensaje || compat.modelo_moto_detectado || motoDelEmbudo
+            }
+        }
 
-            // Confirmada por fila positiva: la moto sola casi nunca define la
-            // variante (recorrido). Se confirma que le va y se pasa a la
-            // pregunta/guía de variante.
-            const guia = clienteNoSabe && grupo.pregunta_variante_reintento
+        // 2. ¿El cliente ya nombró la variante? (la moto ya pasó el chequeo)
+        const hits = matchearVariantes(args.mensaje_cliente || "", variantes)
+        if (hits.length === 1) {
+            const v = hits[0]
+            // Dato duro para que el modelo no redacte lo contrario de lo que el
+            // pack es (ver el bloque 0). Va incluso cuando la variante ya estaba
+            // resuelta: el riesgo no es repetir el precio, es afirmar el atributo.
+            const avisoFijo = v.atributoFijo
+                ? ` OJO: este combo es SIEMPRE ${v.atributoFijo} — NUNCA le digas ni le des a entender lo contrario.`
+                : ""
+            return {
+                encontrado: true,
+                resuelta: true,
+                grupo_id: grupo.id,
+                variante_pack_id: v.id,
+                etiqueta: v.etiqueta,
+                precio: v.precio,
+                // La moto que acaba de pasar el chequeo del paso 1 también queda
+                // registrada acá: antes, un turno que resolvía moto + variante
+                // juntas no guardaba la moto en el estado.
+                moto_confirmada: motoDelMensaje ? motoConfirmadaOk : undefined,
+                mensaje_para_agente:
+                    args.__embudo?.varianteResuelta?.packId === v.id
+                        // Ya estaba resuelta de antes: el cliente ya escuchó esta
+                        // opción con su precio. Re-confirmarla es el arranque de
+                        // la respuesta larga que no venía a cuento (conv 2763).
+                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.${avisoFijo}`
+                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.${avisoFijo}`
+            }
+        }
+        // El "no sé" GANA sobre el ambiguo. Un cliente que no sabe qué variante
+        // tiene casi siempre nombra las dos al negarlas ("no sé si lo tengo corta
+        // o larga"), y para `matchearVariantes` eso es indistinguible de alguien
+        // que nombró ambas a propósito: se comía el `cliente_no_sabe` y devolvía
+        // la repregunta con los precios en vez de la guía de cómo fijarse
+        // (conv 3677). Si dijo que no sabe, se sigue de largo hasta la guía.
+        if (hits.length > 1 && !clienteNoSabe) {
+            const opciones = variantes.map((v) => v.etiqueta).join(" o ")
+            // Sin precios: el cliente ya los escuchó al presentarle el combo, y
+            // repetirlos acá es justo lo que se lee como "me volvió a tirar el
+            // precio" en vez de ayudarlo a definir la variante.
+            const guiaAmbiguo = (grupo.pregunta_variante_reintento || "").trim()
+            return {
+                encontrado: true,
+                resuelta: false,
+                grupo_id: grupo.id,
+                pregunta_directa: guiaAmbiguo || undefined,
+                mensaje_para_agente: [
+                    `TODAVIA NO. El cliente nombró las dos opciones (${opciones}) pero no dijo cuál tiene.`,
+                    `Preguntále cuál de las dos es, con tu voz. NO repitas los precios: ya se los diste.`,
+                    guiaAmbiguo ? `Si no sabe cómo fijarse, pasale esta guía:\n${guiaAmbiguo}` : "",
+                    pideRecomendacion ? `\n${AVISO_NO_ES_PREFERENCIA}` : ""
+                ].filter(Boolean).join("\n")
+            }
+        }
+
+        // 3. La moto quedó confirmada pero falta la variante: la moto sola casi
+        //    nunca la define. Solo cuando la moto vino en ESTE mensaje — si salió
+        //    del embudo, el "le va bien" ya se lo dijimos en su momento.
+        if (motoConfirmadaOk && motoDelMensaje) {
+            const guiaMoto = clienteNoSabe && grupo.pregunta_variante_reintento
                 ? grupo.pregunta_variante_reintento.trim()
                 : (grupo.pregunta_variante || "").trim()
             return {
                 encontrado: true,
                 resuelta: false,
                 grupo_id: grupo.id,
-                moto_confirmada: args.modelo_moto || compat.modelo_moto_detectado,
-                pregunta_directa: guia,
-                mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta la variante (el recorrido). Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
+                moto_confirmada: motoConfirmadaOk,
+                pregunta_directa: guiaMoto,
+                mensaje_para_agente: `Le va bien a ${motoDelMensaje}. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
             }
         }
 
-        // 3. Nada todavía -> próxima pregunta
+        // 4. Nada todavía -> próxima pregunta
         const guia = clienteNoSabe && grupo.pregunta_variante_reintento
             ? grupo.pregunta_variante_reintento.trim()
-            : (grupo.pregunta_variante || `Qué variante buscás: ${grupo.variantes.map((v) => v.etiqueta).join(" o ")}?`).trim()
+            : (grupo.pregunta_variante || `Qué variante buscás: ${variantes.map((v) => v.etiqueta).join(" o ")}?`).trim()
 
         return {
             encontrado: true,
             resuelta: false,
             grupo_id: grupo.id,
             pregunta_directa: guia,
-            mensaje_para_agente: `Todavía falta saber la variante. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
+            mensaje_para_agente: `Todavía falta saber ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
         }
     } catch (err: any) {
         console.error("Error en resolverVariante:", err)

@@ -44,6 +44,8 @@ const FORM_VACIO: ChatPackInput = {
     grupoId: null,
     criterioVariante: "",
     sinonimosVariante: "",
+    atributoFijo: "",
+    atributoFijoContradice: "",
     categoria: "",
 }
 
@@ -141,6 +143,8 @@ export function PacksTab({
             grupoId: pack.grupo_id,
             criterioVariante: pack.criterio_variante || "",
             sinonimosVariante: (pack.sinonimos_variante || []).join(", "),
+            atributoFijo: pack.atributo_fijo || "",
+            atributoFijoContradice: (pack.atributo_fijo_contradice || []).join(", "),
             categoria: pack.categoria || "",
         })
         setComponentes(
@@ -290,6 +294,10 @@ export function PacksTab({
                 criterio_variante: grupoId ? form.criterioVariante.trim() : null,
                 sinonimos_variante: grupoId
                     ? form.sinonimosVariante.split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean)
+                    : [],
+                atributo_fijo: form.atributoFijo.trim() || null,
+                atributo_fijo_contradice: form.atributoFijo.trim()
+                    ? form.atributoFijoContradice.split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean)
                     : [],
                 categoria: grupoId ? null : form.categoria.trim() || null,
                 componentes: componentes.map((c, i) => ({
@@ -534,6 +542,32 @@ export function PacksTab({
                                     </p>
                                 </div>
                             )}
+
+                            <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3">
+                                <Label htmlFor="atributoFijo">Lo que este pack NO puede cambiar (opcional)</Label>
+                                <Input
+                                    id="atributoFijo"
+                                    placeholder='Ej: "recorrido corto"'
+                                    value={form.atributoFijo}
+                                    onChange={(e) => actualizarCampo("atributoFijo", e.target.value)}
+                                    disabled={guardando}
+                                />
+                                <Label htmlFor="atributoFijoContradice" className="pt-1">
+                                    Frases del cliente que lo desmienten (separadas por comas)
+                                </Label>
+                                <Input
+                                    id="atributoFijoContradice"
+                                    placeholder="recorrido largo, aluminio, plateado, 32 dientes"
+                                    value={form.atributoFijoContradice}
+                                    onChange={(e) => actualizarCampo("atributoFijoContradice", e.target.value)}
+                                    disabled={guardando || !form.atributoFijo.trim()}
+                                />
+                                <p className="text-xs text-amber-800">
+                                    Si el cliente dice una de esas frases, el bot <strong>no</strong> le ofrece este pack ni le pasa
+                                    el precio: deriva la consulta. Poné solo frases inequívocas — nada de &quot;largo&quot; o
+                                    &quot;larga&quot; sueltos si en este combo esas palabras significan la variante.
+                                </p>
+                            </div>
                         </div>
 
                         {grupoSeleccionado === SIN_GRUPO && (

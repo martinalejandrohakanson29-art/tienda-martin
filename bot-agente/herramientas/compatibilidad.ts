@@ -760,7 +760,11 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
 
                 const lineasGuia = [
                     `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}`,
-                    `Falta saber la variante (el recorrido) para cotizar. Seguí la charla con el cliente sobre esto, con tu voz:`,
+                    // Sin nombrar el eje: decía "(el recorrido)" también en los
+                    // grupos cuyo eje es la LEVA, y ese texto es parte de lo que
+                    // llevó al bot a mezclar los dos conceptos (conv 3791). La
+                    // `pregunta_variante` que sigue ya dice cuál es el eje real.
+                    `Falta saber la variante para cotizar. Seguí la charla con el cliente sobre esto, con tu voz:`,
                     pLimpia
                 ]
 

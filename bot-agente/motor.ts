@@ -1267,7 +1267,8 @@ export async function ejecutarTurnoAgente(
                     embudo: {
                         grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
                         packPresentadoId: estadoConv.packPresentado?.id ?? null,
-                        varianteResuelta: estadoConv.varianteResuelta ?? null
+                        varianteResuelta: estadoConv.varianteResuelta ?? null,
+                        motoConfirmada: estadoConv.motoConfirmada ?? null
                     }
                 })
                 herramientasEjecutadas.push(ejecucion)
@@ -1285,18 +1286,30 @@ export async function ejecutarTurnoAgente(
                 }
 
                 // 1.b resolver_variante puede pedir escalado (moto no registrada en un
-                //     combo con incompatibilidad física real): se honra en el acto.
+                //     combo con incompatibilidad física real, o cliente que pide algo
+                //     que el combo no es): se honra en el acto.
                 if (call.function.name === "resolver_variante" && ejecucion.resultado?.escalar === true) {
                     motivoEscalado = ejecucion.resultado?.motivo || "moto_no_registrada"
                     marcarEscalado(motivoEscalado || "moto_no_registrada")
                     escaladoPersistido = true
+                    // El resumen habla de compatibilidad solo cuando el escalado ES de
+                    // compatibilidad: `producto_no_catalogado` sale del atributo fijo del
+                    // pack (ej. cliente de recorrido largo sobre el combo corto) y ahí
+                    // "Compatibilidad de X" despistaba al equipo en la bandeja.
+                    const esProductoQueNoTenemos =
+                        (motivoEscalado || "").split(":")[0].trim() === "producto_no_catalogado"
+                    const resumenBase = esProductoQueNoTenemos
+                        ? `Pide una versión de "${ejecucion.argumentos?.combo || "?"}" que no tenemos armada`
+                        : `Compatibilidad de "${ejecucion.argumentos?.modelo_moto || "?"}" con "${ejecucion.argumentos?.combo || "?"}"`
                     anotarEscaladoPendiente(
                         motivoEscalado || "moto_no_registrada",
-                        `Compatibilidad de "${ejecucion.argumentos?.modelo_moto || "?"}" con "${ejecucion.argumentos?.combo || "?"}" (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
+                        `${resumenBase} (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
                     )
                     await escalarAHumano({
                         motivo: ejecucion.resultado?.motivo || "moto_no_registrada",
-                        resumen_consulta: `Variante no resuelta para "${ejecucion.argumentos?.modelo_moto || "?"}" en combo "${ejecucion.argumentos?.combo || "?"}".`,
+                        resumen_consulta: esProductoQueNoTenemos
+                            ? `${resumenBase}. El cliente escribió: "${mensajeUsuario.slice(0, 160)}".`
+                            : `Variante no resuelta para "${ejecucion.argumentos?.modelo_moto || "?"}" en combo "${ejecucion.argumentos?.combo || "?"}".`,
                         modelo_moto: ejecucion.argumentos?.modelo_moto,
                         kit: ejecucion.argumentos?.combo,
                         conversation_id: opciones.conversationId

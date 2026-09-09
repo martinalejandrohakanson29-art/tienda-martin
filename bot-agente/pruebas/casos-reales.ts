@@ -980,5 +980,32 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "`reclamo` esta en MOTIVOS_SILENCIO_ABSOLUTO: el escalado parcial NO aplica y el turno queda mudo entero."
         }
+    },
+    {
+        // Conv 3791 (09/09). El anuncio era el combo "Kit 120 corto + Leva 6.40":
+        // el cilindro va SIEMPRE corto y lo unico variable es la leva (69/74mm).
+        // El cliente dijo que su moto es de recorrido largo, el sistema solo
+        // miraba la leva, y el bot le confirmo "para tu Guerrero Trip va el
+        // recorrido largo con leva larga, $99.000" — cotizandole el pack CORTO.
+        // Ahora el `atributo_fijo` del pack descarta las dos variantes.
+        id: "caso-63-atributo-fijo-contradicho",
+        titulo: "Pide una version que el combo no es (recorrido largo sobre el combo corto)",
+        mensajeCliente: "Tengo un gerrero trip es recorrido largo\nLleva leva larga",
+        estadoInicial: {
+            grupoPineado: { id: 4, nombre: "Kit 120 corto + Leva 6.40" }
+        },
+        historial: [
+            { rol: "user", contenido: "Hola quiero mas informacion sobre el kit 120 + leva de calle de 6.4?" },
+            { rol: "assistant", contenido: "Hola, como va!\n\nEl combo Kit 120 corto + leva de calle de 6.40 sale $99.000 con envio gratis a todo el pais.\n\nA que moto se lo queres poner?" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            // Lo que nunca mas puede pasar: afirmarle el recorrido largo, o
+            // cotizarle este combo despues de que dijo que su moto es larga.
+            patronProhibido: /recorrido largo|99\.?000/i,
+            descripcionEsperada:
+                "El combo es SIEMPRE recorrido corto: se escala con motivo producto_no_catalogado y no se le confirma ni cotiza nada."
+        }
     }
 ]

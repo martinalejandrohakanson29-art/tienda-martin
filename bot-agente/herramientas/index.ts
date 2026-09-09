@@ -47,6 +47,13 @@ export interface EstadoEmbudo {
     grupoPineadoId?: number | null
     packPresentadoId?: number | null
     varianteResuelta?: { packId: number; etiqueta: string; precio: number } | null
+    /**
+     * Moto que ya quedo confirmada compatible en turnos anteriores. La usa
+     * `resolver_variante` cuando el modelo no vuelve a pasar `modelo_moto`
+     * (el cliente la dijo hace 3 turnos): sin esto, el chequeo de
+     * compatibilidad no corre y la variante se resuelve a ciegas.
+     */
+    motoConfirmada?: string | null
 }
 
 /**

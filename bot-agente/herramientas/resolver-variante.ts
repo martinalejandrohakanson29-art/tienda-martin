@@ -373,9 +373,9 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     grupo_id: grupo.id,
                     mensaje_para_agente: [
                         `NO CONFIRMES NADA de "${args.modelo_moto}" todavía: no resuelve a un modelo único.`,
-                        compat.candidatos?.length ? `Modelos posibles: ${compat.candidatos.join(" / ")}.` : "",
+                        compat.candidatos?.length ? `Modelos posibles (DATO INTERNO, no se los recites al cliente como "tengo cargada la X"): ${compat.candidatos.join(" / ")}.` : "",
                         `Si el cliente ya dijo cuál tiene, volvé a llamar resolver_variante con ese modelo exacto.`,
-                        `Si no, preguntale con naturalidad cuál de esos modelos es.`,
+                        `Si no, preguntale con naturalidad SOLO por el dato que falta (ej: "es la 110 o la 125?"). Nunca le nombres un modelo distinto al que él dijo.`,
                         `Si insiste con uno que no está en esa lista, ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio.`,
                     ].filter(Boolean).join("\n"),
                 }

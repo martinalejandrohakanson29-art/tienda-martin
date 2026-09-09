@@ -87,12 +87,22 @@ function coincideExacto(textoNorm: string, m: MotoCanonica): boolean {
     return m.aliases.some((a) => normalizarTexto(a) === textoNorm)
 }
 
-/** ¿Un alias de 3+ letras aparece contenido en el texto del cliente (o viceversa)? */
+/**
+ * ¿Un alias de 3+ letras aparece contenido en el texto del cliente (o viceversa)?
+ *
+ * OJO con los alias que son "marca + cilindrada" ("brava 110", "mondial 110",
+ * "keller 110"): al sacarles los numeros quedan reducidos a la MARCA sola, y
+ * entonces cualquier moto de esa marca cae en la familia de ese modelo. Real
+ * (conv 3730, 09/09): "brava altino 150 base" resolvia a la familia de la
+ * "Brava Nevada 110" — una moto que no tiene nada que ver — y el bot le
+ * repreguntaba al cliente citando ese modelo ajeno en vez de escalar.
+ */
 function coincideFamilia(textoNorm: string, m: MotoCanonica): boolean {
     const palabras = palabrasModelo(m.nombre_completo)
     for (const a of m.aliases) {
         const aNorm = normalizarTexto(a)
         const soloLetras = aNorm.replace(/[0-9\s]/g, "")
+        if (MARCAS.has(soloLetras)) continue // "brava 110" -> "brava": es la marca, no el modelo
         if (soloLetras.length >= 3 && (textoNorm.includes(soloLetras) || palabras.some((p) => p === soloLetras))) {
             // el alias sin numeros aparece en el texto -> misma familia
             if (textoNorm.split(" ").some((w) => w === soloLetras) || textoNorm.includes(` ${soloLetras}`) || textoNorm.startsWith(soloLetras)) {
@@ -142,6 +152,28 @@ function coincidePorTypo(textoNorm: string, m: MotoCanonica): boolean {
 }
 
 /**
+ * ¿El cliente y alguno de los candidatos comparten al menos una palabra de
+ * MODELO (no la marca, no los numeros)? Si no comparten ninguna, el cliente
+ * nombro una moto que sencillamente no tenemos: repreguntar "tenes la 110 o la
+ * 125?" citando modelos ajenos es peor que escalar, porque le mete al cliente
+ * datos de otra moto/kit. Ver conv 3730 (09/09).
+ */
+function comparteModeloCon(textoNorm: string, candidatos: MotoCanonica[]): boolean {
+    const delCliente = palabrasModelo(textoNorm)
+    if (delCliente.length === 0) return true // solo dijo marca+cc: la familia es lo unico que hay
+    for (const m of candidatos) {
+        const propias = [
+            ...palabrasModelo(m.nombre_completo),
+            ...m.aliases.flatMap((a) => palabrasModelo(a)),
+        ]
+        for (const w of delCliente) {
+            if (propias.some((p) => p === w || esTypoDe(w, p))) return true
+        }
+    }
+    return false
+}
+
+/**
  * Resuelve la moto del cliente con nivel de confianza. NO decide compatibilidad
  * — solo dice "que moto es y que tan seguro estoy".
  */
@@ -183,6 +215,12 @@ export async function resolverMoto(textoCliente: string): Promise<ResolucionMoto
             }
             // Ninguno de la familia tiene esa cilindrada: el cliente fue MAS
             // especifico que el catalogo, o se confundio.
+            // Red de seguridad: si ademas nombro un modelo que no es ninguno de
+            // los candidatos ("brava altino" vs "Brava Nevada"), no hay nada que
+            // repreguntar — es una moto que no tenemos y va a humano.
+            if (!comparteModeloCon(textoNorm, familia)) {
+                return { confianza: "ninguna", candidatos: [] }
+            }
             return {
                 confianza: "ambigua",
                 candidatos: familia,

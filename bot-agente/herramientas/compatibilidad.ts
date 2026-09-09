@@ -340,11 +340,11 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             const lineas = [
                 `NO CONFIRMES COMPATIBILIDAD TODAVÍA. La moto que dijo el cliente ("${args.modelo_moto}") no resuelve a un modelo único y firme.`,
                 resol.detalle ? `Motivo: ${resol.detalle}` : "",
-                resol.candidatos.length ? `Modelos que sí tengo cargados de esa familia: ${listarCandidatos(resol.candidatos)}.` : "",
+                resol.candidatos.length ? `Modelos que sí tengo cargados de esa familia (DATO INTERNO, no se lo recites al cliente como "tengo cargada la X"): ${listarCandidatos(resol.candidatos)}.` : "",
                 estadoFilas.length ? `Estado de compatibilidad conocido para este kit:\n${estadoFilas.join("\n")}` : "",
                 `QUÉ HACER:`,
                 `- Si en el historial el cliente ya aclaró exactamente cuál de esos modelos tiene, volvé a llamar consultar_compatibilidad con ese modelo exacto (ej: "Motomel Blitz 110").`,
-                `- Si no lo aclaró, preguntale con naturalidad cuál de esos modelos es (ej: "Tenés la 110 o la 125?").`,
+                `- Si no lo aclaró, preguntale con naturalidad SOLO por el dato que falta (ej: "Tenés la 110 o la 125?"). Nunca le nombres un modelo distinto al que él dijo.`,
                 `- Si el cliente insiste con un modelo/cilindrada que no está en la lista de arriba, ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio.`,
                 `- NUNCA afirmes que le va (ni que no le va) sin uno de esos modelos confirmado.`,
             ].filter(Boolean)

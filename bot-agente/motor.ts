@@ -1,8 +1,9 @@
 import { MensajeChat, RespuestaAgente, HerramientaEjecutadaInfo, LlamadaHerramientaLLM } from "./tipos"
 import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
+import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla } from "./nucleo/texto"
@@ -41,6 +42,44 @@ export interface OpcionesEjecucion {
 
 const DEFAULT_MODEL = "gpt-5" // Modelo de producción (chat_config.proveedor_activo lo puede pisar)
 const DEFAULT_BASE_URL = "https://api.openai.com/v1"
+/**
+ * ESCALADO PARCIAL — contrato que se le inyecta al modelo cuando una parte de
+ * la ráfaga se derivó al equipo pero el turno puede seguir.
+ *
+ * Por qué existe (conv 3421, 09/09): el cliente mandó "Para una brava nevada
+ * 110" y "Que marca es el cilindro" en la misma ráfaga. La marca del cilindro
+ * no está cargada en ninguna tabla, así que el bot escaló — correcto. Pero el
+ * escalado muteaba el TURNO ENTERO, y la compatibilidad de la Brava 110, que sí
+ * estaba cargada y confirmada, se fue al silencio con él. El cliente no recibió
+ * nada y contestó un humano diez minutos después.
+ *
+ * Desde acá el escalado deja muda SOLO la consulta derivada: lo que una
+ * herramienta ya respondió se le sigue contestando al cliente.
+ *
+ * El centinela SIN_RESPUESTA es la salida honesta cuando no quedó nada que
+ * decir: sin él el modelo rellena con una frase de compromiso.
+ */
+const CONTRATO_ESCALADO_PARCIAL = [
+    "",
+    "--- ESA CONSULTA QUEDO DERIVADA AL EQUIPO (silencio solo sobre ESE punto) ---",
+    "1. No la contestes, no la aproximes y no opines sobre ella: no tenemos el dato.",
+    "2. No le anuncies al cliente que la derivaste, que la consultas, que averiguas ni que le avisas despues. El equipo entra en la charla sin anunciarse.",
+    "3. Si en el MISMO mensaje el cliente pregunto OTRA cosa, resolvela igual: llama a la herramienta que corresponda y contestale SOLO eso, corto y sin mencionar lo derivado.",
+    "4. Si no queda nada mas para contestar con datos de una herramienta, respondes unicamente: SIN_RESPUESTA",
+].join("\n")
+
+/**
+ * Escalado que NO admite respuesta parcial (reclamo, mayorista, motivo que
+ * no entendemos): silencio absoluto. El motor corta el turno igual sin
+ * volver a llamar al modelo; esto es para el simulador y el banco, donde el
+ * resultado de la herramienta se lee tal cual.
+ */
+const SUFIJO_SILENCIO_TOTAL =
+    "\nRegla de oro: no envies NINGUN mensaje al cliente en este turno. El equipo humano continua la conversacion."
+
+/** Centinela con el que el modelo pide silencio total en un escalado parcial. */
+const CENTINELA_SIN_RESPUESTA = /(^|\s)SIN[_ ]RESPUESTA(\s|$|\.)/i
+
 const MAX_PASOS_REACT = 6
 const TIMEOUT_LLM_MS = 60_000 // gpt-5 (razonamiento) es más lento que gpt-5-mini; margen para no abortar turnos válidos
 
@@ -752,6 +791,15 @@ export async function ejecutarTurnoAgente(
     // Se pone en true en cuanto alguna rama ejecuta `escalarAHumano`: el pendiente
     // ya quedó en la bandeja del equipo y nadie más debe volver a insertarlo.
     let escaladoPersistido = false
+    /**
+     * Escalado PARCIAL activo: algo de esta ráfaga quedó derivado al equipo,
+     * pero el motivo admite contestar el resto (ver `admiteRespuestaParcial`).
+     * Mientras esté en true el loop NO corta: el modelo puede seguir llamando
+     * herramientas y redactar la respuesta de lo que sí sabemos.
+     */
+    let escaladoParcial = false
+    /** Algún escalado del turno exige silencio total: pisa a `escaladoParcial`. */
+    let silencioAbsoluto = false
 
     const fechaHoraCordoba = new Intl.DateTimeFormat("es-AR", {
         timeZone: "America/Argentina/Cordoba",
@@ -955,6 +1003,23 @@ export async function ejecutarTurnoAgente(
         if (!llamadasTools || llamadasTools.length === 0) {
             const contenido = mensajeAsistente?.content || ""
 
+            // Escalado parcial: el modelo avisa con el centinela que no le quedó
+            // nada para contestar por fuera de lo derivado. Silencio total, que
+            // es la salida vieja y segura.
+            if (escaladoParcial && CENTINELA_SIN_RESPUESTA.test(contenido)) {
+                await persistirEstado()
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas,
+                    escaladoHumano: true,
+                    motivoEscalado,
+                    escaladoPersistido,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: tokensTotales
+                }
+            }
+
             // Separar en múltiples mensajes si el modelo usó el delimitador de ráfaga
             const partesRaw = contenido
                 .split(/---MENSAJE---|(?:\r?\n){2,}---(?:\r?\n){2,}/)
@@ -988,25 +1053,32 @@ export async function ejecutarTurnoAgente(
                             mensajeFinal: s.textoLimpio,
                             mensajesFinales: [s.textoLimpio],
                             herramientasEjecutadas,
-                            escaladoHumano: false,
+                            escaladoHumano: escaladoParcial,
+                            motivoEscalado: escaladoParcial ? motivoEscalado : undefined,
+                            escaladoPersistido: escaladoParcial ? escaladoPersistido : undefined,
+                            escaladoParcial: escaladoParcial || undefined,
                             latenciaMs: Date.now() - inicio,
                             tokensUsados: tokensTotales,
                         }
                     }
                 }
 
-                await escalarAHumano({
-                    motivo: "respuesta_no_confiable",
-                    resumen_consulta: `El bot generó una respuesta sospechosa (posible fuga de instrucciones internas). Última consulta del cliente: ${mensajeUsuario.slice(0, 300)}`,
-                    conversation_id: opciones.conversationId,
-                }).catch((err) => console.error("[motor] fallo al persistir escalado por respuesta no confiable:", err))
+                // Si el turno ya venía de un escalado parcial, el pendiente ya
+                // está en la bandeja: no se duplica la fila por este fallo.
+                if (!escaladoParcial) {
+                    await escalarAHumano({
+                        motivo: "respuesta_no_confiable",
+                        resumen_consulta: `El bot generó una respuesta sospechosa (posible fuga de instrucciones internas). Última consulta del cliente: ${mensajeUsuario.slice(0, 300)}`,
+                        conversation_id: opciones.conversationId,
+                    }).catch((err) => console.error("[motor] fallo al persistir escalado por respuesta no confiable:", err))
+                }
                 await persistirEstado()
                 return {
                     mensajeFinal: null,
                     mensajesFinales: [],
                     herramientasEjecutadas,
                     escaladoHumano: true,
-                    motivoEscalado: "respuesta_no_confiable",
+                    motivoEscalado: escaladoParcial ? motivoEscalado : "respuesta_no_confiable",
                     escaladoPersistido: true,
                     latenciaMs: Date.now() - inicio,
                     tokensUsados: tokensTotales,
@@ -1053,8 +1125,13 @@ export async function ejecutarTurnoAgente(
                 // Un modelo que parafrasea le pasa por al lado y el cliente
                 // igual lee el mismo plazo o el mismo precio dos veces.
                 const sinHechosRepetidos = quitarHechosYaDichos(sinRepetidos, yaDichoPorElBot, mensajeUsuario, hechosDeEsteTurno)
-                if (sinHechosRepetidos && !pareceRespuestaNoConfiable(sinHechosRepetidos)) {
-                    mensajesFinalesSanitizados.push(sinHechosRepetidos)
+                // El escalado es invisible para el cliente: si el modelo lo
+                // blanqueó ("eso lo consulto y te aviso"), esa oración se cae.
+                const sinAnuncioDeDerivacion = escaladoParcial
+                    ? quitarDerivacionAnunciada(sinHechosRepetidos)
+                    : sinHechosRepetidos
+                if (sinAnuncioDeDerivacion && !pareceRespuestaNoConfiable(sinAnuncioDeDerivacion)) {
+                    mensajesFinalesSanitizados.push(sinAnuncioDeDerivacion)
                 }
             }
 
@@ -1068,13 +1145,61 @@ export async function ejecutarTurnoAgente(
                 mensajeFinalUnificado
             )
 
+            /**
+             * BACKSTOP del escalado parcial: el bot no puede seguir hablando y
+             * de paso dictaminar que "le va bien" a la moto.
+             *
+             * Se aborta al silencio total en dos casos:
+             *  - lo derivado ERA la compatibilidad (`moto_no_registrada`,
+             *    `compatibilidad_dudosa`): justo eso es lo que no pudimos
+             *    confirmar, asi que ninguna afirmacion vale;
+             *  - el mensaje afirma compatibilidad sin que ninguna herramienta
+             *    del turno la haya confirmado (seria de memoria).
+             *
+             * Un `consulta_tecnica` por un dato suelto (la marca del cilindro)
+             * NO cae aca si la compat salio de una herramienta: ese es
+             * exactamente el caso que el escalado parcial viene a rescatar.
+             */
+            const motivoBaseEscalado = (motivoEscalado || "").split(":")[0].trim().toLowerCase()
+            const loDerivadoEraLaCompat =
+                motivoBaseEscalado === "moto_no_registrada" || motivoBaseEscalado === "compatibilidad_dudosa"
+            const compatConfirmadaPorHerramienta = herramientasEjecutadas.some(
+                (ej) =>
+                    (ej.nombre === "consultar_compatibilidad" && ej.resultado?.encontrado === true) ||
+                    (ej.nombre === "resolver_variante" && ej.resultado?.escalar !== true)
+            )
+            if (
+                escaladoParcial &&
+                afirmaCompatibilidad(mensajeFinalUnificado) &&
+                (loDerivadoEraLaCompat || !compatConfirmadaPorHerramienta)
+            ) {
+                console.warn("[motor] escalado parcial abortado: el mensaje afirmaba compatibilidad justo sobre lo derivado")
+                await persistirEstado()
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas,
+                    escaladoHumano: true,
+                    motivoEscalado,
+                    escaladoPersistido,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: tokensTotales
+                }
+            }
+
             await persistirEstado()
             return {
                 mensajeFinal: mensajeFinalUnificado || null,
                 mensajesFinales: mensajesFinalesSanitizados,
                 fotoUrl: extraerFotoDeBienvenida(herramientasEjecutadas, estadoConv, descartadosPorElMensaje),
                 herramientasEjecutadas,
-                escaladoHumano: false,
+                // Con escalado parcial el turno derivó algo Y contesta: el
+                // consumidor tiene que enviar el mensaje igual (ver
+                // `escaladoParcial` en tipos.ts).
+                escaladoHumano: escaladoParcial,
+                motivoEscalado: escaladoParcial ? motivoEscalado : undefined,
+                escaladoPersistido: escaladoParcial ? escaladoPersistido : undefined,
+                escaladoParcial: escaladoParcial || undefined,
                 latenciaMs: Date.now() - inicio,
                 tokensUsados: tokensTotales
             }
@@ -1091,6 +1216,38 @@ export async function ejecutarTurnoAgente(
 
         // Ejecutar cada herramienta
         for (const call of llamadasTools) {
+            // Ya derivamos algo en este turno: una segunda llamada a
+            // escalar_a_humano solo agregaría una fila repetida en la bandeja
+            // del equipo. Se le contesta al modelo sin volver a persistir.
+            if (call.function.name === "escalar_a_humano" && escaladoPersistido) {
+                mensajes.push({
+                    role: "tool",
+                    tool_call_id: call.id,
+                    name: call.function.name,
+                    content: "Esa consulta ya quedó derivada al equipo en este mismo turno. No la vuelvas a derivar." +
+                        (escaladoParcial ? CONTRATO_ESCALADO_PARCIAL : " No envies ningun mensaje al cliente.")
+                })
+                continue
+            }
+            // ¿Alguna rama de ESTE call derivó algo al equipo? Define si al
+            // resultado que ve el modelo se le pega el contrato de parcial.
+            let escaloEnEsteCall = false
+            /**
+             * Registra el escalado y decide si el turno puede seguir hablando.
+             * Con un motivo de silencio absoluto (reclamo, mayorista, ambiguo)
+             * `escaladoParcial` queda en false y el turno corta mudo, como
+             * siempre. Un solo motivo mudo manda sobre toda la ráfaga.
+             */
+            const marcarEscalado = (motivo: string) => {
+                escaladoHumano = true
+                escaloEnEsteCall = true
+                if (!admiteRespuestaParcial(motivo)) {
+                    silencioAbsoluto = true
+                    escaladoParcial = false
+                } else if (!silencioAbsoluto) {
+                    escaladoParcial = true
+                }
+            }
             try {
                 const ejecucion = await ejecutarHerramienta(call.function.name, call.function.arguments, {
                     conversationId: opciones.conversationId,
@@ -1117,8 +1274,8 @@ export async function ejecutarTurnoAgente(
 
                 // 1. Si la herramienta fue explícitamente escalar_a_humano
                 if (call.function.name === "escalar_a_humano") {
-                    escaladoHumano = true
                     motivoEscalado = ejecucion.argumentos?.motivo || "escalado_manual"
+                    marcarEscalado(motivoEscalado || "escalado_manual")
                     // El propio ejecutor de la herramienta ya insertó el pendiente.
                     escaladoPersistido = true
                     anotarEscaladoPendiente(
@@ -1130,8 +1287,8 @@ export async function ejecutarTurnoAgente(
                 // 1.b resolver_variante puede pedir escalado (moto no registrada en un
                 //     combo con incompatibilidad física real): se honra en el acto.
                 if (call.function.name === "resolver_variante" && ejecucion.resultado?.escalar === true) {
-                    escaladoHumano = true
                     motivoEscalado = ejecucion.resultado?.motivo || "moto_no_registrada"
+                    marcarEscalado(motivoEscalado || "moto_no_registrada")
                     escaladoPersistido = true
                     anotarEscaladoPendiente(
                         motivoEscalado || "moto_no_registrada",
@@ -1153,9 +1310,9 @@ export async function ejecutarTurnoAgente(
                     ejecucion.resultado?.encontrado === false &&
                     ejecucion.resultado?.confianza !== "parcial"
                 ) {
-                    escaladoHumano = true
                     const moto = ejecucion.argumentos?.modelo_moto || "desconocida"
                     motivoEscalado = `moto_no_registrada: ${moto}`
+                    marcarEscalado("moto_no_registrada")
                     escaladoPersistido = true
                     anotarEscaladoPendiente(
                         "moto_no_registrada",
@@ -1183,7 +1340,14 @@ export async function ejecutarTurnoAgente(
                     role: "tool",
                     tool_call_id: call.id,
                     name: call.function.name,
-                    content: contenidoParaModelo
+                    // Si este call derivó algo, el contrato de escalado parcial
+                    // viaja pegado al resultado: es lo que le dice al modelo que
+                    // calle ESE punto y siga con el resto de la ráfaga.
+                    content: !escaloEnEsteCall
+                        ? contenidoParaModelo
+                        : escaladoParcial
+                          ? contenidoParaModelo + CONTRATO_ESCALADO_PARCIAL
+                          : contenidoParaModelo + SUFIJO_SILENCIO_TOTAL
                 })
             } catch (err: any) {
                 mensajes.push({
@@ -1237,7 +1401,15 @@ export async function ejecutarTurnoAgente(
 
         // Si se activó escalado a humano (por la herramienta o por regla determinista de compatibilidad):
         // SILENCIO TOTAL: El bot NO envía ningún mensaje al cliente de WhatsApp.
-        if (escaladoHumano) {
+        // Escalado con silencio absoluto (reclamo, mayorista, motivo que no
+        // entendemos): el turno muere acá, sin decirle nada al cliente.
+        //
+        // Si en cambio el escalado admite respuesta parcial, el loop NO corta: el
+        // modelo sigue con el contrato pegado al resultado de la herramienta, y
+        // puede llamar a las herramientas que le faltan para contestar el resto
+        // de la ráfaga (conv 3421: derivar la marca del cilindro no puede dejar
+        // muda la compatibilidad de la moto, que sí teníamos cargada).
+        if (escaladoHumano && !escaladoParcial) {
             await persistirEstado()
             return {
                 mensajeFinal: null, // Silencio total cara al cliente
@@ -1253,7 +1425,22 @@ export async function ejecutarTurnoAgente(
         // Si no escaló, el loop continúa hacia el paso siguiente pasando los resultados de las herramientas
     }
 
-    // Si agotó los pasos máximos sin respuesta, escalar por seguridad
+    // Si agotó los pasos máximos sin respuesta, escalar por seguridad.
+    // Salvo que el turno ya venga de un escalado parcial: ahí el pendiente ya
+    // está en la bandeja del equipo y el motivo real es el de ese escalado.
+    if (escaladoParcial) {
+        await persistirEstado()
+        return {
+            mensajeFinal: null,
+            herramientasEjecutadas,
+            escaladoHumano: true,
+            motivoEscalado,
+            escaladoPersistido,
+            latenciaMs: Date.now() - inicio,
+            tokensUsados: tokensTotales
+        }
+    }
+
     anotarEscaladoPendiente("limite_pasos_react_superado", mensajeUsuario.slice(0, 300))
     await persistirEstado()
     return {

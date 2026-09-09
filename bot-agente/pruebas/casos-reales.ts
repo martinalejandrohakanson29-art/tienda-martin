@@ -932,5 +932,53 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "La tapa va en las dos opciones; el cilindro cambia segun la variante y se lleva uno solo. Puede nombrar las dos opciones para que elija, nunca prometer las dos piezas."
         }
+    },
+    {
+        // Conv 3421 (09/09), +5493516545706. Rafaga "Para una brava nevada 110"
+        // + "Que marca es el cilindro". La marca del cilindro no esta cargada en
+        // ninguna tabla -> se deriva, correcto. Pero la Brava 110 SI esta en
+        // chat_articulo_compatibilidad, y el escalado se la llevaba muda: el
+        // cliente no recibio NADA y contesto un humano 10 minutos despues.
+        // Desde el escalado parcial se deriva solo la marca y el resto se contesta.
+        id: "caso-61-escalado-parcial-dato-sin-cargar",
+        titulo: "Rafaga: dato que no tenemos + algo que si sabemos — solo se calla lo derivado",
+        mensajeCliente: "Para una brava nevada 110\nQue marca es el cilindro",
+        estadoInicial: {
+            grupoPineado: { id: 1, nombre: "Kit 120 para 110" }
+        },
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
+            { rol: "assistant", contenido: "Hola!\n\nEl combo incluye:\n✅ Cilindro 120\n✅ Carburador CG 125\n✅ Codo de admisión\n✅ Filtro de aire alto flujo\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000\n\nEnvío gratis a todo el país!\n\nPara qué moto lo estás buscando?" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            // La clave del caso: escala PERO habla. Antes esto era silencio total.
+            debeGuardarSilencio: false,
+            // Nunca se le anuncia al cliente que la consulta quedo derivada.
+            patronProhibido: /(lo|la|eso) (consulto|averiguo|chequeo)|te aviso|dejame (ver|chequear|consultar)|el equipo te/i,
+            descripcionEsperada:
+                "La marca del cilindro se deriva en silencio (no esta en la base). La Brava 110 esta cargada y compatible: tiene que seguir el embudo (confirmar o preguntar el recorrido) sin mencionar lo derivado."
+        }
+    },
+    {
+        // Contracara del caso 61: con un reclamo de por medio el silencio vuelve
+        // a ser absoluto. Contestar la pregunta de envio mientras se ignora que
+        // el kit llego roto es peor que no decir nada.
+        id: "caso-62-reclamo-sigue-en-silencio-total",
+        titulo: "Reclamo + otra pregunta en la misma rafaga: silencio total, sin respuesta parcial",
+        mensajeCliente: "Me llego el kit roto, el cilindro viene rajado\nHacen envios a Misiones?",
+        estadoInicial: {
+            grupoPineado: { id: 1, nombre: "Kit 120 para 110" }
+        },
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
+            { rol: "assistant", contenido: "Hola!\n\nEl combo incluye:\n✅ Cilindro 120\n✅ Carburador CG 125\n✅ Codo de admisión\n✅ Filtro de aire alto flujo\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000\n\nEnvío gratis a todo el país!\n\nPara qué moto lo estás buscando?" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "`reclamo` esta en MOTIVOS_SILENCIO_ABSOLUTO: el escalado parcial NO aplica y el turno queda mudo entero."
+        }
     }
 ]

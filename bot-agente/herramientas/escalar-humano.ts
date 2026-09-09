@@ -23,7 +23,7 @@ export const definicionEscalarHumano: DefinicionHerramienta = {
     type: "function",
     function: {
         name: "escalar_a_humano",
-        description: "Deriva la conversación en silencio al equipo humano de Revolución Motos cuando la consulta es ambigua, técnica compleja sin datos en el sistema, consulta de venta mayorista, reclamo, o cuando no hay certeza de la respuesta. Al ejecutar esta herramienta, el bot NO debe emitir ninguna respuesta pública al cliente.",
+        description: "Deriva EN SILENCIO al equipo humano de Revolución Motos la consulta puntual que no podés resolver: dato técnico que no está en el sistema, venta mayorista, reclamo, o cuando no hay certeza de la respuesta. Deriva SOLO esa consulta, no la conversación entera: si el cliente preguntó otra cosa en el mismo mensaje y una herramienta te da el dato, esa parte se contesta igual. Nunca le anuncies al cliente que derivaste algo.",
         parameters: {
             type: "object",
             properties: {
@@ -74,7 +74,7 @@ export async function escalarAHumano(args: ArgsEscalarHumano): Promise<Resultado
             bandeja: clasificarMotivoEscalado(args.motivo),
             resumen: args.resumen_consulta,
             mensaje_para_agente:
-                "ESCALADO (modo prueba, sin conversación real: no se persiste). NO envíes ningún mensaje al cliente."
+                "ESCALADO (modo prueba, sin conversación real: no se persiste). El equipo humano se hace cargo de ESA consulta."
         }
     }
 
@@ -126,7 +126,7 @@ export async function escalarAHumano(args: ArgsEscalarHumano): Promise<Resultado
         motivo: args.motivo,
         bandeja,
         resumen: args.resumen_consulta,
-        mensaje_para_agente: "ESCALADO REALIZADO CON ÉXITO. Regla de oro: NO envíes ningún mensaje de texto al cliente. El equipo humano continuará la conversación."
+        mensaje_para_agente: "ESCALADO REALIZADO CON ÉXITO. El equipo humano se hace cargo de ESA consulta."
     }
 }
 

@@ -479,7 +479,20 @@ async function procesarTurno(accountId: number, conversationId: number) {
             referralAnuncio: referralDelTramo(transcripcion.slice(previoDelTurno.length)),
         })
 
-        if (respuesta.escaladoHumano) {
+        // Escalado PARCIAL: se derivó una parte de la ráfaga pero el motor igual
+        // tiene algo para contestar (lo que resolvió con datos de herramienta).
+        // El pendiente ya quedó en la bandeja del equipo dentro del motor; acá
+        // solo se registra y se sigue por el camino normal de envío, en vez de
+        // tirar el mensaje como hace el escalado mudo de abajo (conv 3421).
+        if (respuesta.escaladoHumano && respuesta.escaladoParcial && respuesta.mensajeFinal) {
+            if (!respuesta.escaladoPersistido) {
+                await escalarAHumano({
+                    motivo: respuesta.motivoEscalado || "otro",
+                    resumen_consulta: `[Piloto bot-agente en vivo] ${mensajeUsuario.slice(0, 300)}`,
+                    conversation_id: conversationId,
+                }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado parcial:", err))
+            }
+        } else if (respuesta.escaladoHumano) {
             // El motor ya deja el pendiente en la bandeja del equipo en casi todas
             // sus salidas de escalado. Solo se persiste acá cuando no lo hizo (ej.
             // `limite_pasos_react_superado`); antes se insertaba siempre y cada
@@ -531,7 +544,10 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 accountId,
                 mensajeCliente: mensajeUsuario,
                 respuestaBot: respuesta.mensajeFinal,
-                escaladoHumano: false,
+                // En un escalado parcial el turno contesta Y derivó: el panel
+                // tiene que verlo etiquetado, no como un turno limpio.
+                escaladoHumano: Boolean(respuesta.escaladoParcial),
+                motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 tokens: respuesta.tokensUsados,
@@ -550,7 +566,10 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 accountId,
                 mensajeCliente: mensajeUsuario,
                 respuestaBot: respuesta.mensajeFinal,
-                escaladoHumano: false,
+                // En un escalado parcial el turno contesta Y derivó: el panel
+                // tiene que verlo etiquetado, no como un turno limpio.
+                escaladoHumano: Boolean(respuesta.escaladoParcial),
+                motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 tokens: respuesta.tokensUsados,
@@ -567,7 +586,10 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 accountId,
                 mensajeCliente: mensajeUsuario,
                 respuestaBot: respuesta.mensajeFinal,
-                escaladoHumano: false,
+                // En un escalado parcial el turno contesta Y derivó: el panel
+                // tiene que verlo etiquetado, no como un turno limpio.
+                escaladoHumano: Boolean(respuesta.escaladoParcial),
+                motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 tokens: respuesta.tokensUsados,
@@ -591,7 +613,10 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 mensajeCliente: mensajeUsuario,
                 respuestaBot: respuesta.mensajeFinal,
                 fotoUrl: respuesta.fotoUrl,
-                escaladoHumano: false,
+                // En un escalado parcial el turno contesta Y derivó: el panel
+                // tiene que verlo etiquetado, no como un turno limpio.
+                escaladoHumano: Boolean(respuesta.escaladoParcial),
+                motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 tokens: respuesta.tokensUsados,
@@ -606,7 +631,10 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 mensajeCliente: mensajeUsuario,
                 respuestaBot: respuesta.mensajeFinal,
                 fotoUrl: respuesta.fotoUrl,
-                escaladoHumano: false,
+                // En un escalado parcial el turno contesta Y derivó: el panel
+                // tiene que verlo etiquetado, no como un turno limpio.
+                escaladoHumano: Boolean(respuesta.escaladoParcial),
+                motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 tokens: respuesta.tokensUsados,
@@ -1075,7 +1103,10 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
                 mensajeCliente: mensajeUsuario,
                 respuestaBot: respuesta.mensajeFinal,
                 fotoUrl: respuesta.fotoUrl,
-                escaladoHumano: false,
+                // En un escalado parcial el turno contesta Y derivó: el panel
+                // tiene que verlo etiquetado, no como un turno limpio.
+                escaladoHumano: Boolean(respuesta.escaladoParcial),
+                motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
                 tokens: respuesta.tokensUsados,

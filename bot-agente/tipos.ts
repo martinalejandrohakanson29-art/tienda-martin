@@ -70,6 +70,13 @@ export interface RespuestaAgente {
      * `escalarAHumano`: duplicaba la fila en el panel (conv 3599).
      */
     escaladoPersistido?: boolean
+    /**
+     * Escalado PARCIAL: una parte de la ráfaga quedó derivada al equipo, pero
+     * otra se resolvió con datos de herramienta y sí se le contesta al cliente.
+     * `mensajeFinal` viene con texto aunque `escaladoHumano` sea true — quien
+     * consume el turno debe enviarlo igual (ver `lib/bot-agente-tiempo-real.ts`).
+     */
+    escaladoParcial?: boolean
     /** Tiempo de procesamiento en milisegundos */
     latenciaMs: number
     /**

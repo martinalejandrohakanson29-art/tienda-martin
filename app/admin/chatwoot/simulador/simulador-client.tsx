@@ -59,6 +59,8 @@ interface MensajeUI {
     latenciaMs?: number
     herramientas?: { nombre: string; argumentos: any; resultado: any }[]
     escaladoHumano?: boolean
+    /** Derivó una parte de la ráfaga pero igual contestó el resto. */
+    escaladoParcial?: boolean
     motivoEscalado?: string
     fotoUrl?: string | null
 }
@@ -430,6 +432,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                         latenciaMs: esUltimo ? respuesta.latenciaMs : undefined,
                         herramientas: esUltimo ? respuesta.herramientasEjecutadas : undefined,
                         escaladoHumano: respuesta.escaladoHumano,
+                        escaladoParcial: respuesta.escaladoParcial,
                         motivoEscalado: respuesta.motivoEscalado,
                         fotoUrl: esUltimo ? respuesta.fotoUrl : undefined
                     })
@@ -442,6 +445,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                     latenciaMs: respuesta.latenciaMs,
                     herramientas: respuesta.herramientasEjecutadas,
                     escaladoHumano: respuesta.escaladoHumano,
+                    escaladoParcial: respuesta.escaladoParcial,
                     motivoEscalado: respuesta.motivoEscalado,
                     fotoUrl: respuesta.fotoUrl
                 })
@@ -564,6 +568,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                         latenciaMs: esUltimo ? respuesta.latenciaMs : undefined,
                         herramientas: esUltimo ? respuesta.herramientasEjecutadas : undefined,
                         escaladoHumano: respuesta.escaladoHumano,
+                        escaladoParcial: respuesta.escaladoParcial,
                         motivoEscalado: respuesta.motivoEscalado,
                         fotoUrl: esUltimo ? respuesta.fotoUrl : undefined
                     })
@@ -576,6 +581,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                     latenciaMs: respuesta.latenciaMs,
                     herramientas: respuesta.herramientasEjecutadas,
                     escaladoHumano: respuesta.escaladoHumano,
+                    escaladoParcial: respuesta.escaladoParcial,
                     motivoEscalado: respuesta.motivoEscalado,
                     fotoUrl: respuesta.fotoUrl
                 })
@@ -859,11 +865,13 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                                                 m.rol === "user"
                                                     ? "bg-emerald-600 text-white rounded-br-none"
                                                     : m.escaladoHumano
-                                                    ? "bg-rose-50 border border-rose-200 text-rose-900 rounded-bl-none"
+                                                    ? m.escaladoParcial
+                                                        ? "bg-amber-50 border border-amber-200 text-amber-900 rounded-bl-none"
+                                                        : "bg-rose-50 border border-rose-200 text-rose-900 rounded-bl-none"
                                                     : "bg-white border border-slate-200 text-slate-800 rounded-bl-none"
                                             }`}
                                         >
-                                            {m.escaladoHumano ? (
+                                            {m.escaladoHumano && !m.escaladoParcial ? (
                                                 <div className="bg-rose-50/90 border border-rose-200 rounded-lg p-2.5 space-y-1 text-xs">
                                                     <div className="flex items-center gap-1.5 text-rose-700 font-bold">
                                                         <ShieldAlert className="h-4 w-4 shrink-0 text-rose-600" />
@@ -883,6 +891,15 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                                                 </div>
                                             ) : (
                                                 <div className="whitespace-pre-wrap">
+                                                    {m.escaladoParcial && (
+                                                        <div className="mb-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-100/60 p-2 text-[11px] font-semibold text-amber-800">
+                                                            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                                                            <span>
+                                                                Escalado PARCIAL{m.motivoEscalado ? ` (${m.motivoEscalado})` : ""}: esa consulta quedó
+                                                                derivada al equipo en silencio. Lo de abajo sí se le envió al cliente.
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                     {m.texto}
                                                     {m.fotoUrl && (
                                                         // eslint-disable-next-line @next/next/no-img-element

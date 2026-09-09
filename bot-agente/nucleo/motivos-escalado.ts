@@ -87,3 +87,41 @@ export function clasificarMotivoEscalado(motivo: string | null | undefined): Ban
 
     return "sin_match"
 }
+
+/**
+ * Motivos donde el silencio tiene que ser ABSOLUTO: aunque en la misma ráfaga
+ * el cliente haya preguntado otra cosa que sí sabemos, no se le contesta nada.
+ *
+ * Por qué existe: el escalado dejó de mutear el turno entero (ver "escalado
+ * parcial" en motor.ts). Eso está bien cuando lo derivado es un dato puntual
+ * que no tenemos (la marca del cilindro, una moto sin cargar): el resto de la
+ * ráfaga se contesta igual. Pero hay temas donde seguir vendiendo por al lado
+ * queda peor que callarse:
+ *   - `reclamo`: el cliente tiene un problema. Contestarle la demora del envío
+ *     mientras se ignora el reclamo es exactamente el destrato que evitamos.
+ *   - `mayorista`: no es un dato suelto, es una negociación entera que toma el
+ *     equipo desde cero.
+ *   - `ambiguo` / `otro`: no sabemos ni qué preguntó. Sin entender la consulta
+ *     no hay forma de saber qué parte es seguro contestar.
+ *   - motivos internos del motor (`respuesta_no_confiable`, `limite_pasos`):
+ *     el turno ya se dio por poco confiable; hablar igual sería contradecirlo.
+ */
+const MOTIVOS_SILENCIO_ABSOLUTO = /reclamo|mayorista|ambiguo|otro|respuesta_no_confiable|limite_pasos|l[íi]mite_pasos|no_confiable|escalado_manual|escalado_piloto|sin_match/i
+
+/**
+ * ¿Este escalado permite contestar el RESTO de la ráfaga?
+ *
+ * Devuelve false para los temas de `MOTIVOS_SILENCIO_ABSOLUTO`. Para todo lo
+ * demás (dato técnico que no tenemos, moto sin cargar, producto fuera del
+ * catálogo, envío, pago, horarios...) devuelve true: lo derivado queda mudo,
+ * pero lo que una herramienta ya respondió se le dice al cliente.
+ */
+export function admiteRespuestaParcial(motivo: string | null | undefined): boolean {
+    const crudo = (motivo || "").trim()
+    if (!crudo) return false
+    // Motivos compuestos del motor: "moto_no_registrada: Zanella fx150".
+    const base = crudo.split(":")[0].trim().toLowerCase()
+    if (MOTIVOS_SILENCIO_ABSOLUTO.test(base)) return false
+    // Un motivo que no reconocemos es un motivo que no entendemos: se calla.
+    return Boolean(MOTIVOS_CANONICOS[base as MotivoCanonico])
+}

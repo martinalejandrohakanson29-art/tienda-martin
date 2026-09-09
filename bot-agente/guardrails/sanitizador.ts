@@ -363,6 +363,79 @@ export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: st
     return resultado.length > 0 ? resultado : texto
 }
 
+/**
+ * Frases donde el bot ANUNCIA que deriva la consulta, promete averiguar o
+ * compromete una respuesta futura.
+ *
+ * Por qué existe: con el escalado parcial el bot sigue hablando después de
+ * derivar una parte de la ráfaga, y la tentación natural del modelo es
+ * blanquearlo ("eso lo consulto y te aviso"). El escalado es INVISIBLE para el
+ * cliente: el equipo entra en la conversación sin anunciarse, y una promesa de
+ * respuesta es justo lo que no podemos garantizar (misma familia que el
+ * "te aviso" indebido de los escalados de n8n).
+ *
+ * "avisame vos" / "cuando estés listo nos avisás" son legítimos y NO caen acá:
+ * los patrones piden que el que averigua o avisa sea el bot.
+ */
+const FRASES_DERIVACION_ANUNCIADA = [
+    /\b(lo|la|eso|esto|ese dato|el dato)\s+(consulto|averiguo|chequeo|verifico|confirmo|reviso|pregunto)\b/i,
+    /\b(te|le)\s+(aviso|averiguo|consulto|confirmo luego|confirmo m[áa]s tarde|respondo (en un rato|m[áa]s tarde|enseguida))\b/i,
+    /\b(consulto|averiguo|pregunto|chequeo)\s+(con|a|al|en)\s+(el\s+)?(equipo|due[ñn]o|encargado|taller|dep[oó]sito|compa[ñn]er[oa]s?|fabrica|f[áa]brica|proveedor)\b/i,
+    /\b(dejame|deja que)\s+(ver|chequear|consultar|averiguar|preguntar|fijarme|confirmar)\b/i,
+    /\b(me fijo|nos fijamos|lo veo|lo miro)\s+y\s+(te|le)\s+(digo|aviso|paso|confirmo|respondo)\b/i,
+    /\b(un|mi|el)\s+(compa[ñn]er[oa]|encargado|due[ñn]o|t[eé]cnico|vendedor)\s+(te|se)\s+(responde|contesta|escribe|comunica|contacta)\b/i,
+    /\b(el|nuestro)\s+equipo\s+(te|se)\s+(responde|contesta|escribe|comunica|contacta|va a)\b/i,
+    /\b(paso|derivo|traslado|elevo)\s+(la|tu)\s+(consulta|pregunta|duda)\b/i,
+    /\b(en\s+)?(un rato|unos minutos|un momento|breve|la brevedad)\s+(te|le)\s+(digo|aviso|paso|confirmo|respondo|contesto)\b/i,
+    /\b(ya\s+)?(te|le)\s+(estar[íi]a|voy a)\s+(confirmando|avisando|respondiendo|consultando)\b/i,
+]
+
+/**
+ * Saca del mensaje las oraciones donde el bot anuncia la derivación o promete
+ * averiguar. Devuelve el texto sin esas oraciones (puede quedar vacío: ahí el
+ * turno se resuelve en silencio, que es la salida correcta).
+ */
+export function quitarDerivacionAnunciada(texto: string | null | undefined): string {
+    const t = (texto || "").trim()
+    if (!t) return ""
+
+    const lineas = t.split(/\n/)
+    const salida: string[] = []
+    for (const linea of lineas) {
+        const oraciones = linea.split(/(?<=[.!?])\s+/)
+        const conservadas = oraciones.filter((o) => !FRASES_DERIVACION_ANUNCIADA.some((rx) => rx.test(o)))
+        salida.push(conservadas.join(" ").trim())
+    }
+
+    return salida.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+}
+
+/**
+ * ¿El texto AFIRMA (o niega) que un kit le va a una moto?
+ *
+ * Backstop del escalado parcial: si lo que se derivó al equipo era justamente
+ * la compatibilidad (bandeja técnica), el bot no puede seguir hablando y de
+ * paso dictaminar que "le va bien". Ante esto el turno vuelve al silencio
+ * total, que es la salida vieja y segura.
+ */
+export function afirmaCompatibilidad(texto: string | null | undefined): boolean {
+    const t = (texto || "").trim()
+    if (!t) return false
+    const rx = [
+        /\b(es|son|ser[íi]a|resulta)\s+(totalmente\s+|100%\s+|perfectamente\s+)?(compatible|incompatible)\b/i,
+        /\bno\s+(es|son|ser[íi]a)\s+compatible\b/i,
+        // El complemento es obligatorio a proposito: sin el, "te va a llegar
+        // en 4 dias" contaba como afirmacion de compatibilidad.
+        /\b(le|te)\s+(va|entra|calza|sirve|anda|ir[ía]a)\s+(bien|perfecto|directo|de una|joya|b[áa]rbaro|igual|sin problema|sin drama)\b/i,
+        /\b(le|te)\s+(va|entra|calza|sirve|anda)\s*[.!]*$/i,
+        /\b(le|te)\s+(queda|va a ir|va a entrar|va a andar)\b/i,
+        /\bsin\s+(hacer\s+)?(ninguna\s+)?modificaci[oó]n(es)?\b/i,
+        /\bsin\s+modificar\s+nada\b/i,
+        /\b(anda|funciona)\s+(directo|perfecto)\b/i,
+    ]
+    return rx.some((r) => r.test(t))
+}
+
 export function sanitizarMensajeSalida(
     texto: string | null | undefined,
     opciones: OpcionesSanitizacion = {}

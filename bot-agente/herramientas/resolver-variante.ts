@@ -92,7 +92,6 @@ interface GrupoVariantes {
     nombre: string
     pregunta_variante: string | null
     pregunta_variante_reintento: string | null
-    compatibilidad_universal: boolean
     variantes: { id: number; nombre: string; etiqueta: string; precio: number; sinonimos: string[] }[]
 }
 
@@ -103,11 +102,9 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
             nombre: string
             pregunta_variante: string | null
             pregunta_variante_reintento: string | null
-            compatibilidad_universal: boolean | null
         }[]
     >`
-        SELECT id, nombre, pregunta_variante, pregunta_variante_reintento,
-               COALESCE(compatibilidad_universal, false) AS compatibilidad_universal
+        SELECT id, nombre, pregunta_variante, pregunta_variante_reintento
         FROM chat_pack_grupos
         WHERE activo = true
     `
@@ -138,7 +135,6 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
         nombre: elegido.nombre,
         pregunta_variante: elegido.pregunta_variante,
         pregunta_variante_reintento: elegido.pregunta_variante_reintento,
-        compatibilidad_universal: !!elegido.compatibilidad_universal,
         variantes: (packs || []).map((p) => ({
             id: p.id,
             nombre: p.nombre,
@@ -409,10 +405,23 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 }
             }
 
-            // Grupo con incompatibilidad física real (ej. Escape+Leva): solo se sigue
-            // adelante con confirmación POSITIVA. Moto no confirmada o desconocida -> se escala.
+            // Solo se sigue adelante con confirmación POSITIVA. Sin fila que diga
+            // que le va, no afirmamos que le va: se escala en silencio.
+            //
+            // Antes los grupos con `compatibilidad_universal` (Kit 120, Tapa CDI)
+            // se saltaban este chequeo — la idea era que ahí la moto solo sirve
+            // para inferir el recorrido. El efecto real era que CUALQUIER moto sin
+            // fila caía en el "Le va bien a {moto}" de más abajo: 12 de las 30
+            // motos del catálogo (todas de 125cc para arriba: XR 150, YBR 125,
+            // Skua, Tornado, Lander...) recibían "le va bien" para un kit que se
+            // anuncia "para 110", igual que una moto inventada.
+            //
+            // El "le va a cualquier 110" no se pierde: está implementado con dato,
+            // por la fila genérica `110` de la tabla de compatibilidad, que matchea
+            // "una 110", "tengo un 110" y hasta marcas que no tenemos cargadas
+            // ("Okinoi 110"). Una XR 150 no matchea esa fila, y por eso escala.
             const confirmadaCompatible = compat.encontrado && compat.compatible === true
-            if (!grupo.compatibilidad_universal && !confirmadaCompatible) {
+            if (!confirmadaCompatible) {
                 return {
                     encontrado: true,
                     resuelta: false,
@@ -423,21 +432,9 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 }
             }
 
-            // Grupo universal (Kit 120, Tapa CDI): la moto solo infiere el recorrido.
-            // Si es un modelo desconocido y encima compat dice incompatible, no arriesgamos: se escala.
-            if (grupo.compatibilidad_universal && !reconocida && compat.encontrado && compat.compatible === false) {
-                return {
-                    encontrado: true,
-                    resuelta: false,
-                    grupo_id: grupo.id,
-                    escalar: true,
-                    motivo: "moto_no_registrada",
-                    mensaje_para_agente: `Moto "${args.modelo_moto}" no reconocida. Ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio total.`
-                }
-            }
-
-            // Compatible (o universal): la moto sola casi nunca define la variante
-            // (recorrido). Se confirma que le va y se pasa a la pregunta/guía de variante.
+            // Confirmada por fila positiva: la moto sola casi nunca define la
+            // variante (recorrido). Se confirma que le va y se pasa a la
+            // pregunta/guía de variante.
             const guia = clienteNoSabe && grupo.pregunta_variante_reintento
                 ? grupo.pregunta_variante_reintento.trim()
                 : (grupo.pregunta_variante || "").trim()
@@ -445,9 +442,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 encontrado: true,
                 resuelta: false,
                 grupo_id: grupo.id,
-                moto_confirmada: confirmadaCompatible
-                    ? (args.modelo_moto || compat.modelo_moto_detectado)
-                    : undefined,
+                moto_confirmada: args.modelo_moto || compat.modelo_moto_detectado,
                 pregunta_directa: guia,
                 mensaje_para_agente: `Le va bien a ${args.modelo_moto}. Falta la variante (el recorrido). Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
             }

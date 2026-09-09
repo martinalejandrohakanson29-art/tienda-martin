@@ -40,7 +40,7 @@ Siempre correr `pruebas/correr-banco.ts` antes de cerrar un cambio del bot.
 - `bot-agente/situaciones/index.ts`: lee `chat_situaciones` (con fallback en código si no existe la tabla) y devuelve las reglas cuyo disparador pega con el mensaje.
 - `bot-agente/herramientas/`:
   - `resolver-variante.ts`: dado un combo con variantes + lo que dijo el cliente, devuelve "VARIANTE RESUELTA + precio" o la próxima pregunta exacta. Determinista, data-driven (`sinonimos_variante`).
-  - `catalogo-precios.ts`: Consulta packs, combos (`chat_pack_grupos`), variantes y piezas sueltas (`chat_articulos`).
+  - `catalogo-precios.ts`: Consulta packs, combos (`chat_pack_grupos`), variantes y piezas sueltas (`chat_articulos`). **Qué trae un kit** lo arma `bloqueComposicion` heredando `chat_articulos.detalle` de cada pieza — ver §11.
   - `compatibilidad.ts`: Consulta compatibilidad mecánica moto-kit en base a `chat_articulo_compatibilidad`.
   - `info-negocio.ts`: Consulta políticas institucionales (`info_negocio`) con cálculo inteligente de horarios en tiempo real (zona horaria Córdoba).
   - `escalar-humano.ts`: Derivación silenciosa a asesores. Persiste el pendiente SOLO si hay `conversation_id` real (simulador/banco no ensucian el panel). El escalado determinista y el `moto_no_registrada` ahora también persisten.
@@ -130,3 +130,19 @@ npx tsx scripts/correr-banco.ts --modelo deepseek-v4-flash   # banco de regresi�
 En `costo-bot.ts` mirar `fallback` (si sube, el principal está fallando y lo cubre el caro), `cache%` (si se desploma, se rompió la regla 1) y `razon%`.
 
 Los tokens de cada turno quedan en `bot_agente_turnos_reales.tokens` (jsonb: prompt, cacheados, razonamiento, pasos, modelo, fallback). **Si se agrega un punto de registro de turno nuevo, pasarle `tokens`** o ese turno queda fuera del análisis de costo.
+
+### 11. Qué Trae un Kit (composición)
+Qué incluye un kit es **dato**, nunca deducción del modelo. Se arma en `bloqueComposicion` (`catalogo-precios.ts`) desde tres niveles que se heredan hacia atrás:
+
+```
+chat_pack_grupos → chat_packs (variantes) → chat_pack_articulos → chat_articulos.detalle
+```
+
+El `detalle` de cada artículo ("el cilindro va completo con juntas de cabezal, perno de pistón, aros, seguros y pistón en supermedida 54mm") **viaja entero al modelo, sin parsear**. Cualquier regex que intente extraerle "las piezas" se rompe con la redacción del artículo siguiente: es el error que ya cometió el parser de viñetas de la ficha, que se comió la corona de regalo del combo 3 por estar en un párrafo sin viñeta.
+
+**Las tres reglas que NO hay que romper:**
+1. **En un combo con variantes la composición NO se aplana.** El cliente se lleva UNA variante. Se calcula la intersección (lo que va en todas) y lo propio se lista bajo su variante. Aplanada, el bot ofreció "los dos cilindros (el corto y el largo)" por el precio de uno (conv 3707, 09/09). Si el embudo ya trae `varianteResuelta`, se compone solo con esa y la otra ni se menciona.
+2. **Negar tiene dos niveles.** Una pieza ENTERA que el catálogo vende suelta (las `categoria` de `chat_articulos`: leva, escape, carburador, tapa...) y no está vinculada al kit → NO viene, y eso es dato duro (conv 3583, el kit dakar 200 que "traía" leva). Una sub-pieza que va DENTRO de otra (pistón, aros, perno, juntas, seguros) y no figura en ningún `detalle` → NO tenemos el dato: se escala, nunca se niega. Fue negar en el nivel 2 lo que hizo decir "el pistón no viene incluido" de un cilindro que lo trae (conv 3707).
+3. **El `detalle` es dato, no libreto.** Va etiquetado para contestar lo que se preguntó en 1 o 2 renglones, nunca para recitar. Es prosa comercial: además de la composición trae milímetros y frases de venta que no hay que volcarle al cliente (regla `CERO VOLCADO DE FICHA TÉCNICA`).
+
+**Si un kit contesta mal qué trae, mirar primero el dato:** `chat_articulos.detalle` de sus piezas es la fuente, y se edita en `/admin/chatwoot/catalogo`. Al 09/09 los 15 artículos activos lo tienen cargado (223 caracteres promedio).

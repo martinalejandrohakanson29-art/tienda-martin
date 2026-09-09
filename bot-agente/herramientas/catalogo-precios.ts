@@ -119,49 +119,155 @@ function lineasComposicion(
         salida.push(limpio)
     }
 
+    // Los artículos van PRIMERO y con su `detalle`: desde que se hereda, el
+    // artículo es la fuente más completa de las dos (la ficha del combo 3 no
+    // nombra ni el pistón ni la corona; los detalles de sus piezas, sí).
+    const nombresDeArticulos: string[] = []
+    for (const art of articulos || []) {
+        if (!normalizarTexto(art.nombre)) continue
+        nombresDeArticulos.push(art.nombre)
+        agregar(lineaPieza(art))
+    }
+
+    // Después las viñetas de la ficha, salteando las que repiten una pieza que
+    // ya se listó arriba ("Cilindro Dakar 200" vs "Cilindro Dakar 200: Carrera
+    // larga (63.5mm)").
     for (const linea of (mensajeBienvenida || "").split(/\n/)) {
         const bruto = linea.trim()
         if (!/^(✅|✔|•|👉🏼|👉|-|\*)/.test(bruto)) continue
         const sinVineta = bruto.replace(/^(✅|✔|•|👉🏼|👉|-|\*)+/, "").trim()
         // Las viñetas de precio / envío no son composición.
         if (!sinVineta || /\$|precio|cuesta|env[ií]o|transferencia|efectivo/i.test(sinVineta)) continue
-        agregar(sinVineta)
-    }
-
-    // Los artículos vinculados suelen repetir lo que ya dice la ficha ("Cilindro
-    // Dakar 200" vs "Cilindro Dakar 200: Carrera larga (63.5mm)"): se suman solo
-    // los que aportan una pieza que la ficha no nombra.
-    for (const art of articulos || []) {
-        const clave = normalizarTexto(art.nombre)
-        if (!clave) continue
-        const yaNombrada = salida.some((linea) => {
-            const l = normalizarTexto(linea)
-            return l.includes(clave) || clave.includes(l)
+        const clave = normalizarTexto(sinVineta)
+        const yaListada = nombresDeArticulos.some((nombre) => {
+            const n = normalizarTexto(nombre)
+            return n && (clave.includes(n) || n.includes(clave))
         })
-        if (!yaNombrada) agregar(art.nombre)
+        if (!yaListada) agregar(sinVineta)
     }
 
     return salida
 }
 
-/** Bloque de composición + la regla de lista cerrada, para el `mensaje_para_agente`. */
-function bloqueComposicion(
-    mensajeBienvenida: string | null | undefined,
-    articulos: ArticuloSueltoInfo[] | undefined,
+/**
+ * Una pieza de la composición, con lo que trae por dentro.
+ *
+ * El `detalle` del artículo va ENTERO, sin parsear. Es prosa que escribió
+ * Martín ("va completo con juntas de cabezal, perno de pistón, aros, seguros y
+ * pistón en supermedida 54mm") y cualquier regex que intente extraerle "las
+ * piezas" se rompe con la redacción del artículo siguiente: es el mismo error
+ * que ya cometió el parser de viñetas de la ficha, que se comió la corona de
+ * regalo del combo 3 por estar en un párrafo sin viñeta.
+ */
+function lineaPieza(art: ArticuloSueltoInfo): string {
+    const detalle = (art.detalle || "").replace(/\s+/g, " ").trim().replace(/[.;,]+$/, "")
+    return detalle ? `${art.nombre} — ${detalle}` : art.nombre
+}
+
+/** Artículos que están en TODAS las variantes (van siempre, sea cual sea la que lleve). */
+function articulosComunes(variantes: VarianteComposicion[]): ArticuloSueltoInfo[] {
+    if (variantes.length === 0) return []
+    const [primera, ...resto] = variantes
+    return (primera.articulos || []).filter((art) =>
+        resto.every((v) => (v.articulos || []).some((a) => a.id === art.id))
+    )
+}
+
+interface VarianteComposicion {
+    packId: number
+    etiqueta: string
+    articulos: ArticuloSueltoInfo[]
+}
+
+interface OpcionesComposicion {
+    mensajeBienvenida?: string | null
+    /** Kit simple: sus artículos. En un combo con variantes se pasa `variantes`. */
+    articulos?: ArticuloSueltoInfo[]
+    variantes?: VarianteComposicion[]
+    /** Variante ya definida en el embudo: la composición se arma SOLO con esa. */
+    varianteResueltaPackId?: number | null
     yaPresentado: boolean
-): string[] {
-    const piezas = lineasComposicion(mensajeBienvenida, articulos)
-    if (piezas.length === 0) return []
+    /** Categorías de pieza que el catálogo vende por separado (para la regla de negación). */
+    categoriasCatalogo: string[]
+}
+
+/**
+ * Bloque de composición + las reglas para usarla, para el `mensaje_para_agente`.
+ *
+ * En un combo con variantes la composición NO se aplana: el cliente se lleva UNA
+ * variante, no todas. Aplanada, el bot le ofreció a un cliente "los dos
+ * cilindros (el corto y el largo)" por el precio de uno (conv 3707, 09/09).
+ */
+function bloqueComposicion(opciones: OpcionesComposicion): string[] {
+    const { mensajeBienvenida, yaPresentado, categoriasCatalogo } = opciones
+    const variantes = opciones.variantes || []
+
+    // Con la variante ya definida el combo se trata como un kit simple: el de
+    // esa variante. La otra no se menciona, ni para contrastar.
+    const resuelta = opciones.varianteResueltaPackId
+        ? variantes.find((v) => v.packId === opciones.varianteResueltaPackId)
+        : undefined
 
     const encabezado = yaPresentado
         ? `   - QUÉ TRAE (composición oficial — dato para contestar con precisión, NO la reenvíes como lista salvo que pregunte justo por eso):`
         : `   - QUÉ TRAE (composición oficial de este kit):`
 
-    return [
-        encabezado,
-        ...piezas.map((pieza) => `     ✔ ${pieza}`),
-        `   - Esa lista es CERRADA: es TODO lo que trae el kit. Si el cliente pregunta si viene con una pieza que NO figura ahí (leva, escape, carburador, tapa, embrague...), la respuesta es que NO viene incluida. PROHIBIDO afirmar que la incluye, aunque otro kit del catálogo sí la traiga o el nombre del kit suene parecido. Si esa pieza aparece abajo como artículo suelto, podés decirle que va aparte.`
+    const cuerpo: string[] = []
+    let hayEjeDeVariante = false
+
+    if (variantes.length > 1 && !resuelta) {
+        const comunes = articulosComunes(variantes)
+        const piezasComunes = lineasComposicion(mensajeBienvenida, comunes).map(
+            (p) => `     ✔ ${p}`
+        )
+        // Las piezas que difieren se listan bajo su variante, nunca sueltas en
+        // la misma lista que las comunes.
+        const propias = variantes
+            .map((v) => ({
+                etiqueta: v.etiqueta,
+                piezas: (v.articulos || []).filter((a) => !comunes.some((c) => c.id === a.id))
+            }))
+            .filter((v) => v.piezas.length > 0)
+
+        if (piezasComunes.length > 0) {
+            cuerpo.push(`     En las ${variantes.length} opciones por igual:`, ...piezasComunes)
+        }
+        if (propias.length > 0) {
+            hayEjeDeVariante = true
+            cuerpo.push(`     Según la variante (el cliente se lleva UNA sola, NO las dos):`)
+            for (const v of propias) {
+                for (const art of v.piezas) cuerpo.push(`     • ${v.etiqueta} → ${lineaPieza(art)}`)
+            }
+        }
+    } else {
+        const articulos = resuelta ? resuelta.articulos : opciones.articulos
+        const piezas = lineasComposicion(mensajeBienvenida, articulos)
+        cuerpo.push(...piezas.map((p) => `     ✔ ${p}`))
+    }
+
+    if (cuerpo.length === 0) return []
+
+    const categorias = categoriasCatalogo.filter((c) => c && c !== "otro")
+    const listaCategorias = categorias.length > 0 ? categorias.join(", ") : "leva, escape, carburador, tapa, cilindro"
+
+    const reglas = [
+        // Nivel 1: lo que el catálogo vende suelto. Si no está vinculado al kit,
+        // NO viene, y eso es dato duro (el fix del kit dakar 200 que "traía" leva).
+        `   - Si el cliente pregunta por una PIEZA ENTERA que no figura arriba (${listaCategorias}: cosas que vendemos por separado), la respuesta es que NO viene incluida. PROHIBIDO afirmar que la incluye porque otro kit del catálogo la traiga o porque el nombre del kit suene parecido. Si figura abajo como artículo suelto, podés decirle que va aparte.`,
+        // Nivel 2: sub-piezas. La lista NO es exhaustiva hacia adentro: nadie
+        // escribió "no trae seguros". Negar acá es inventar (conv 3707: el bot
+        // dijo que el cilindro no traía pistón; el detalle dice que sí).
+        `   - Si pregunta por algo que va DENTRO de una de esas piezas (pistón, aros, perno, juntas, seguros, válvulas, resortes, retenes...), la respuesta está en el texto de la pieza, arriba: si ahí figura, confirmáselo; si el texto NO lo menciona, no tenés el dato — PROHIBIDO decirle que no viene: ejecutá escalar_a_humano(motivo: 'consulta_tecnica') y guardá silencio.`,
+        `   - Los textos de cada pieza son dato para que contestes con precisión, NO son un libreto: contestá SOLO lo que preguntó, con tus palabras, en 1 o 2 renglones. Nunca los recites enteros ni agregues milímetros, medidas o frases de venta que no te pidió.`
     ]
+
+    if (hayEjeDeVariante) {
+        reglas.push(
+            `   - Si pregunta por algo que cambia según la variante y todavía no sabés cuál lleva: contestale las dos y cerrá preguntándole cuál tiene, en el MISMO renglón (ej: "el pistón va 54mm en el corto y 52.4 en el largo, sabés cuál tenés?"). PROHIBIDO contestar una sola de las dos al azar.`
+        )
+    }
+
+    return [encabezado, ...cuerpo, ...reglas]
 }
 
 /**
@@ -468,7 +574,12 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 nombre: a.titulo_comercial || a.categoria || a.nombre_mostrador || "Pieza suelta",
                 categoria: a.categoria,
                 alias: a.alias,
-                precio: Number(a.precio) || 0
+                precio: Number(a.precio) || 0,
+                // Qué trae la pieza por dentro ("el cilindro va completo con
+                // juntas, perno, aros, seguros y pistón"). Se pedía en el SELECT
+                // y se descartaba acá: la composición quedaba en tres títulos
+                // pelados y el bot NEGABA piezas que sí vienen (conv 3707).
+                detalle: a.detalle
             })
         }
 
@@ -614,6 +725,12 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
         // colocar?") el modelo obedece la guía del paso y re-manda la ficha
         // entera, con precio y foto incluidos (conv 2763, 08/09).
         const embudo = args.__embudo || {}
+        // Qué piezas vende el catálogo por separado. Es la línea que separa
+        // "no viene incluida" (dato duro) de "no tengo el dato" (escalar):
+        // ver las reglas de `bloqueComposicion`.
+        const categoriasCatalogo = Array.from(
+            new Set((articulosRaw || []).map((a) => (a.categoria || "").trim().toLowerCase()).filter(Boolean))
+        ).sort()
         const grupoYaPresentado = (g: { id: number }) => embudo.grupoPineadoId === g.id
         const packYaPresentado = (pk: { id: number }) => embudo.packPresentadoId === pk.id
         const todoYaPresentado =
@@ -635,7 +752,14 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             } else if (p.mensaje_bienvenida) {
                 lineas.push(`   - Mensaje oficial cargado en la app (respetar formato, listas y datos técnicos; si la charla ya está en curso, OMITIR el saludo inicial):\n${p.mensaje_bienvenida.trim()}`)
             }
-            lineas.push(...bloqueComposicion(p.mensaje_bienvenida, p.articulos_sueltos, packYaPresentado(p)))
+            lineas.push(
+                ...bloqueComposicion({
+                    mensajeBienvenida: p.mensaje_bienvenida,
+                    articulos: p.articulos_sueltos,
+                    yaPresentado: packYaPresentado(p),
+                    categoriasCatalogo
+                })
+            )
             if (p.articulos_sueltos && p.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas de este kit (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of p.articulos_sueltos) {
@@ -681,7 +805,20 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 lineas.push(`   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`)
                 lineas.push(`   - En cuanto el cliente diga su moto O su variante (corto/largo/etc.), usá SIEMPRE resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo, NUNCA redactes el precio de memoria. Hacé lo que devuelva.`)
             }
-            lineas.push(...bloqueComposicion(g.mensaje_bienvenida, g.articulos_sueltos, grupoYaPresentado(g)))
+            lineas.push(
+                ...bloqueComposicion({
+                    mensajeBienvenida: g.mensaje_bienvenida,
+                    // Por variante, NO la unión del grupo: el cliente se lleva una.
+                    variantes: g.variantes.map((v) => ({
+                        packId: v.id,
+                        etiqueta: v.criterio_variante || v.nombre,
+                        articulos: v.articulos_sueltos || []
+                    })),
+                    varianteResueltaPackId: embudo.varianteResuelta?.packId ?? null,
+                    yaPresentado: grupoYaPresentado(g),
+                    categoriasCatalogo
+                })
+            )
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {
                 lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of g.articulos_sueltos) {

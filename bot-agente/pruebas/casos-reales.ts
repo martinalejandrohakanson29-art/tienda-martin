@@ -833,5 +833,104 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "El cliente dijo que NO SABE. Debe pasarle la guia de como fijarse (cilindro negro de fundicion = corto / aluminio plateado = largo, o 28 vs 32 dientes de la corona), sin repetir los precios."
         }
+    },
+    {
+        // Conv 3707 (09/09). "La tapa viene completo? Y el cilindro trae su
+        // piston y eso?" -> "El piston no viene incluido, eso se consigue
+        // aparte". FALSO: el detalle del cilindro dice que va completo con
+        // juntas, perno, aros, seguros y piston. Hubo que apagar el bot.
+        //
+        // Causa: la regla de lista cerrada (caso-41) trataba cualquier pieza que
+        // no figurara en la lista como "no incluida", y la lista eran tres
+        // titulos pelados: `chat_articulos.detalle` se pedia en el SELECT y se
+        // descartaba al mapear. Falla identica en gpt-5: era el dato, no el
+        // modelo.
+        id: "caso-43-subpieza-documentada-en-el-detalle",
+        titulo: "Piston, aros y perno: vienen dentro del cilindro y hay que confirmarlo",
+        mensajeCliente: "La tapa viene completo? Y el cilindro trae su pistón y eso?",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /pist[oó]n|completo/i,
+            // Negar el piston es el bug.
+            patronProhibido: /pist[oó]n[^.!?]{0,40}(no (viene|trae|est[aá]|se incluye)|va aparte|aparte)|no (viene|trae|incluye)[^.!?]{0,30}pist[oó]n/i,
+            descripcionEsperada:
+                "El detalle del cilindro dice que va completo con juntas de cabezal, perno de piston, aros, seguros y piston. Debe confirmarlo, corto, sin recitar la ficha entera."
+        }
+    },
+    {
+        // Conv 3707 (09/09), mismo origen. La ficha del combo ANUNCIA la corona
+        // de regalo y el detalle de la tapa la confirma ("va con las 2 coronitas
+        // de distribucion de regalo"), pero el bot contestaba que no venia
+        // incluida: la corona esta en un parrafo sin viñeta de la ficha, asi que
+        // el parser de viñetas la descartaba, y el detalle del articulo no se
+        // heredaba.
+        id: "caso-44-pieza-anunciada-en-el-detalle-del-articulo",
+        titulo: "La corona de regalo viene del detalle de la tapa: no se puede negar",
+        mensajeCliente: "la corona de distribucion viene incluida?",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /(s[ií]|incluid|regalo)/i,
+            patronProhibido: /no (viene|est[aá]|trae|se incluye)|va aparte|no incluid|no la incluye/i,
+            descripcionEsperada:
+                "La corona va de regalo (lo dicen la ficha y el detalle de la Tapa CDI 125). Debe confirmarlo en un renglon."
+        }
+    },
+    {
+        // Conv 3707 (09/09). "El combo trae la tapa CDI 125 completa y te suma
+        // los DOS cilindros (el 120 corto y el largo) asi tenes las dos opciones
+        // a mano": le prometio dos cilindros por el precio de uno.
+        //
+        // Causa: en un grupo, la composicion se armaba con la UNION de los
+        // articulos de todas las variantes (`g.articulos_sueltos`), asi que el
+        // corto y el largo convivian en una lista marcada como "todo lo que trae
+        // el kit". Ahora se arma por variante, separando lo comun de lo propio.
+        id: "caso-45-composicion-de-grupo-no-suma-las-variantes",
+        titulo: "Combo con variantes: el cliente se lleva UN cilindro, no los dos",
+        mensajeCliente: "que trae el combo exactamente?",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Prometer los dos cilindros es el bug. Nombrar las dos OPCIONES
+            // para que elija esta bien: por eso el patron pide el verbo de
+            // entrega pegado ("trae/incluye/suma los dos cilindros").
+            patronProhibido: /(trae|incluye|suma|llev[aá]s|ten[eé]s)[^.!?]{0,25}(los dos|ambos|las dos|2) cilindros/i,
+            descripcionEsperada:
+                "La tapa va en las dos opciones; el cilindro cambia segun la variante y se lleva uno solo. Puede nombrar las dos opciones para que elija, nunca prometer las dos piezas."
+        }
     }
 ]

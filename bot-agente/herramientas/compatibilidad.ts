@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
-import { resolverMoto, listarCandidatos, esTypoDe } from "../nucleo/motos"
+import { resolverMoto, listarCandidatos, esTypoDe, cilindradasEn } from "../nucleo/motos"
 
 export interface ArgsCompatibilidad {
     modelo_moto: string
@@ -186,7 +186,19 @@ function coincideKitInteligente(kitBuscado?: string, kitRegistro?: string, conte
 interface MotoCanonicaDB {
     id: number
     nombre_completo: string
+    cilindrada: number | null
     aliases: string[]
+}
+
+/**
+ * Cilindradas que nombra un modelo canonico, mirando la columna y tambien su
+ * nombre y sus alias ("Corven Triax 200" trae el alias "triax 250").
+ */
+function cilindradasDelModelo(m: MotoCanonicaDB): Set<number> {
+    const set = new Set<number>()
+    if (m.cilindrada && m.cilindrada >= 50) set.add(m.cilindrada)
+    for (const n of cilindradasEn(`${m.nombre_completo} ${m.aliases.join(" ")}`)) set.add(n)
+    return set
 }
 
 /**
@@ -490,7 +502,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
 
         // Cargar catálogo de motos canónicas para normalización y tolerancia a typos
         const motosCanonicas = await prisma.$queryRaw<MotoCanonicaDB[]>`
-            SELECT id, nombre_completo, aliases FROM motos_modelos;
+            SELECT id, nombre_completo, cilindrada, aliases FROM motos_modelos;
         `.catch(() => [])
 
         // Marcas conocidas ("Motomel", "Honda", "Zanella"...). Una fila de
@@ -514,6 +526,11 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         const esSoloMarca = (texto: string) => marcasConocidas.has(normalizarTexto(texto))
 
         const motoCanonicaResuelta = resolverMotoCanonica(args.modelo_moto, motosCanonicas)
+        // Cilindradas del modelo que resolvió el cliente. Si están, una fila que
+        // nombra OTRA cilindrada no puede hablar por esta moto (ver abajo).
+        const ccModeloCliente = motoCanonicaResuelta
+            ? cilindradasDelModelo(motoCanonicaResuelta)
+            : new Set<number>()
 
         // Buscamos coincidencia con puntuación
         let mejorMatch: typeof registros[0] | null = null
@@ -536,6 +553,28 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             // modelo, esta fila no puede hablar por él.
             if (esSoloMarca(regMotoNorm) && !esSoloMarca(args.modelo_moto)) {
                 continue
+            }
+
+            // Fila que nombra OTRA cilindrada: no habla de esta moto.
+            //
+            // Es el espejo positivo de la regla de la conv 3131 (una regla
+            // negativa con cilindrada solo aplica si el cliente la nombró). Esa
+            // vive en la rama de moto "ambigua"; acá la moto resuelve perfecto y
+            // el problema está del lado de la FILA.
+            //
+            // Real: un cliente con una Bajaj Rouser NS 200 recibía "sí, le va" al
+            // Kit 120 para 110. La fila era `rouser 125` (del escape Paolucci), y
+            // como la NS 200 tiene entre sus alias `rouser` pelado —sin
+            // cilindrada— esa fila resolvía al mismo modelo canónico y se llevaba
+            // el bonus más alto del scorer. Otra moto y otro producto.
+            //
+            // `cilindradasEn` corta en 2000, así que un año no cuenta como
+            // cilindrada y "wave s 2022" sigue matcheando a la Wave 110.
+            if (ccModeloCliente.size > 0) {
+                const ccFila = cilindradasEn(reg.modelo_moto)
+                if (ccFila.length > 0 && !ccFila.some((cc) => ccModeloCliente.has(cc))) {
+                    continue
+                }
             }
 
             const tokensReg = regMotoNorm.split(" ").filter((p) => p.length >= 2)

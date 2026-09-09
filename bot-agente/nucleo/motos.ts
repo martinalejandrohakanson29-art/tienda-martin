@@ -46,8 +46,15 @@ export interface ResolucionMoto {
     detalle?: string
 }
 
-/** Numeros que parecen una cilindrada (50-2000). */
-function cilindradasEn(texto: string): number[] {
+/**
+ * Numeros que parecen una cilindrada (50-2000).
+ *
+ * El tope de 2000 es el que deja afuera los AÑOS: "wave s 2022" nombra un
+ * modelo, no una cilindrada de 2022cc. Lo usa tambien `compatibilidad.ts` para
+ * descartar filas que hablan de otra cilindrada; si se toca el rango, se toca
+ * para los dos.
+ */
+export function cilindradasEn(texto: string): number[] {
     const nums = (normalizarTexto(texto).match(/\b\d{2,4}\b/g) || []).map(Number)
     return nums.filter((n) => n >= 50 && n <= 2000)
 }

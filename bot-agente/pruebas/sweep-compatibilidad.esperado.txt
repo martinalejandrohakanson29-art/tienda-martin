@@ -1,7 +1,8 @@
 # grupos: Kit 120 para 110 | Combo Escape pwr + Leva 6.40 | Combo Tapa CDI + Cilindro 120 | Kit 120 corto + Leva 6.40
 # SI=confirma  NO=incompatible  esc=escala en silencio  ?=sigue la charla
 
-Bajaj Rouser NS 200      SI  SI  esc esc
+Bajaj Rouser 125         SI  SI  esc esc
+Bajaj Rouser NS 200      esc esc esc esc
 Brava Altino 150         esc esc esc esc
 Brava Nevada 110         SI  SI  SI  SI 
 Corven Energy 110        SI  SI  SI  SI 
@@ -47,6 +48,9 @@ wave s 2022              NO  NO  NO  NO
 una 110                  SI  SI  SI  SI 
 tengo un 110             SI  SI  SI  SI 
 Okinoi 110               SI  SI  SI  SI 
+rouser                   esc esc esc esc
+rouser 125               SI  SI  esc esc
+rouser 200               esc esc esc esc
 Ferrari 500              esc esc esc esc
 Weber 150                esc esc esc esc
 mi moto                  esc esc esc esc

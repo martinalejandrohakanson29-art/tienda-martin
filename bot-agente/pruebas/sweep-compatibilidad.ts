@@ -48,11 +48,14 @@ const SNAPSHOT = join(__dirname, "sweep-compatibilidad.esperado.txt")
  *  - "110" / "una 110" / "Okinoi 110": el "le va a cualquier 110" tiene que
  *    seguir saliendo de la fila genérica `110`, no de un flag.
  *  - "Ferrari 500" / "Weber 150": moto que no existe, nunca se confirma.
+ *  - "rouser" / "rouser 125" / "rouser 200": la fila `rouser 125` no tiene que
+ *    hablar por la NS 200 (otra cilindrada), pero sí por su propia moto.
  */
 const GRAFIAS_EXTRA = [
     "biz", "wave", "wave nf", "NF 100", "wawe nf", "criptón", "viz 105",
     "weve nf", "wuave", "wave s", "wave s 2022", "110 wave",
     "110", "una 110", "tengo un 110", "Okinoi 110",
+    "rouser", "rouser 125", "rouser 200",
     "Ferrari 500", "Weber 150", "mi moto",
 ]
 

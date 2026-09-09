@@ -9,6 +9,19 @@ export interface ConfiguracionAgente {
     deepseekApiKey?: string
     openrouterApiKey?: string
     proveedorActivo?: string
+    /**
+     * Proveedor suplente para cuando el principal no responde (misma sintaxis
+     * que `proveedorActivo`). Vacío = sin red: un turno que falla espera al
+     * barrido de entrantes pendientes, 4 minutos después.
+     */
+    proveedorFallback?: string
+    /**
+     * Cuánto razona el modelo antes de contestar (`minimal` | `low` | `medium` |
+     * `high`), solo para gpt-5 y la serie o. Vacío = no se manda el parámetro y
+     * el proveedor aplica su default (`medium`), que es lo que había: ~600
+     * tokens de razonamiento invisible por turno, cobrados a precio de salida.
+     */
+    reasoningEffort?: string
     debounceSegundos: number
     debounceActivo: boolean
     /** Demora deliberada antes de enviar la respuesta, para simular una persona escribiendo (no una respuesta automática instantánea). */
@@ -28,6 +41,8 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     deepseekApiKey: "",
     openrouterApiKey: "",
     proveedorActivo: "openai:gpt-5",
+    proveedorFallback: "openai:gpt-5", // red para cuando el principal (barato) se cae
+    reasoningEffort: "low", // el trabajo difícil lo hacen las tools, no el razonamiento del modelo
     debounceSegundos: 15, // ventana para agrupar una ráfaga del cliente antes de responder (era 60: mucha espera; 3 en "off": partía ráfagas y las respuestas se pisaban)
     debounceActivo: true,
     respuestaDelayActivo: true,
@@ -66,6 +81,13 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
         const deepseekApiKey = mapa.get("deepseek_api_key") || process.env.DEEPSEEK_API_KEY || ""
         const openrouterApiKey = mapa.get("openrouter_api_key") || process.env.OPENROUTER_API_KEY || ""
         const proveedorActivo = mapa.get("proveedor_activo") || CONFIG_DEFAULTS.proveedorActivo
+        const proveedorFallback = mapa.has("proveedor_fallback")
+            ? (mapa.get("proveedor_fallback") || "").trim()
+            : CONFIG_DEFAULTS.proveedorFallback
+        // Un valor no válido (ej. "off") deja el parámetro sin mandar y el
+        // proveedor usa su default: sirve para comparar A/B desde la base, sin deploy.
+        const effortRaw = (mapa.get("reasoning_effort") ?? CONFIG_DEFAULTS.reasoningEffort ?? "").trim().toLowerCase()
+        const reasoningEffort = ["minimal", "low", "medium", "high"].includes(effortRaw) ? effortRaw : ""
 
         const debounceSegundosRaw = mapa.get("debounce_segundos")
         const debounceSegundos = debounceSegundosRaw ? parseInt(debounceSegundosRaw, 10) || 15 : CONFIG_DEFAULTS.debounceSegundos
@@ -95,6 +117,8 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             deepseekApiKey,
             openrouterApiKey,
             proveedorActivo,
+            proveedorFallback,
+            reasoningEffort,
             debounceSegundos,
             debounceActivo,
             respuestaDelayActivo,

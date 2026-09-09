@@ -72,10 +72,39 @@ export interface RespuestaAgente {
     escaladoPersistido?: boolean
     /** Tiempo de procesamiento en milisegundos */
     latenciaMs: number
-    /** Tokens utilizados en la llamada (estimados o reales del proveedor) */
+    /**
+     * Tokens utilizados en el turno, sumados sobre todos los pasos del loop
+     * ReAct. Es lo que permite atribuir el gasto real: sin esto el costo diario
+     * solo se veia en la factura del proveedor, sin saber que turno lo genero.
+     */
     tokensUsados?: {
         prompt: number
         completion: number
         total: number
+        /**
+         * Parte del prompt que el proveedor sirvio desde su cache (90% mas
+         * barata en OpenAI). Es el termometro de si el prefijo estable
+         * (prompt de sistema + definiciones de tools) se esta reusando:
+         * si esto queda en 0 turno tras turno, algo variable se colo arriba
+         * del prompt y rompio el prefijo.
+         */
+        cacheados: number
+        /**
+         * Tokens de razonamiento interno (gpt-5 / serie o). No se ven en la
+         * respuesta pero se pagan a precio de salida, que es 8x el de entrada:
+         * es la partida mas cara del turno y la que controla `reasoningEffort`.
+         */
+        razonamiento: number
+        /** Pasos del loop ReAct que consumio el turno (1 = respondio directo). */
+        pasos: number
+        /** Modelo que efectivamente atendio el turno (puede ser el suplente). */
+        modelo: string
+        /**
+         * true si el proveedor principal se cayo y contesto el suplente. Es el
+         * contador de confiabilidad del proveedor barato: si esto empieza a
+         * aparecer seguido, el ahorro se esta pagando en latencia y en turnos
+         * que termina cubriendo el modelo caro.
+         */
+        fallback?: boolean
     }
 }

@@ -11,7 +11,7 @@ import {
 } from "@/lib/chatwoot-bot"
 import { ejecutarTurnoAgente } from "@/bot-agente/motor"
 import { escalarAHumano } from "@/bot-agente/herramientas/escalar-humano"
-import { MensajeChat } from "@/bot-agente/tipos"
+import { MensajeChat, RespuestaAgente } from "@/bot-agente/tipos"
 import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
 import { cerrarEscaladoPendienteSiRespondioHumano } from "@/bot-agente/nucleo/estado-persistente"
 
@@ -288,14 +288,22 @@ async function registrarTurno(params: {
     latenciaMs: number
     resultadoEnvio: "enviado" | "encolado" | "error" | "salteado"
     detalleEnvio?: string
+    /**
+     * Consumo del turno. El motor ya lo calculaba y acá se tiraba: sin esto el
+     * gasto diario solo se veía en la factura de OpenAI, sin poder atribuirlo a
+     * una conversación ni verificar si un cambio de configuración lo bajó.
+     * Va null en los turnos que se resolvieron sin llamar al modelo.
+     */
+    tokens?: RespuestaAgente["tokensUsados"]
 }) {
     try {
         await prisma.$executeRaw`
             INSERT INTO bot_agente_turnos_reales
-                (conversation_id, account_id, mensaje_cliente, respuesta_bot, foto_url, escalado_humano, motivo_escalado, herramientas, latencia_ms, resultado_envio, detalle_envio)
+                (conversation_id, account_id, mensaje_cliente, respuesta_bot, foto_url, escalado_humano, motivo_escalado, herramientas, latencia_ms, resultado_envio, detalle_envio, tokens)
             VALUES (${params.conversationId}, ${params.accountId}, ${params.mensajeCliente}, ${params.respuestaBot},
                     ${params.fotoUrl || null}, ${params.escaladoHumano}, ${params.motivoEscalado || null},
-                    ${JSON.stringify(params.herramientas || [])}::jsonb, ${params.latenciaMs}, ${params.resultadoEnvio}, ${params.detalleEnvio || null})
+                    ${JSON.stringify(params.herramientas || [])}::jsonb, ${params.latenciaMs}, ${params.resultadoEnvio}, ${params.detalleEnvio || null},
+                    ${params.tokens ? JSON.stringify(params.tokens) : null}::jsonb)
         `
     } catch (err) {
         console.error("[bot-agente-tiempo-real] no se pudo registrar el turno:", err)
@@ -493,6 +501,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 motivoEscalado: respuesta.motivoEscalado,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "encolado",
                 detalleEnvio: "Escalado a humano en silencio",
             })
@@ -525,6 +534,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 escaladoHumano: false,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "salteado",
                 detalleEnvio: reencolado
                     ? "El bot contestó otro tramo durante la demora: lote reencolado para responder lo que falta"
@@ -543,6 +553,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 escaladoHumano: false,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "salteado",
                 detalleEnvio: "Llegó un mensaje nuevo del cliente durante la demora; se recalcula en el próximo turno",
             })
@@ -559,6 +570,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 escaladoHumano: false,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "salteado",
                 detalleEnvio: "El bot quedó en pausa durante la demora de cadencia humana (/bot off o un humano se hizo cargo)",
             })
@@ -582,6 +594,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 escaladoHumano: false,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "enviado",
             })
             pendienteResuelto = true
@@ -596,6 +609,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 escaladoHumano: false,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "error",
                 detalleEnvio: err.message || String(err),
             })
@@ -847,6 +861,7 @@ export async function atenderEntrantesPendientes(
                         motivoEscalado: respuesta.motivoEscalado,
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
+                        tokens: respuesta.tokensUsados,
                         resultadoEnvio: "encolado",
                         detalleEnvio: "Barrido: escalado a humano en silencio",
                     })
@@ -863,6 +878,7 @@ export async function atenderEntrantesPendientes(
                         escaladoHumano: false,
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
+                        tokens: respuesta.tokensUsados,
                         resultadoEnvio: "salteado",
                         detalleEnvio: "Barrido: el motor no devolvió mensaje ni escalado",
                     })
@@ -886,6 +902,7 @@ export async function atenderEntrantesPendientes(
                         escaladoHumano: false,
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
+                        tokens: respuesta.tokensUsados,
                         resultadoEnvio: "enviado",
                         detalleEnvio: "Barrido: respuesta consolidada del hilo completo",
                     })
@@ -901,6 +918,7 @@ export async function atenderEntrantesPendientes(
                         escaladoHumano: false,
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
+                        tokens: respuesta.tokensUsados,
                         resultadoEnvio: "error",
                         detalleEnvio: err.message || String(err),
                     })
@@ -1026,6 +1044,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
                     motivoEscalado: respuesta.motivoEscalado,
                     herramientas: respuesta.herramientasEjecutadas,
                     latenciaMs: Date.now() - inicio,
+                    tokens: respuesta.tokensUsados,
                     resultadoEnvio: "encolado",
                     detalleEnvio: "Escalado a humano en silencio (reproceso de cola)",
                 })
@@ -1059,6 +1078,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
                 escaladoHumano: false,
                 herramientas: respuesta.herramientasEjecutadas,
                 latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
                 resultadoEnvio: "enviado",
             })
 

@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
 import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas } from "./guardrails/sanitizador"
-import { obtenerConfiguracionAgente } from "./configuracion"
+import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla } from "./nucleo/texto"
 import { resolverMoto } from "./nucleo/motos"
@@ -26,6 +26,12 @@ export interface OpcionesEjecucion {
     /** Clave para la memoria persistente del embudo (session_id en el simulador). */
     estadoKey?: string
     /**
+     * Pisa el `reasoning_effort` de chat_config para ESTA llamada. Existe para
+     * poder comparar niveles de razonamiento contra el banco de pruebas sin
+     * escribir la config global, que la lee producción en vivo.
+     */
+    reasoningEffort?: string
+    /**
      * Anuncio de Meta por el que entró el cliente (`content_attributes.referral`
      * del mensaje de Chatwoot). El texto del cliente no dice de qué kit viene;
      * el anuncio sí.
@@ -38,22 +44,159 @@ const DEFAULT_BASE_URL = "https://api.openai.com/v1"
 const MAX_PASOS_REACT = 6
 const TIMEOUT_LLM_MS = 60_000 // gpt-5 (razonamiento) es más lento que gpt-5-mini; margen para no abortar turnos válidos
 
-/** fetch a la API del LLM con timeout y un reintento ante error de red. */
-async function fetchLLM(url: string, init: RequestInit): Promise<Response> {
+/**
+ * Turno que se resolvió sin llamar al modelo (saludo, plantilla de anuncio,
+ * silencio por escalado pendiente). Se registra igual con 0 tokens: son los
+ * turnos gratis, y saber cuántos son es la mitad del análisis de costo.
+ */
+function sinCostoLLM(modelo: string): RespuestaAgente["tokensUsados"] {
+    return { prompt: 0, completion: 0, total: 0, cacheados: 0, razonamiento: 0, pasos: 0, modelo }
+}
+
+/** Intentos por proveedor antes de darlo por caído y pasar al siguiente. */
+const MAX_INTENTOS_LLM = 3
+/** Espera base del backoff entre reintentos (se duplica en cada vuelta). */
+const BACKOFF_LLM_MS = 800
+
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * ¿Vale la pena reintentar este HTTP, o es un error nuestro que va a fallar igual?
+ *
+ * 429 (rate limit) y 5xx (el proveedor se cayó) son transitorios: se reintentan.
+ * Un 400/401/404 es un pedido mal armado o una key vencida — reintentarlo solo
+ * agrega latencia. El 402 (saldo agotado) tampoco se reintenta: no se arregla
+ * solo, y hay que ir al fallback lo antes posible.
+ */
+function esErrorTransitorio(status: number): boolean {
+    return status === 429 || status === 408 || status >= 500
+}
+
+/**
+ * Un proveedor concreto al que se le puede pedir un turno.
+ */
+interface Proveedor {
+    modelo: string
+    baseUrl: string
+    apiKey: string
+}
+
+/**
+ * Llama a la API del LLM con timeout, reintentos y backoff.
+ *
+ * Antes esto solo reintentaba errores de RED: el `if (!res.ok) throw` del loop
+ * quedaba afuera, así que un 429 o un 503 —justo los errores que tira un
+ * proveedor sobrecargado— mataban el turno en el primer intento. El turno caído
+ * se recuperaba recién con el barrido de entrantes pendientes, 4 minutos después.
+ */
+async function llamarLLM(prov: Proveedor, cuerpo: Record<string, any>): Promise<any> {
     let ultimoError: any = null
-    for (let intento = 1; intento <= 2; intento++) {
+
+    for (let intento = 1; intento <= MAX_INTENTOS_LLM; intento++) {
+        if (intento > 1) await dormir(BACKOFF_LLM_MS * Math.pow(2, intento - 2))
+
         const ctrl = new AbortController()
         const timer = setTimeout(() => ctrl.abort(), TIMEOUT_LLM_MS)
         try {
-            return await fetch(url, { ...init, signal: ctrl.signal })
+            const res = await fetch(`${prov.baseUrl}/chat/completions`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${prov.apiKey}` },
+                body: JSON.stringify({ ...cuerpo, model: prov.modelo }),
+                signal: ctrl.signal
+            })
+
+            if (res.ok) return await res.json()
+
+            const detalle = (await res.text().catch(() => "")).slice(0, 300)
+            ultimoError = new Error(`${prov.modelo} respondió ${res.status}: ${detalle}`)
+            if (!esErrorTransitorio(res.status)) break // no se arregla reintentando
+            console.warn(`[motor] ${prov.modelo} HTTP ${res.status} (intento ${intento}/${MAX_INTENTOS_LLM})`)
         } catch (err: any) {
+            // Timeout (AbortError) o caída de red: siempre vale reintentar.
             ultimoError = err
-            if (intento === 2) break
+            console.warn(`[motor] ${prov.modelo} ${err?.name || "error de red"} (intento ${intento}/${MAX_INTENTOS_LLM})`)
         } finally {
             clearTimeout(timer)
         }
     }
-    throw new Error(`No se pudo contactar la API de IA (${ultimoError?.name || "error"}): ${ultimoError?.message || ultimoError}`)
+
+    throw new Error(`No se pudo contactar la API de IA (${prov.modelo}): ${ultimoError?.message || ultimoError}`)
+}
+
+/**
+ * Traduce un `proveedor_activo` de chat_config ("deepseek:deepseek-v4-flash",
+ * "openai:gpt-5", "openrouter:...") al modelo, la baseUrl y la clave que le
+ * corresponden.
+ */
+function proveedorDesdeSpec(spec: string, config: ConfiguracionAgente): Proveedor | null {
+    const [prefijo, ...resto] = spec.split(":")
+    const nombre = resto.join(":").trim()
+
+    let modelo = nombre
+    let baseUrl: string
+    let apiKey: string | undefined
+
+    if (prefijo === "deepseek") {
+        modelo = modelo || "deepseek-v4-flash"
+        baseUrl = "https://api.deepseek.com"
+        apiKey = config.deepseekApiKey || process.env.DEEPSEEK_API_KEY
+    } else if (prefijo === "openrouter") {
+        baseUrl = "https://openrouter.ai/api/v1"
+        apiKey = config.openrouterApiKey || process.env.OPENROUTER_API_KEY
+    } else {
+        modelo = modelo || DEFAULT_MODEL
+        baseUrl = DEFAULT_BASE_URL
+        apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY
+    }
+
+    // Sin clave no es un proveedor utilizable. Se descarta en silencio: si es el
+    // principal, el turno falla más abajo con un mensaje claro; si es el
+    // suplente, simplemente no hay red y no tiene sentido romper por eso.
+    if (!modelo || !apiKey) return null
+    return { modelo, baseUrl, apiKey }
+}
+
+/**
+ * Arma la lista de proveedores a usar en el turno: [principal, suplente].
+ *
+ * El suplente existe para que una caída del proveedor barato no se transforme
+ * en una conversación sin responder. Con DeepSeek en producción esto es lo que
+ * hace que el ahorro no cueste atención al cliente: el 99% del tráfico va por
+ * el principal, y el turno que falla lo cubre el suplente sin que nadie note nada.
+ *
+ * `opciones.modelo` (banco de pruebas, simulador) fuerza UN proveedor y sin
+ * suplente: si se está midiendo un modelo, otro contestando por él arruinaría
+ * la medición.
+ */
+function resolverProveedores(config: ConfiguracionAgente, opciones: OpcionesEjecucion): Proveedor[] {
+    if (opciones.modelo) {
+        const baseUrl = (opciones.baseUrl || DEFAULT_BASE_URL).replace(/\/chat\/completions\/?$/, "").replace(/\/$/, "")
+        const apiKey =
+            opciones.apiKey?.trim() ||
+            (baseUrl.includes("deepseek.com") || opciones.modelo.toLowerCase().includes("deepseek")
+                ? config.deepseekApiKey || process.env.DEEPSEEK_API_KEY
+                : baseUrl.includes("openrouter.ai")
+                  ? config.openrouterApiKey || process.env.OPENROUTER_API_KEY
+                  : config.openaiApiKey || process.env.OPENAI_API_KEY)
+        if (!apiKey) {
+            throw new Error(
+                `Falta la clave de API para el modelo "${opciones.modelo}". Podés cargarla y activarla en el modal "Configurar Modelo / API Key" o en la pestaña "Ajustes de Estilo y Palabras".`
+            )
+        }
+        return [{ modelo: opciones.modelo, baseUrl, apiKey }]
+    }
+
+    const principal = proveedorDesdeSpec(config.proveedorActivo || "openai:gpt-5", config)
+    if (!principal) {
+        throw new Error(
+            `Falta la clave de API para el proveedor "${config.proveedorActivo}". Podés cargarla y activarla en el modal "Configurar Modelo / API Key" o en la pestaña "Ajustes de Estilo y Palabras".`
+        )
+    }
+
+    const suplente = config.proveedorFallback ? proveedorDesdeSpec(config.proveedorFallback, config) : null
+    // Un suplente del mismo modelo no es una red: si se cayó, se cayó para los dos.
+    if (!suplente || suplente.modelo === principal.modelo) return [principal]
+    return [principal, suplente]
 }
 
 /**
@@ -330,28 +473,10 @@ export async function ejecutarTurnoAgente(
         cargarEstadoConversacion(estadoKey)
     ])
 
-    // Resolver modelo y baseUrl efectivos a partir de opciones o de chat_config
-    let modelo = opciones.modelo
-    let baseUrl = opciones.baseUrl
-
-    if (!modelo || !baseUrl) {
-        const prov = config.proveedorActivo || "openai:gpt-5"
-        if (prov.startsWith("deepseek:")) {
-            modelo = modelo || prov.replace("deepseek:", "") || "deepseek-v4-flash"
-            baseUrl = baseUrl || "https://api.deepseek.com"
-        } else if (prov.startsWith("openai:")) {
-            modelo = modelo || prov.replace("openai:", "") || "gpt-5"
-            baseUrl = baseUrl || "https://api.openai.com/v1"
-        } else if (prov.startsWith("openrouter:")) {
-            modelo = modelo || prov.replace("openrouter:", "")
-            baseUrl = baseUrl || "https://openrouter.ai/api/v1"
-        } else {
-            modelo = modelo || DEFAULT_MODEL
-            baseUrl = baseUrl || DEFAULT_BASE_URL
-        }
-    }
-
-    const cleanBaseUrl = baseUrl.replace(/\/chat\/completions\/?$/, "").replace(/\/$/, "")
+    // Proveedor principal + suplente. El suplente solo entra si el principal se
+    // cae del todo (ver `llamarLLM` y el loop ReAct más abajo).
+    const proveedores = resolverProveedores(config, opciones)
+    const modelo = proveedores[0].modelo
 
     // 0.a Ya hay una consulta derivada al equipo esperando respuesta humana y el
     //     cliente solo insiste ("??", "hola?", "ahi?"): NO hay nada nuevo que
@@ -376,7 +501,7 @@ export async function ejecutarTurnoAgente(
             ],
             escaladoHumano: false,
             latenciaMs: Date.now() - inicio,
-            tokensUsados: { prompt: 0, completion: 0, total: 0 }
+            tokensUsados: sinCostoLLM(modelo)
         }
     }
 
@@ -422,7 +547,7 @@ export async function ejecutarTurnoAgente(
             motivoEscalado: escaladoInmediato.motivo,
             escaladoPersistido: true,
             latenciaMs: Date.now() - inicio,
-            tokensUsados: { prompt: 0, completion: 0, total: 0 }
+            tokensUsados: sinCostoLLM(modelo)
         }
     }
 
@@ -437,7 +562,7 @@ export async function ejecutarTurnoAgente(
             herramientasEjecutadas: [],
             escaladoHumano: false,
             latenciaMs: Date.now() - inicio,
-            tokensUsados: { prompt: 0, completion: 0, total: 0 }
+            tokensUsados: sinCostoLLM(modelo)
         }
     }
 
@@ -605,27 +730,9 @@ export async function ejecutarTurnoAgente(
                 herramientasEjecutadas: [infoMatch],
                 escaladoHumano: false,
                 latenciaMs: Date.now() - inicio,
-                tokensUsados: { prompt: 0, completion: 0, total: 0 }
+                tokensUsados: sinCostoLLM(modelo)
             }
         }
-    }
-
-    // Determinar la clave de API según el proveedor si no vino en opciones
-    let apiKey = opciones.apiKey?.trim()
-    if (!apiKey) {
-        if (cleanBaseUrl.includes("deepseek.com") || modelo.toLowerCase().includes("deepseek")) {
-            apiKey = config.deepseekApiKey || process.env.DEEPSEEK_API_KEY
-        } else if (cleanBaseUrl.includes("openrouter.ai")) {
-            apiKey = config.openrouterApiKey || process.env.OPENROUTER_API_KEY
-        } else {
-            apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY
-        }
-    }
-
-    if (!apiKey) {
-        throw new Error(
-            `Falta la clave de API para el modelo "${modelo}". Podés cargarla y activarla en el modal "Configurar Modelo / API Key" o en la pestaña "Ajustes de Estilo y Palabras".`
-        )
     }
 
     const herramientasEjecutadas: HerramientaEjecutadaInfo[] = []
@@ -683,10 +790,26 @@ export async function ejecutarTurnoAgente(
               .join("\n")
         : ""
 
-    const promptFinal = [
-        config.tonoEstilo
-            ? `${PROMPT_SISTEMA_AGENTE}\n\n### PAUTA DE ESTILO CONFIGURADA POR EL DUEÑO:\n${config.tonoEstilo}`
-            : PROMPT_SISTEMA_AGENTE,
+    /**
+     * PREFIJO ESTABLE (se cachea) — no meter acá NADA que cambie entre turnos.
+     *
+     * El proveedor cobra 90% menos por el tramo inicial del prompt que ya vio,
+     * pero solo mientras sea byte a byte el mismo. Antes el contexto temporal
+     * (con minutos) iba pegado acá arriba: cambiaba en cada request y tiraba
+     * abajo el cacheo de todo lo que venía después, incluidas las definiciones
+     * de herramientas. Entre prompt de sistema y tools son ~3.400 tokens de los
+     * ~5.800 que gasta un turno: es la mitad de la factura de entrada.
+     *
+     * Todo lo variable vive ahora en `bloqueVariable`, que va al FINAL (ver
+     * abajo). Como efecto secundario el modelo lo obedece mejor, porque queda
+     * pegado al mensaje del cliente en vez de sepultado arriba de todo.
+     */
+    const promptEstable = config.tonoEstilo
+        ? `${PROMPT_SISTEMA_AGENTE}\n\n### PAUTA DE ESTILO CONFIGURADA POR EL DUEÑO:\n${config.tonoEstilo}`
+        : PROMPT_SISTEMA_AGENTE
+
+    // Contexto de ESTE turno: cambia siempre, por eso va después del historial.
+    const bloqueVariable = [
         `### CONTEXTO TEMPORAL ACTUAL EN EL LOCAL (Córdoba Capital):\nHoy es ${fechaHoraCordoba} hs.`,
         bloqueAnuncio,
         bloqueEstado,
@@ -695,7 +818,7 @@ export async function ejecutarTurnoAgente(
 
     // Construir los mensajes para la API
     const mensajes: any[] = [
-        { role: "system", content: promptFinal },
+        { role: "system", content: promptEstable },
         ...historialPrevio.map((m) => {
             if (m.rol === "tool") {
                 return {
@@ -717,52 +840,103 @@ export async function ejecutarTurnoAgente(
                 content: m.contenido
             }
         }),
+        // Va acá, entre el historial y el mensaje del cliente, para que el
+        // prefijo cacheable (sistema + tools + historial) no cambie nunca.
+        { role: "system", content: bloqueVariable },
         { role: "user", content: mensajeUsuario }
     ]
 
-    let tokensTotales = { prompt: 0, completion: 0, total: 0 }
+    let tokensTotales = sinCostoLLM(modelo)!
     let paso = 0
 
-    // Los modelos de razonamiento de OpenAI (gpt-5*, o1*, o3*, o4*) NO aceptan
-    // `temperature` distinto del default: mandarlo devuelve 400. Se omite para esos.
-    const modeloNorm = modelo.toLowerCase()
-    const soportaTemperatura = !/(^|\/)(gpt-5|o1|o3|o4)([.-]|$)/.test(modeloNorm)
+    // Proveedor que está atendiendo el turno. Puede cambiar al suplente en
+    // cualquier paso si el principal se cae; los `mensajes` son los mismos para
+    // los dos (formato OpenAI), así que el turno sigue donde quedó.
+    let provActivo = proveedores[0]
+    let indiceProv = 0
+
+    /**
+     * Los modelos de razonamiento de OpenAI (gpt-5*, o1*, o3*, o4*) NO aceptan
+     * `temperature` distinto del default: mandarlo devuelve 400. Son los mismos
+     * que aceptan `reasoning_effort`. Se evalúa por proveedor porque el suplente
+     * puede ser de otra familia que el principal (DeepSeek -> gpt-5).
+     */
+    const esDeRazonamiento = (m: string) => /(^|\/)(gpt-5|o1|o3|o4)([.-]|$)/.test(m.toLowerCase())
 
     while (paso < MAX_PASOS_REACT) {
         paso++
 
         const cuerpo: Record<string, any> = {
-            model: modelo,
             messages: mensajes,
             tools: definicionesHerramientas,
             tool_choice: "auto"
         }
-        if (soportaTemperatura) {
+        if (!esDeRazonamiento(provActivo.modelo)) {
             cuerpo.temperature = opciones.temperatura ?? 0.2
         }
-
-        const res = await fetchLLM(`${cleanBaseUrl}/chat/completions`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`
-            },
-            body: JSON.stringify(cuerpo)
-        })
-
-        if (!res.ok) {
-            const errorText = await res.text()
-            throw new Error(`Error en llamada a API de IA (${res.status}): ${errorText}`)
+        /**
+         * Sin esto gpt-5 razona en `medium` por default y quema ~600 tokens de
+         * razonamiento invisible por turno. Se pagan a precio de SALIDA, que es
+         * 8x el de entrada: eran casi la mitad de la factura diaria para
+         * redactar respuestas de WhatsApp de 40-80 tokens.
+         *
+         * `low` alcanza porque el trabajo difícil no lo hace el modelo: lo hacen
+         * las herramientas (catálogo, compatibilidad, variante) y los nodos
+         * determinísticos. El modelo enruta y redacta. Si alguna vez hay que
+         * volver atrás, es `reasoning_effort` en chat_config, sin tocar código.
+         */
+        const effort = opciones.reasoningEffort ?? config.reasoningEffort
+        if (esDeRazonamiento(provActivo.modelo) && effort) {
+            cuerpo.reasoning_effort = effort
         }
 
-        const data = await res.json()
+        /**
+         * Pide el paso al proveedor activo. Si se cayó del todo (ya agotó sus
+         * reintentos con backoff) y hay suplente, se pasa a él y se reintenta
+         * ESTE mismo paso: para el cliente el turno sigue normal, solo que lo
+         * termina de contestar el otro modelo.
+         */
+        let data: any
+        while (true) {
+            try {
+                data = await llamarLLM(provActivo, cuerpo)
+                break
+            } catch (err: any) {
+                const siguiente = proveedores[indiceProv + 1]
+                if (!siguiente) throw err // no hay red: que el turno falle y lo recupere el barrido
+                console.error(
+                    `[motor] ${provActivo.modelo} no respondió, se pasa al suplente ${siguiente.modelo}:`,
+                    err?.message || err
+                )
+                indiceProv++
+                provActivo = siguiente
+                tokensTotales.fallback = true
+                // El suplente puede no aceptar los mismos parámetros que el principal.
+                if (esDeRazonamiento(provActivo.modelo)) {
+                    delete cuerpo.temperature
+                    if (effort) cuerpo.reasoning_effort = effort
+                } else {
+                    delete cuerpo.reasoning_effort
+                    cuerpo.temperature = opciones.temperatura ?? 0.2
+                }
+            }
+        }
+
+        // El modelo que quede registrado es el que efectivamente contestó.
+        tokensTotales.modelo = provActivo.modelo
         const mensajeAsistente = data.choices?.[0]?.message
 
         if (data.usage) {
             tokensTotales.prompt += data.usage.prompt_tokens || 0
             tokensTotales.completion += data.usage.completion_tokens || 0
             tokensTotales.total += data.usage.total_tokens || 0
+            // `cacheados` es el termómetro del prefijo estable y `razonamiento`
+            // el de la partida más cara. Los provee OpenAI; otros proveedores
+            // pueden no mandarlos y quedan en 0.
+            tokensTotales.cacheados += data.usage.prompt_tokens_details?.cached_tokens || 0
+            tokensTotales.razonamiento += data.usage.completion_tokens_details?.reasoning_tokens || 0
         }
+        tokensTotales.pasos = paso
 
         const llamadasTools: LlamadaHerramientaLLM[] = mensajeAsistente?.tool_calls || []
 

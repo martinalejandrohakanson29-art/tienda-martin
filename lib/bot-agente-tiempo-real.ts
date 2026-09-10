@@ -86,6 +86,64 @@ async function esperarCadenciaHumana(inicioTurnoMs: number) {
 }
 
 /**
+ * Pausa entre globos de una misma respuesta. El motor ya separa por tema con
+ * `---MENSAJE---`; mandarlos todos juntos en un solo globo (con el `---` a la
+ * vista) le queda al cliente como un paredón de texto. Se mandan de a uno, con
+ * una pausa proporcional a lo que hay para leer, igual que escribiría alguien.
+ */
+const PAUSA_RAFAGA_MIN_MS = 1_200
+const PAUSA_RAFAGA_MAX_MS = 3_500
+/** ms por caracter del globo ya enviado (aprox. lectura + tipeo humano). */
+const MS_POR_CARACTER_RAFAGA = 22
+
+export function calcularPausaEntreGlobosMs(largoGloboAnterior: number): number {
+    return Math.min(
+        PAUSA_RAFAGA_MAX_MS,
+        Math.max(PAUSA_RAFAGA_MIN_MS, Math.max(0, largoGloboAnterior) * MS_POR_CARACTER_RAFAGA)
+    )
+}
+
+/** Los globos a mandar, en orden. Fallback al mensaje unificado de siempre. */
+export function globosDeLaRespuesta(respuesta: {
+    mensajeFinal?: string | null
+    mensajesFinales?: string[]
+}): string[] {
+    const partes = (respuesta.mensajesFinales || []).map((m) => (m || "").trim()).filter(Boolean)
+    if (partes.length > 0) return partes
+    const unico = (respuesta.mensajeFinal || "").trim()
+    return unico ? [unico] : []
+}
+
+/**
+ * Manda la respuesta al cliente en ráfaga (un globo por tema).
+ *
+ * Si falla el PRIMER globo no se dijo nada todavía: se propaga el error y el
+ * llamador registra el turno como fallido (y eventualmente reintenta). Si falla
+ * uno del medio, el cliente YA leyó algo: reintentar el turno entero le
+ * duplicaría mensajes, así que se corta y se deja el rastro en el log.
+ */
+async function enviarRespuestaEnRafaga(
+    accountId: number,
+    conversationId: number,
+    respuesta: { mensajeFinal?: string | null; mensajesFinales?: string[] }
+): Promise<void> {
+    const globos = globosDeLaRespuesta(respuesta)
+    for (let i = 0; i < globos.length; i++) {
+        if (i > 0) await dormirMs(calcularPausaEntreGlobosMs(globos[i - 1].length))
+        try {
+            await enviarMensajeChatwoot({ accountId, conversationId, content: globos[i] })
+        } catch (err) {
+            if (i === 0) throw err
+            console.error(
+                `[bot-agente-tiempo-real] fallo el globo ${i + 1}/${globos.length} de la rafaga (conv ${conversationId}):`,
+                err
+            )
+            return
+        }
+    }
+}
+
+/**
  * ¿El equipo sacó al bot de esta conversación? Solo aplica en modo global: ahí
  * `/bot off` (switch de /admin/chatwoot/chats-vivo) y una respuesta pública de
  * un humano real significan "me hago cargo, callate" — y ya no está n8n para
@@ -627,7 +685,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
         }
 
         try {
-            await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })
+            await enviarRespuestaEnRafaga(accountId, conversationId, respuesta)
             if (respuesta.fotoUrl) {
                 await enviarImagenChatwoot({ accountId, conversationId, fotoUrl: respuesta.fotoUrl }).catch((err) =>
                     console.error("[bot-agente-tiempo-real] no se pudo mandar la foto:", err)
@@ -976,7 +1034,7 @@ export async function atenderEntrantesPendientes(
                 }
 
                 try {
-                    await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })
+                    await enviarRespuestaEnRafaga(accountId, conversationId, respuesta)
                     if (respuesta.fotoUrl) {
                         await enviarImagenChatwoot({ accountId, conversationId, fotoUrl: respuesta.fotoUrl }).catch(
                             (err) => console.error("[entrantes-pendientes] no se pudo mandar la foto:", err)
@@ -1157,7 +1215,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
                 continue
             }
 
-            await enviarMensajeChatwoot({ accountId, conversationId, content: respuesta.mensajeFinal })
+            await enviarRespuestaEnRafaga(accountId, conversationId, respuesta)
             if (respuesta.fotoUrl) {
                 await enviarImagenChatwoot({ accountId, conversationId, fotoUrl: respuesta.fotoUrl }).catch((err) =>
                     console.error("[bot-agente-tiempo-real] no se pudo mandar la foto:", err)

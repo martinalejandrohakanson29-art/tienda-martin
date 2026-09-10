@@ -1022,8 +1022,10 @@ export async function ejecutarTurnoAgente(
 
             // Separar en múltiples mensajes si el modelo usó el delimitador de ráfaga
             const partesRaw = contenido
-                .split(/---MENSAJE---|(?:\r?\n){2,}---(?:\r?\n){2,}/)
-                .map((p: string) => p.trim())
+                .split(/---MENSAJE---|\r?\n[ \t]*-{3,}[ \t]*(?=\r?\n|$)/)
+                // Backstop: una linea de guiones que sobrevivio al split (pegada
+                // a texto) no puede viajar al cliente como si fuera contenido.
+                .map((p: string) => p.replace(/^[^\S\r\n]*-{3,}[^\S\r\n]*$/gm, "").trim())
                 .filter(Boolean)
 
             const partes = partesRaw.length > 0 ? partesRaw : [contenido.trim()]

@@ -11,7 +11,11 @@
  *    sirve para confirmar que la demora envuelve bien la latencia del turno.
  */
 import "dotenv/config"
-import { calcularEsperaCadenciaHumanaMs } from "@/lib/bot-agente-tiempo-real"
+import {
+    calcularEsperaCadenciaHumanaMs,
+    calcularPausaEntreGlobosMs,
+    globosDeLaRespuesta,
+} from "@/lib/bot-agente-tiempo-real"
 import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
 import { chatwootConfig } from "@/lib/chatwoot-bot"
 import { ejecutarTurnoAgente } from "@/bot-agente/motor"
@@ -59,6 +63,33 @@ async function main() {
         }
     }
     console.log(fallos === 0 ? "\n✅ cálculo puro OK (10 casos + 500 invariantes)" : `\n❌ ${fallos} fallos`)
+
+    // --- Rafaga: los globos se mandan de a uno, con pausa entre medio ---
+    let fallosRafaga = 0
+    const chequear = (etiqueta: string, ok: boolean) => {
+        if (!ok) fallosRafaga++
+        console.log(`${ok ? "ok  " : "FALLO"} ${etiqueta}`)
+    }
+    chequear("globo corto -> pausa minima", calcularPausaEntreGlobosMs(10) === 1_200)
+    chequear("globo largo -> pausa tope", calcularPausaEntreGlobosMs(5_000) === 3_500)
+    chequear("globo medio -> proporcional", calcularPausaEntreGlobosMs(100) === 2_200)
+    chequear("largo negativo -> pausa minima", calcularPausaEntreGlobosMs(-5) === 1_200)
+    chequear(
+        "mensajesFinales manda (uno por globo)",
+        JSON.stringify(globosDeLaRespuesta({ mensajeFinal: "a b", mensajesFinales: ["a", "b"] })) ===
+            JSON.stringify(["a", "b"])
+    )
+    chequear(
+        "sin mensajesFinales cae al unificado",
+        JSON.stringify(globosDeLaRespuesta({ mensajeFinal: "solo uno" })) === JSON.stringify(["solo uno"])
+    )
+    chequear("silencio -> ningun globo", globosDeLaRespuesta({ mensajeFinal: null }).length === 0)
+    chequear(
+        "globos vacios se descartan",
+        JSON.stringify(globosDeLaRespuesta({ mensajeFinal: "a", mensajesFinales: ["a", "   ", ""] })) ===
+            JSON.stringify(["a"])
+    )
+    console.log(fallosRafaga === 0 ? "✅ rafaga OK (8 casos)" : `❌ ${fallosRafaga} fallos en rafaga`)
 
     const config = await obtenerConfiguracionAgente().catch(() => null)
     console.log(

@@ -261,7 +261,10 @@ export function extraerHechos(texto: string): Set<string> {
  *
  * Conservador a proposito:
  *   - Si el cliente PREGUNTA algo, no filtra nada: volver a dar un dato que te
- *     acaban de pedir es responder, no repetirse.
+ *     acaban de pedir es responder, no repetirse. La unica excepcion es
+ *     `hechosDeLaMismaRafaga` (ver el parametro): un dato que ya salio en un
+ *     globo de HACE TRES SEGUNDOS no se vuelve nuevo porque lo hayan preguntado
+ *     — la pregunta ya quedo contestada por ese globo.
  *   - No toca preguntas del bot ni frases sin hechos.
  *   - Recorta la frase justa, no la oracion entera, para no perder lo nuevo que
  *     venia pegado.
@@ -271,15 +274,27 @@ export function quitarHechosYaDichos(
     texto: string,
     mensajesPreviosDelBot: string[],
     mensajeDelCliente?: string,
-    hechosFrescos?: Set<string>
+    hechosFrescos?: Set<string>,
+    /**
+     * Hechos que el cliente ya leyo en un globo emitido en ESTA MISMA rafaga
+     * (la ficha de la plantilla del anuncio, que sale antes del sub-turno que
+     * resuelve el resto). Se filtran SIEMPRE, incluso si el cliente pregunto y
+     * aunque una herramienta los haya devuelto en este turno: son las dos vias
+     * por las que el mismo precio salia dos veces seguidas (conv 3859, 10/09).
+     */
+    hechosDeLaMismaRafaga?: Set<string>
 ): string {
     if (!texto?.trim() || !mensajesPreviosDelBot?.length) return texto
 
+    const preguntaDelCliente = !!mensajeDelCliente && /\?/.test(mensajeDelCliente)
     // El cliente pregunta => contestar con el dato es lo correcto, no repetirse.
-    if (mensajeDelCliente && /\?/.test(mensajeDelCliente)) return texto
+    // Salvo que ese dato ya haya salido en un globo de esta misma rafaga.
+    if (preguntaDelCliente && !hechosDeLaMismaRafaga?.size) return texto
 
     const yaDichos = new Set<string>()
-    for (const previo of mensajesPreviosDelBot) {
+    // Si el cliente pregunto, lo unico prohibido es lo de la rafaga en curso:
+    // el resto del historial vuelve a estar disponible para contestarle.
+    for (const previo of preguntaDelCliente ? [] : mensajesPreviosDelBot) {
         for (const h of extraerHechos(previo || "")) yaDichos.add(h)
     }
     // Un hecho que salió de una herramienta EN ESTE TURNO no es una repetición:
@@ -289,6 +304,12 @@ export function quitarHechosYaDichos(
     // (casos 24 y 29 del banco).
     if (hechosFrescos) {
         for (const h of hechosFrescos) yaDichos.delete(h)
+    }
+    // ...pero un hecho de la rafaga en curso le gana a "es fresco": la
+    // herramienta lo devolvio recien, si, y el cliente igual lo tiene tres
+    // segundos mas arriba en la pantalla.
+    if (hechosDeLaMismaRafaga) {
+        for (const h of hechosDeLaMismaRafaga) yaDichos.add(h)
     }
     if (yaDichos.size === 0) return texto
 
@@ -331,7 +352,17 @@ export function quitarHechosYaDichos(
     }
 
     const resultado = salida.join("\n").replace(/\n{3,}/g, "\n\n").trim()
-    return resultado.length > 0 ? resultado : texto
+    if (resultado.length > 0) return resultado
+
+    // Vacio y lo unico que tenia eran datos de la rafaga en curso => ese globo
+    // no aporta nada: el cliente acaba de leer todo eso. Devolver el original
+    // "por las dudas" es justamente el mensaje repetido (conv 3859). El motor
+    // descarta los globos vacios; si era el unico, el turno queda mudo, que es
+    // lo correcto cuando la ficha ya contesto la pregunta.
+    // En cualquier otro caso se mantiene la regla vieja: nunca vaciar.
+    if (hechosDeLaMismaRafaga?.size) return ""
+
+    return texto
 }
 
 export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: string[]): string {

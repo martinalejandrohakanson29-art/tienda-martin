@@ -21,14 +21,32 @@ const ENVIOS_YA_DICHO =
     "El envío es gratis y se despacha después del pago.\n\n" +
     "Le va bien bro, cualquier cosa avisanos y coordinamos."
 
+/**
+ * Ficha oficial del anuncio (conv 3859): sale por el match de plantilla, antes
+ * del sub-turno que resuelve el resto de la ráfaga. Ya trae los dos precios y
+ * el envío gratis.
+ */
+const FICHA_ANUNCIO_3859 =
+    "Hola!" +
+    "\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribucion de regalo." +
+    "\n\nTenes 2 opciones:" +
+    "\nRecorrido corto: $175.000" +
+    "\nRecorrido largo: $189.000" +
+    "\n\nEnvio gratis a todo el pais!" +
+    "\n\nA que moto se lo queres poner?"
+
 interface Caso {
     titulo: string
     texto: string
     previos: string[]
     mensajeCliente?: string
     hechosFrescos?: string[]
+    /** Hechos que ya salieron en un globo de esta misma rafaga (ficha del anuncio). */
+    hechosDeLaMismaRafaga?: string[]
     /** true = el guardrail TIENE que recortar; false = no debe tocar nada. */
     debeRecortar: boolean
+    /** true = el globo tiene que quedar vacio (el motor lo descarta). */
+    debeQuedarVacio?: boolean
 }
 
 const CASOS: Caso[] = [
@@ -90,6 +108,49 @@ const CASOS: Caso[] = [
         previos: [ENVIOS_YA_DICHO],
         mensajeCliente: "dale",
         debeRecortar: false // todo era repetido -> devuelve el original, no vacío
+    },
+
+    // --- Conv 3859 (10/09): la ficha de la plantilla del anuncio sale primero
+    // y el sub-turno que resuelve el resto de la ráfaga repetía los precios
+    // tres segundos después. Los hechos de la ficha le ganan a "es fresco" y
+    // al atajo de "el cliente preguntó".
+    {
+        titulo: "conv 3859: el sub-turno repite los precios de la ficha recién enviada",
+        texto: "Te paso: recorrido corto $175.000 y recorrido largo $189.000. Las dos con envío gratis.",
+        previos: [FICHA_ANUNCIO_3859],
+        mensajeCliente: "Cuánto sale",
+        hechosFrescos: ["175000", "189000", "gratis"],
+        hechosDeLaMismaRafaga: [...extraerHechos(FICHA_ANUNCIO_3859)],
+        debeRecortar: true,
+        debeQuedarVacio: true
+    },
+    {
+        titulo: "conv 3859 con signo de pregunta: el atajo de \"el cliente preguntó\" no lo salva",
+        texto: "Te paso: recorrido corto $175.000 y recorrido largo $189.000. Las dos con envío gratis.",
+        previos: [FICHA_ANUNCIO_3859],
+        mensajeCliente: "Cuánto sale?",
+        hechosFrescos: ["175000", "189000", "gratis"],
+        hechosDeLaMismaRafaga: [...extraerHechos(FICHA_ANUNCIO_3859)],
+        debeRecortar: true,
+        debeQuedarVacio: true
+    },
+    {
+        titulo: "misma ráfaga pero el globo trae un dato nuevo: se recorta, no se descarta",
+        texto: "Los precios son $175.000 y $189.000. La demora es de 4 a 6 días hábiles.",
+        previos: [FICHA_ANUNCIO_3859],
+        mensajeCliente: "cuanto sale y cuanto demora?",
+        hechosFrescos: ["175000", "189000"],
+        hechosDeLaMismaRafaga: [...extraerHechos(FICHA_ANUNCIO_3859)],
+        debeRecortar: true,
+        debeQuedarVacio: false
+    },
+    {
+        titulo: "misma ráfaga: la pregunta del bot nunca se descarta",
+        texto: "Cuál de las dos te sirve?",
+        previos: [FICHA_ANUNCIO_3859],
+        mensajeCliente: "cuanto sale",
+        hechosDeLaMismaRafaga: [...extraerHechos(FICHA_ANUNCIO_3859)],
+        debeRecortar: false
     }
 ]
 
@@ -102,15 +163,17 @@ function main() {
             c.texto,
             c.previos,
             c.mensajeCliente,
-            c.hechosFrescos ? new Set(c.hechosFrescos) : undefined
+            c.hechosFrescos ? new Set(c.hechosFrescos) : undefined,
+            c.hechosDeLaMismaRafaga ? new Set(c.hechosDeLaMismaRafaga) : undefined
         )
         const recorto = salida !== c.texto
-        const ok = recorto === c.debeRecortar
+        const quedoVacio = salida.trim().length === 0
+        const ok = recorto === c.debeRecortar && quedoVacio === !!c.debeQuedarVacio
         if (ok) pasados++
 
         console.log(`${ok ? "OK  " : "FALLA"} ${c.titulo}`)
         if (!ok || recorto) console.log(`        -> ${JSON.stringify(salida)}`)
-        if (!salida.trim()) console.log("        !! devolvio vacio (nunca deberia)")
+        if (quedoVacio && !c.debeQuedarVacio) console.log("        !! devolvio vacio (nunca deberia)")
     }
 
     console.log(`\n${pasados}/${CASOS.length} pasados`)

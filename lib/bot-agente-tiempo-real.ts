@@ -221,6 +221,44 @@ export function recortarMensajesDelTurno<T extends { contenido: string; saliente
 }
 
 /**
+ * ¿Este turno tiene que quedarse MUDO?
+ *
+ * Un escalado no siempre significa silencio: si el motor derivó una parte de la
+ * ráfaga pero igual redactó respuesta para el resto (`escaladoParcial`), ese
+ * mensaje se manda. Solo se calla el escalado mudo (motivo de silencio
+ * absoluto, o el motor no tuvo nada más para decir).
+ *
+ * Por qué está acá y no inline: el fix del escalado parcial (conv 3421) se
+ * aplicó SOLO al camino en vivo y los otros dos consumidores del motor —el
+ * barrido de entrantes pendientes y el reproceso de cola— siguieron tirando el
+ * mensaje. La conv 3831 (10/09) entró de madrugada con la plantilla del anuncio
+ * + "que marca es?": el barrido de la mañana tenía la bienvenida del Kit 170
+ * redactada y con foto, escaló la marca (bien, no la tenemos) y no le mandó
+ * NADA al cliente. Un solo predicado para los tres.
+ */
+function esEscaladoMudo(respuesta: RespuestaAgente): boolean {
+    return Boolean(respuesta.escaladoHumano) && !(respuesta.escaladoParcial && respuesta.mensajeFinal)
+}
+
+/**
+ * Deja el pendiente en la bandeja del equipo SOLO si el motor no lo hizo ya.
+ * Insertarlo siempre duplicaba la fila del panel (conv 3599).
+ */
+async function persistirEscaladoSiFalta(
+    respuesta: RespuestaAgente,
+    conversationId: number,
+    origen: string,
+    mensajeUsuario: string
+): Promise<void> {
+    if (respuesta.escaladoPersistido) return
+    await escalarAHumano({
+        motivo: respuesta.motivoEscalado || "otro",
+        resumen_consulta: `[${origen}] ${mensajeUsuario.slice(0, 300)}`,
+        conversation_id: conversationId,
+    }).catch((err) => console.error(`[bot-agente-tiempo-real] fallo al persistir escalado (${origen}):`, err))
+}
+
+/**
  * Anuncio de Meta que trae el tramo que estamos por contestar.
  *
  * El referral viaja en el mensaje entrante, no en el texto: el cliente clickea
@@ -485,32 +523,14 @@ async function procesarTurno(accountId: number, conversationId: number) {
             referralAnuncio: referralDelTramo(transcripcion.slice(previoDelTurno.length)),
         })
 
-        // Escalado PARCIAL: se derivó una parte de la ráfaga pero el motor igual
-        // tiene algo para contestar (lo que resolvió con datos de herramienta).
-        // El pendiente ya quedó en la bandeja del equipo dentro del motor; acá
-        // solo se registra y se sigue por el camino normal de envío, en vez de
-        // tirar el mensaje como hace el escalado mudo de abajo (conv 3421).
-        if (respuesta.escaladoHumano && respuesta.escaladoParcial && respuesta.mensajeFinal) {
-            if (!respuesta.escaladoPersistido) {
-                await escalarAHumano({
-                    motivo: respuesta.motivoEscalado || "otro",
-                    resumen_consulta: `[Piloto bot-agente en vivo] ${mensajeUsuario.slice(0, 300)}`,
-                    conversation_id: conversationId,
-                }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado parcial:", err))
-            }
-        } else if (respuesta.escaladoHumano) {
-            // El motor ya deja el pendiente en la bandeja del equipo en casi todas
-            // sus salidas de escalado. Solo se persiste acá cuando no lo hizo (ej.
-            // `limite_pasos_react_superado`); antes se insertaba siempre y cada
-            // escalado dejaba DOS filas en el panel de pendientes (conv 3599).
-            if (!respuesta.escaladoPersistido) {
-                await escalarAHumano({
-                    motivo: respuesta.motivoEscalado || "otro",
-                    resumen_consulta: `[Piloto bot-agente en vivo] ${mensajeUsuario.slice(0, 300)}`,
-                    conversation_id: conversationId,
-                }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado:", err))
-            }
+        // Escalado: el pendiente queda en la bandeja del equipo (si el motor no
+        // lo dejó ya). Con escalado PARCIAL el turno además sigue por el camino
+        // normal de envío, en vez de tirar el mensaje (conv 3421).
+        if (respuesta.escaladoHumano) {
+            await persistirEscaladoSiFalta(respuesta, conversationId, "Piloto bot-agente en vivo", mensajeUsuario)
+        }
 
+        if (esEscaladoMudo(respuesta)) {
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -906,17 +926,21 @@ export async function atenderEntrantesPendientes(
                     referralAnuncio: referralDelTramo(transcripcion.slice(cortIdx + 1)),
                 })
 
+                // Igual que en el camino en vivo: el motor ya dejó el pendiente
+                // salvo en sus salidas sin persistencia. Insertar siempre
+                // duplicaba la fila en el panel del equipo.
                 if (respuesta.escaladoHumano) {
-                    // Igual que en el camino en vivo: el motor ya dejó el pendiente
-                    // salvo en sus salidas sin persistencia. Insertar siempre
-                    // duplicaba la fila en el panel del equipo.
-                    if (!respuesta.escaladoPersistido) {
-                        await escalarAHumano({
-                            motivo: respuesta.motivoEscalado || "otro",
-                            resumen_consulta: `[barrido entrantes pendientes] ${mensajeUsuario.slice(0, 300)}`,
-                            conversation_id: conversationId,
-                        }).catch((err) => console.error("[entrantes-pendientes] fallo al persistir escalado:", err))
-                    }
+                    await persistirEscaladoSiFalta(
+                        respuesta,
+                        conversationId,
+                        "barrido entrantes pendientes",
+                        mensajeUsuario
+                    )
+                }
+
+                // Solo el escalado MUDO se calla: con escalado parcial el mensaje
+                // que el motor sí redactó sigue hasta el envío de más abajo.
+                if (esEscaladoMudo(respuesta)) {
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -964,12 +988,17 @@ export async function atenderEntrantesPendientes(
                         mensajeCliente: mensajeUsuario,
                         respuestaBot: respuesta.mensajeFinal,
                         fotoUrl: respuesta.fotoUrl,
-                        escaladoHumano: false,
+                        // En un escalado parcial el turno contesta Y derivó: el
+                        // panel tiene que verlo etiquetado, no como turno limpio.
+                        escaladoHumano: Boolean(respuesta.escaladoParcial),
+                        motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
                         tokens: respuesta.tokensUsados,
                         resultadoEnvio: "enviado",
-                        detalleEnvio: "Barrido: respuesta consolidada del hilo completo",
+                        detalleEnvio: respuesta.escaladoParcial
+                            ? "Barrido: respuesta consolidada del hilo completo (con escalado parcial)"
+                            : "Barrido: respuesta consolidada del hilo completo",
                     })
                     await quitarFila()
                 } catch (err: any) {
@@ -980,7 +1009,8 @@ export async function atenderEntrantesPendientes(
                         mensajeCliente: mensajeUsuario,
                         respuestaBot: respuesta.mensajeFinal,
                         fotoUrl: respuesta.fotoUrl,
-                        escaladoHumano: false,
+                        escaladoHumano: Boolean(respuesta.escaladoParcial),
+                        motivoEscalado: respuesta.escaladoParcial ? respuesta.motivoEscalado : undefined,
                         herramientas: respuesta.herramientasEjecutadas,
                         latenciaMs: Date.now() - inicio,
                         tokens: respuesta.tokensUsados,
@@ -1091,17 +1121,15 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
                 referralAnuncio: referralDelTramo(transcripcion.slice(cortIdx + 1)),
             })
 
+            // Ver el comentario del camino en vivo: solo se persiste si el
+            // motor no lo hizo, para no duplicar el pendiente del equipo.
             if (respuesta.escaladoHumano) {
-                // Ver el comentario del camino en vivo: solo se persiste si el
-                // motor no lo hizo, para no duplicar el pendiente del equipo.
-                if (!respuesta.escaladoPersistido) {
-                    await escalarAHumano({
-                        motivo: respuesta.motivoEscalado || "otro",
-                        resumen_consulta: `[Reproceso cola con bot-agente] ${mensajeUsuario.slice(0, 300)}`,
-                        conversation_id: conversationId,
-                    }).catch((err) => console.error("[bot-agente-tiempo-real] fallo al persistir escalado:", err))
-                }
+                await persistirEscaladoSiFalta(respuesta, conversationId, "Reproceso cola con bot-agente", mensajeUsuario)
+            }
 
+            // Solo el escalado MUDO descarta el pendiente sin contestar: con
+            // escalado parcial se sigue al envío de más abajo.
+            if (esEscaladoMudo(respuesta)) {
                 await registrarTurno({
                     conversationId,
                     accountId,

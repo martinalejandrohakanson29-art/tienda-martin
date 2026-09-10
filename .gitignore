@@ -83,3 +83,9 @@ n8n-workflows/backups/
 
 # Bot Agente runtime logs
 bot-agente/ultimo-chat.json
+
+# Scripts de debug de sesiones (locales, no van al repo)
+scratch/
+
+# Excels generados por las exportaciones de metricas
+/*.xlsx

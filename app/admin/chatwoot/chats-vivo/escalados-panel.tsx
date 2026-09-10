@@ -11,7 +11,7 @@ import {
     type OpcionesAprendizaje,
     type TipoEscalado,
 } from "@/app/actions/chats-vivo"
-import { unirMensajeYDetalle, type DestinoCompat } from "@/lib/compat-mensaje"
+import { textoIncompatibleSugerido, unirMensajeYDetalle, type DestinoCompat } from "@/lib/compat-mensaje"
 
 /**
  * Panel de escalados dentro del chat.
@@ -48,10 +48,10 @@ function mensajeSugerido(params: {
     mensajeIncompatibilidad: string
 }): string {
     if (params.compatible === null) return ""
-    const base = params.compatible
-        ? `Sí, el ${params.kitNombre} le va bien a tu ${params.modeloMoto.trim()}.`
-        : params.mensajeIncompatibilidad
-    return unirMensajeYDetalle(base, params.detalle)
+    if (!params.compatible) {
+        return textoIncompatibleSugerido(params.mensajeIncompatibilidad, params.modeloMoto, params.detalle)
+    }
+    return unirMensajeYDetalle(`Sí, el ${params.kitNombre} le va bien a tu ${params.modeloMoto.trim()}.`, params.detalle)
 }
 
 type FormTecnica = {

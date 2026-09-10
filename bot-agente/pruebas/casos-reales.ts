@@ -498,8 +498,13 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             // si llega por resolver_variante o consultar_compatibilidad: desde el
             // fix del 06/09 ambas devuelven la misma pauta de cierre.
             patronRespuesta: /^(?![\s\S]*\?)(?=[\s\S]*(no (le )?(entra|va|anda)|incompat|modific|c[aá]rter|alesar))/i,
+            // La negativa la redacta la casa (chat_config.mensaje_incompatibilidad
+            // + el motivo de la fila). Lo que acá se prohibe es el preámbulo de
+            // confesión con el que salió en la conv 3874 ("te soy sincero: ese
+            // combo no le entra directo a la Wave NF").
+            patronProhibido: /(te soy sincero|ser(te)? (sincero|honesto|franco)|sinceramente|la verdad (es )?que|no te voy a mentir|lamento decirte)/i,
             descripcionEsperada:
-                "La Wave NF está cargada como incompatible con ese combo. Debe avisar el problema con respeto y cerrar corto, sin ningún signo de pregunta: NO ofrecer 'otra opción' ni volver a preguntar qué moto tiene (ya la dijo)."
+                "La Wave NF está cargada como incompatible con ese combo. Debe copiar la negativa de la casa con su motivo y cerrar corto, sin ningún signo de pregunta ni preámbulo de sinceridad: NO ofrecer 'otra opción' ni volver a preguntar qué moto tiene (ya la dijo)."
         }
     },
     {

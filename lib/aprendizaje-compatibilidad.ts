@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { normalizarTexto, puntuarItemCatalogo } from "@/bot-agente/nucleo/texto"
 import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
-import { textoCompatibleSugerido, unirMensajeYDetalle, type DestinoCompat } from "@/lib/compat-mensaje"
+import { textoCompatibleSugerido, textoIncompatibleSugerido, type DestinoCompat } from "@/lib/compat-mensaje"
 
 /**
  * Aprendizaje de compatibilidad dentro de la app.
@@ -134,8 +134,7 @@ export async function armarMensajeCompatibilidad(params: {
     // /admin/chatwoot/catalogo (chat_config.mensaje_incompatibilidad): se usa el
     // mismo que manda el bot, para no tener dos redacciones distintas para lo mismo.
     const config = await obtenerConfiguracionAgente().catch(() => null)
-    const base = config?.mensajeIncompatibilidad?.trim() || "Lamentablemente este kit no es compatible."
-    return unirMensajeYDetalle(base, detalle)
+    return textoIncompatibleSugerido(config?.mensajeIncompatibilidad || "", moto, detalle)
 }
 
 /**

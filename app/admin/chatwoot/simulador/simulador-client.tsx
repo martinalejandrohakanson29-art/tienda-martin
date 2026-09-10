@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1246,7 +1247,7 @@ export function SimuladorClient({ configInicial }: { configInicial: Configuracio
                                 <Input
                                     value={config.mensajeIncompatibilidad}
                                     onChange={(e) => setConfig({ ...config, mensajeIncompatibilidad: e.target.value })}
-                                    placeholder="Lamentablemente este kit no es compatible."
+                                    placeholder={MENSAJE_INCOMPATIBILIDAD_DEFAULT}
                                 />
                             </div>
 

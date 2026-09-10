@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
 import { resolverMoto, listarCandidatos, esTypoDe, cilindradasEn } from "../nucleo/motos"
+import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { EstadoEmbudo } from "./index"
 
 export interface ArgsCompatibilidad {
@@ -626,13 +627,13 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                           ]
                               .filter(Boolean)
                               .join("\n")
-                        : [
-                              `NO ES COMPATIBLE con la ${args.modelo_moto}.${detalleUnanime ? ` Motivo: ${detalleUnanime}` : ""}`,
-                              `Ninguna versión de esa familia le entra a este kit, así que NO le preguntes cuál modelo tiene: la respuesta es la misma para todas.`,
-                              `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,
-                              `- NO ofrezcas otros combos ni "alternativas" ni te ofrezcas a "buscar opciones compatibles": no tenés ninguna confirmada por el sistema.`,
-                              `- Cerrá corto (ej: "Cualquier otra cosa que necesites, avisame.").`,
-                          ].join("\n"),
+                        : await guiaIncompatibilidad({
+                              moto: args.modelo_moto,
+                              detalle: detalleUnanime,
+                              extras: [
+                                  `Ninguna versión de esa familia le entra a este kit, así que NO le preguntes cuál modelo tiene: la respuesta es la misma para todas.`,
+                              ],
+                          }),
                 }
             }
 
@@ -1058,13 +1059,10 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
                 detalle: mejorMatch.detalle,
                 mensaje_para_agente: mejorMatch.compatible
                     ? `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""} Confirmáselo corto al cliente, con tu voz. Si preguntó algo más en el mismo mensaje (envío, demora, pago...), respondé eso también antes de cerrar.`
-                    : [
-                          `NO ES COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Motivo: ${mejorMatch.detalle}.` : ""}`,
-                          `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,
-                          `- NO ofrezcas otros combos ni "alternativas" ni te ofrezcas a "buscar opciones compatibles": no tenés ninguna confirmada por el sistema.`,
-                          `- NO le vuelvas a preguntar la moto (ya te la dijo).`,
-                          `- Cerrá corto (ej: "Cualquier otra cosa que necesites, avisame.").`
-                      ].join("\n")
+                    : await guiaIncompatibilidad({
+                          moto: mejorMatch.modelo_moto,
+                          detalle: mejorMatch.detalle,
+                      })
             }
         }
 

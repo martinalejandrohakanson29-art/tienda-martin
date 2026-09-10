@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
 import {
     actualizarBotPausadoEnEspejo,
     actualizarDestacadoEnEspejo,
@@ -755,8 +756,7 @@ export async function opcionesAprendizajeChatVivo(): Promise<OpcionesAprendizaje
     ])
     return {
         destinos,
-        mensajeIncompatibilidad:
-            config?.mensajeIncompatibilidad?.trim() || "Lamentablemente este kit no es compatible.",
+        mensajeIncompatibilidad: config?.mensajeIncompatibilidad?.trim() || MENSAJE_INCOMPATIBILIDAD_DEFAULT,
     }
 }
 

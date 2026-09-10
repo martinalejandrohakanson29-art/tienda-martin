@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
 
 export interface ConfiguracionAgente {
     tonoEstilo: string
@@ -57,7 +58,7 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     tonoEstilo: "Vendedor de mostrador cordobés amigable, buena onda, conciso y respetuoso. Atendiendo por WhatsApp en Revolución Motos.",
     palabrasProhibidas: ["culiau", "culiao", "che", "chabón", "amigazo", "master", "vieja", "flaco", "wey", "pana"],
     permitirBro: true,
-    mensajeIncompatibilidad: "Lamentablemente este kit no es compatible.",
+    mensajeIncompatibilidad: MENSAJE_INCOMPATIBILIDAD_DEFAULT,
     openaiApiKey: "",
     deepseekApiKey: "",
     openrouterApiKey: "",

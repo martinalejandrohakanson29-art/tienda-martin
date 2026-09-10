@@ -5,6 +5,7 @@ import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
 import { detectarRestoNoCubierto } from "../nucleo/resto-no-cubierto"
 import { consultarCompatibilidad } from "./compatibilidad"
+import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 
 /**
  * HERRAMIENTA `resolver_variante` — resolución de variante AGNÓSTICA AL EJE
@@ -519,13 +520,12 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     resuelta: false,
                     grupo_id: grupo.id,
                     incompatible: true,
-                    mensaje_para_agente: [
-                        `NO ES COMPATIBLE con ${motoTexto}.${compat.detalle ? ` Motivo: ${compat.detalle}.` : ""}`,
-                        `- Decíselo al cliente claro y con respeto, en 1 o 2 renglones.`,
-                        `- NO ofrezcas otros combos ni "alternativas": no tenés ninguna confirmada por el sistema.`,
-                        `- NO le vuelvas a preguntar la moto (ya te la dijo).`,
-                        `- Cerrá corto (ej: "Cualquier otra cosa que necesites, avisame.").`
-                    ].join("\n")
+                    // La negativa la redacta la casa, no la IA: ver
+                    // `nucleo/compat-negativa.ts` (conv 3874, "te soy sincero").
+                    mensaje_para_agente: await guiaIncompatibilidad({
+                        moto: motoTexto,
+                        detalle: compat.detalle,
+                    })
                 }
             }
 

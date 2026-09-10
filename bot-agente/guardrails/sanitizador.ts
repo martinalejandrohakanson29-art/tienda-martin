@@ -66,6 +66,23 @@ const FRASES_CALL_CENTER: [RegExp, string][] = [
     [/(?:^|\s*)(?:éxitos|exitos|suerte|ojal[aá])\s+(?:con\s+(?:la\s+)?juntada|con\s+(?:la\s+)?junta|juntando(?:\s+(?:la\s+)?plata)?|juntes(?:\s+(?:la\s+)?plata)?|puedas\s+juntar|con\s+el\s+cobro|cobres\s+pronto)[.!]*/gi, ""]
 ]
 
+// Preámbulos de sinceridad / confesión. El bot no "confiesa" nada: informa.
+//
+// Conv 3874 (Wave NF): la negativa de compatibilidad salió como "te soy
+// sincero: ese combo no le entra directo a la Wave NF". Un vendedor de
+// mostrador no arranca pidiendo permiso para decir la verdad, dice el dato y
+// el motivo. Es un recorte de prefijo: se saca la muletilla y queda la
+// oración, que es la que importa.
+const MULETILLAS_SINCERIDAD = [
+    /\b(te\s+)?(voy a ser|soy|ser[ée]|siendo)\s+(sincero|honesto|franco)\s*[:,.\-–—]*\s*/gi,
+    /\bpara\s+(ser|serte)\s+(sincero|honesto|franco)\s*[:,.\-–—]*\s*/gi,
+    /\bsinceramente\s*[:,]*\s*/gi,
+    /\bno\s+te\s+(voy a\s+)?(mentir|miento|engañar)\s*[:,.\-–—]*\s*/gi,
+    /\b(te\s+)?(digo|dir[ée])\s+la\s+verdad\s*[:,.\-–—]*\s*/gi,
+    /\bla\s+verdad\s+(es\s+)?que\s+/gi,
+    /\blamento\s+(decirte|informarte|comunicarte)(\s+que)?\s*[:,]*\s*/gi,
+]
+
 // Corrección obligatoria de tuteo neutro a voseo argentino (ej: Recuerda -> Recordá)
 const CORRECCIONES_VOSEO_ARGENTINO: [RegExp, string][] = [
     [/\brecuerda\b/gi, "recordá"],
@@ -128,7 +145,8 @@ const FRASES_META_INTERNAS = [
     /\bcontrato de grounding\b/i,
     /\b(el|seg[uú]n el|este)\s+contrato\s+(dice|indica|pide|exige|me pide)/i,
     /\b(ten[eé]s|tengo|deb[eo]|hay)\s+que\s+(preguntar|decir|explicar|responder|contestar)(le|selo)\b/i,
-    /\b(pregunt|explic|dec|contest)[aá](le|selo)?\s+(exactamente|textual(mente)?|tal\s+cual|literal(mente)?)\b/i,
+    /\b(pregunt|explic|dec|contest|copi|mand)[aá](le|la|lo|selo)?\s+(exactamente|textual(mente)?|tal\s+cual|literal(mente)?)\b/i,
+    /\ben\s+su\s+propio\s+globo\b/i,
     /\bgu[ií]a t[eé]cnica( de taller)?\b/i,
     /\bpregunta[_ ](inicial|variante)\b/i,
     /(^|\n|\.\s)\s*(nota|mensaje|texto|gu[ií]a|instrucci[oó]n|indicaci[oó]n)?\s*para\s+(el\s+|un\s+)?(agente|vendedor|equipo)\b/i,
@@ -551,6 +569,37 @@ export function sanitizarMensajeSalida(
         })
         if (nuevo !== limpio) {
             limpio = nuevo
+            modificado = true
+        }
+    }
+
+    // 2.e Recorte de preámbulos de sinceridad ("te soy sincero: ese combo no le
+    // entra..."). Se saca la muletilla y la oración queda entera; si quedó
+    // arrancando en minúscula por el recorte, se recapitaliza.
+    // Se trabaja oración por oración a propósito: recapitalizar el texto entero
+    // rompería las listas de precios ("👉🏼 largo: $189.000").
+    {
+        const conRecorte = limpio
+            .split(/\n/)
+            .map((linea) =>
+                linea
+                    .split(/(?<=[.!?])\s+/)
+                    .map((oracion) => {
+                        let o = oracion
+                        for (const regex of MULETILLAS_SINCERIDAD) {
+                            regex.lastIndex = 0
+                            o = o.replace(regex, "")
+                        }
+                        o = o.trim()
+                        if (o === oracion.trim()) return oracion
+                        return o ? o.charAt(0).toUpperCase() + o.slice(1) : ""
+                    })
+                    .filter((o) => o.length > 0)
+                    .join(" ")
+            )
+            .join("\n")
+        if (conRecorte !== limpio) {
+            limpio = conRecorte
             modificado = true
         }
     }

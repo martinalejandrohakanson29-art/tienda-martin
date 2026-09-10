@@ -12,6 +12,10 @@ import {
     MENSAJE_INCOMPATIBILIDAD_DEFAULT,
     type ChatConfig,
 } from "@/lib/chat-config-constants"
+import { textoIncompatibleSugerido } from "@/lib/compat-mensaje"
+
+/** Motivo de ejemplo para la vista previa: sale de una fila real de compatibilidad. */
+const DETALLE_EJEMPLO = "Para que entre hay que hacerle modificaciones al motor (alesar los cárteres)."
 
 export function MensajesTab({
     configInicial,
@@ -61,8 +65,11 @@ export function MensajesTab({
                     <CardTitle className="text-xl">Mensaje de incompatibilidad</CardTitle>
                     <CardDescription>
                         Lo que le responde el bot cuando el kit, pack o grupo no le sirve a la moto del cliente.
-                        Es un texto fijo: no incluye la moto ni el motivo técnico. Aplica a todos los casos
-                        (kit simple, grupo y cuando el bot no encuentra ningún kit para esa moto).
+                        Es la letra fija de la casa: el bot la copia tal cual, sin improvisar. Podés escribir{" "}
+                        <code className="px-1 rounded bg-gray-100 text-[11px]">{"{moto}"}</code> y se reemplaza por
+                        la moto que dijo el cliente. Atrás se le pega el motivo cargado en la compatibilidad, si
+                        tiene uno. Aplica a todos los casos (kit simple, grupo y cuando el bot no encuentra
+                        ningún kit para esa moto).
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -80,9 +87,11 @@ export function MensajesTab({
                     </div>
 
                     <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">Vista previa (lo que ve el cliente)</Label>
+                        <Label className="text-xs text-gray-500">Vista previa (ejemplo con moto y motivo)</Label>
                         <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-gray-800 whitespace-pre-wrap">
-                            {texto.trim() || <span className="text-gray-400">…</span>}
+                            {textoIncompatibleSugerido(texto, "Honda Wave NF", DETALLE_EJEMPLO) || (
+                                <span className="text-gray-400">…</span>
+                            )}
                         </div>
                     </div>
 

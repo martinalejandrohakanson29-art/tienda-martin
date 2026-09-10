@@ -216,7 +216,13 @@ REGLAS ESTRICTAS DE COMPORTAMIENTO:
           Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "deepseek-chat",
+          // `deepseek-chat` es un alias de la generación vieja: sigue vivo pero ya
+          // está en la lista de bajas. `thinking: disabled` no es un ahorro acá,
+          // es un requisito: los Flash piensan por default y el razonamiento se
+          // come el presupuesto de `max_tokens` antes de escribir una letra,
+          // devolviendo `content: ""`.
+          model: "deepseek-flash",
+          thinking: { type: "disabled" },
           messages: messagesPayload,
           temperature: 0.3,
           max_tokens: 1500

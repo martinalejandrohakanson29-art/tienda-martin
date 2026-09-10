@@ -109,17 +109,21 @@ El bot atiende como un vendedor de mostrador de Córdoba: conciso, buena onda, s
 
 
 ### 10. Costo por Turno y Proveedor de Modelo
-Desde el 09/09 el proveedor es **`deepseek-v4-flash`** con **`gpt-5` de suplente**. Se eligió midiendo, no por precio de lista: DeepSeek puntúa 38-39/42 en el banco (gpt-5 da 41/42, gpt-5-mini 36/42) a ~30x menos costo que gpt-5.
+Desde el 10/09 el proveedor es **`deepseek-flash`** (V4.1 Flash) con **`gpt-5` de suplente**. Antes era `deepseek-v4-flash`, elegido midiendo y no por precio de lista: DeepSeek puntúa 38-39/42 en el banco (gpt-5 da 41/42, gpt-5-mini 36/42) a ~30x menos costo que gpt-5.
+
+**Por qué se migró a V4.1 el mismo día que salió (10/09).** No por la calidad: el banco dio 47/48 contra 46/48, y la única diferencia se repitió 3 veces y resultó ser ruido. Se migró porque DeepSeek discontinuó la generación V4 Flash y anunció que `deepseek-v4-flash` pasa a rutear a V4.1 solo — comprobado el 10/09 que **todavía no lo hacía** (los dos alias daban respuestas y latencias distintas). Migrar a mano fue elegir nosotros el momento del cambio, con el banco corrido, en vez de que nos lo rutearan un martes a la tarde. De paso el precio bajó: cache hit US$0,007 → 0,003, miss 0,22 → 0,15 y salida 0,66 → 0,60 por 1M (tarifa off-peak, que es la que pagamos: el peak de DeepSeek es 22-01 y 03-07 hora Argentina, todo fuera del horario del local).
 
 **Todo se cambia desde `chat_config`, sin deploy:**
-- `proveedor_activo` (`deepseek:deepseek-v4-flash`) — volver a gpt-5 es cambiar esta fila.
+- `proveedor_activo` (`deepseek:deepseek-flash`) — volver a gpt-5, o al alias viejo mientras exista, es cambiar esta fila.
 - `proveedor_fallback` (`openai:gpt-5`) — retoma el turno donde quedó si el principal se cae. Vacío = sin red.
 - `reasoning_effort` (`low`) — solo aplica a gpt-5 y serie o. Un valor inválido (ej. `off`) hace que no se mande el parámetro y el proveedor use su default (`medium`).
+- `deepseek_thinking` (`enabled`) — solo aplica a los Flash de DeepSeek, que piensan por default. Ver la regla 4.
 
 **Las tres reglas que NO hay que romper:**
 1. **Nada variable arriba del prompt de sistema.** El prefijo estable (prompt + definiciones de tools, ~3.400 tokens) se cachea al 90%. Meter ahí la hora, el estado o las situaciones lo rompe y duplica el costo de entrada. Por eso van en un segundo mensaje de sistema después del historial.
 2. **`reasoning_effort` en `low`.** En `medium` (el default del proveedor) gpt-5 quema ~2.400 tokens de razonamiento invisible por turno, cobrados a precio de salida. Era el 95% del output.
 3. **El costo NO es la métrica que decide un modelo: lo es la tasa de escalados.** Un modelo que escala de más cambia dólares de API por horas de mostrador. Es lo que descartó a gpt-5-mini, que era barato pero derivaba a un humano consultas que gpt-5 resolvía solo.
+4. **`deepseek_thinking` en `enabled`, aunque cueste el doble.** Es la excepción a la regla 2, y va contra la intuición: apagarlo baja el turno de US$0,75 a US$0,30 cada mil y de 7,0s a 3,1s. Pero medido 3 veces por caso (10/09), sin pensar el bot pasa de 3/3 a 1/3 en "resolver la variante por la pista de color", de 3/3 a 2/3 en "no inventar piezas incluidas" y de 3/3 a 1/3 en "escalar cuando el dato no está cargado". O sea: apagado afirma de más y deriva de menos, que es exactamente lo que el bot no tiene que hacer solo. Lo único que mejora apagado es sostener el precio ante un pedido de descuento (3/3 contra 0/3) — ese es un agujero del prompt, no del modelo.
 
 **Cómo analizarlo (una sola instrucción):**
 ```

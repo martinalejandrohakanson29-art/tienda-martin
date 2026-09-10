@@ -33,11 +33,32 @@ export interface OpcionesEjecucion {
      */
     reasoningEffort?: string
     /**
+     * Pisa el `deepseek_thinking` de chat_config para ESTA llamada (`enabled` |
+     * `disabled`), con el mismo propósito que `reasoningEffort`: medir contra el
+     * banco sin escribir la config que lee producción.
+     */
+    thinking?: string
+    /**
      * Anuncio de Meta por el que entró el cliente (`content_attributes.referral`
      * del mensaje de Chatwoot). El texto del cliente no dice de qué kit viene;
      * el anuncio sí.
      */
     referralAnuncio?: { titulo?: string | null; cuerpo?: string | null }
+    /**
+     * Globos que YA se le mandaron al cliente como parte de ESTA MISMA ráfaga,
+     * antes de llamar a este turno. Hoy lo usa el camino de plantilla de
+     * anuncio: la ficha oficial sale primero y el "resto" de la ráfaga se
+     * resuelve en un sub-turno.
+     *
+     * Sirve para desactivar la excepción de "hechos frescos" sobre los datos
+     * que esos globos ya dijeron. Sin esto, si el resto de la ráfaga era
+     * "cuánto sale", el sub-turno llamaba a `consultar_catalogo_y_precios`, sus
+     * precios quedaban marcados como frescos y el guardrail de hechos dejaba
+     * pasar el mismo precio dos veces con tres segundos de diferencia
+     * (conv 3859, 10/09: la ficha daba $175.000 / $189.000 / envío gratis y el
+     * globo siguiente repetía los tres).
+     */
+    globosYaEmitidos?: string[]
 }
 
 const DEFAULT_MODEL = "gpt-5" // Modelo de producción (chat_config.proveedor_activo lo puede pisar)
@@ -163,7 +184,7 @@ async function llamarLLM(prov: Proveedor, cuerpo: Record<string, any>): Promise<
 }
 
 /**
- * Traduce un `proveedor_activo` de chat_config ("deepseek:deepseek-v4-flash",
+ * Traduce un `proveedor_activo` de chat_config ("deepseek:deepseek-flash",
  * "openai:gpt-5", "openrouter:...") al modelo, la baseUrl y la clave que le
  * corresponden.
  */
@@ -176,7 +197,7 @@ function proveedorDesdeSpec(spec: string, config: ConfiguracionAgente): Proveedo
     let apiKey: string | undefined
 
     if (prefijo === "deepseek") {
-        modelo = modelo || "deepseek-v4-flash"
+        modelo = modelo || "deepseek-flash"
         baseUrl = "https://api.deepseek.com"
         apiKey = config.deepseekApiKey || process.env.DEEPSEEK_API_KEY
     } else if (prefijo === "openrouter") {
@@ -725,6 +746,12 @@ export async function ejecutarTurnoAgente(
                                 `Contesta lo que escribio sin volver a presentarlo. ` +
                                 `Si nombro su moto, verifica la compatibilidad contra ESE combo ("${matchPlantilla.nombre}") y, si no le entra, decíselo ` +
                                 `— acaba de recibir el precio, no lo dejes creyendo que le sirve. ` +
+                                // La ficha ya trae el precio y el envio. Si el resto de
+                                // la rafaga era justamente "cuanto sale", el sub-turno
+                                // no tiene nada que agregar y volvia a tirar los mismos
+                                // numeros tres segundos despues (conv 3859, 10/09).
+                                `Esa ficha YA le dio el precio de cada opcion y que el envio es gratis: no repitas esos datos. ` +
+                                `Si lo unico que preguntaba era el precio o el envio, ya esta contestado — no mandes nada mas. ` +
                                 (textoFinal.includes("?") && /moto/i.test(textoFinal)
                                     ? `La ficha que ya salió cierra preguntandole la moto, asi que NO se la vuelvas a preguntar: quedaria preguntada dos veces seguidas.]`
                                     : `]`)
@@ -734,7 +761,10 @@ export async function ejecutarTurnoAgente(
                     ],
                     // Sin el referral: el kit del anuncio ya se entrego y volver a
                     // pasarlo re-dispararia la bienvenida en el sub-turno.
-                    { ...opciones, referralAnuncio: undefined }
+                    // Con la ficha como globo ya emitido: sus precios y su "envio
+                    // gratis" no cuentan como dato fresco aunque una herramienta
+                    // los devuelva de nuevo en este sub-turno.
+                    { ...opciones, referralAnuncio: undefined, globosYaEmitidos: [textoFinal] }
                 )
 
                 // El resto escaló (dato que no tenemos): el pendiente ya está en la
@@ -922,6 +952,17 @@ export async function ejecutarTurnoAgente(
      */
     const esDeRazonamiento = (m: string) => /(^|\/)(gpt-5|o1|o3|o4)([.-]|$)/.test(m.toLowerCase())
 
+    /**
+     * Los Flash de DeepSeek (V4 y V4.1) piensan por default, y ese razonamiento
+     * invisible se paga a precio de SALIDA igual que en gpt-5: ~900 tokens por
+     * turno, la mitad de la factura. A diferencia de `reasoning_effort` en
+     * gpt-5 —que sí bajamos a `low`— acá conviene dejarlo prendido: apagado el
+     * modelo deja de derivar lo que no sabe y empieza a afirmar de más. El
+     * porqué, con los números de las tres corridas, está en `deepseekThinking`
+     * (configuracion.ts). Se prende y apaga desde chat_config, sin deploy.
+     */
+    const esFlashDeepseek = (m: string) => /deepseek.*flash/.test(m.toLowerCase())
+
     while (paso < MAX_PASOS_REACT) {
         paso++
 
@@ -947,6 +988,10 @@ export async function ejecutarTurnoAgente(
         const effort = opciones.reasoningEffort ?? config.reasoningEffort
         if (esDeRazonamiento(provActivo.modelo) && effort) {
             cuerpo.reasoning_effort = effort
+        }
+        const thinking = opciones.thinking ?? config.deepseekThinking
+        if (esFlashDeepseek(provActivo.modelo) && thinking) {
+            cuerpo.thinking = { type: thinking }
         }
 
         /**
@@ -977,6 +1022,11 @@ export async function ejecutarTurnoAgente(
                 } else {
                     delete cuerpo.reasoning_effort
                     cuerpo.temperature = opciones.temperatura ?? 0.2
+                }
+                if (esFlashDeepseek(provActivo.modelo)) {
+                    if (thinking) cuerpo.thinking = { type: thinking }
+                } else {
+                    delete cuerpo.thinking
                 }
             }
         }
@@ -1111,6 +1161,19 @@ export async function ejecutarTurnoAgente(
                 }
             }
 
+            /**
+             * Hechos que el cliente YA leyó en un globo de esta misma ráfaga
+             * (la ficha de la plantilla del anuncio, que sale antes de este
+             * sub-turno). Que la herramienta los haya devuelto recién no los
+             * vuelve nuevos: los tiene tres segundos más arriba en la pantalla.
+             * Le ganan tanto a la excepción de "hechos frescos" como al atajo
+             * de "el cliente preguntó" (conv 3859).
+             */
+            const hechosDeLaMismaRafaga = new Set<string>()
+            for (const globo of opciones.globosYaEmitidos || []) {
+                for (const h of extraerHechos(globo || "")) hechosDeLaMismaRafaga.add(h)
+            }
+
             const mensajesFinalesSanitizados: string[] = []
             for (let i = 0; i < partes.length; i++) {
                 const parte = partes[i]
@@ -1126,7 +1189,13 @@ export async function ejecutarTurnoAgente(
                 // Segunda pasada: la de arriba solo atrapa la oración calcada.
                 // Un modelo que parafrasea le pasa por al lado y el cliente
                 // igual lee el mismo plazo o el mismo precio dos veces.
-                const sinHechosRepetidos = quitarHechosYaDichos(sinRepetidos, yaDichoPorElBot, mensajeUsuario, hechosDeEsteTurno)
+                const sinHechosRepetidos = quitarHechosYaDichos(
+                    sinRepetidos,
+                    yaDichoPorElBot,
+                    mensajeUsuario,
+                    hechosDeEsteTurno,
+                    hechosDeLaMismaRafaga
+                )
                 // El escalado es invisible para el cliente: si el modelo lo
                 // blanqueó ("eso lo consulto y te aviso"), esa oración se cae.
                 const sinAnuncioDeDerivacion = escaladoParcial

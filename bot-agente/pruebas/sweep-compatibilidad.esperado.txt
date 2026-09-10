@@ -2,7 +2,7 @@
 # packs sueltos: Kit 170 varillero + leva | kit dakar 200 economico | kit dakar 220
 # SI=confirma  NO=incompatible  esc=escala en silencio  ?=sigue la charla
 
-Bajaj Rouser 125         SI  SI  esc esc esc esc esc
+Bajaj Rouser 125         esc SI  esc esc esc esc esc
 Bajaj Rouser NS 200      esc esc esc esc esc esc esc
 Brava Altino 150         esc esc esc esc SI  SI  SI 
 Brava Nevada 110         SI  SI  SI  SI  esc esc esc
@@ -43,7 +43,7 @@ viz 105                  NO  NO  NO  NO  esc esc esc
 weve nf                  NO  NO  NO  NO  NO  esc esc
 wuave                    NO  NO  NO  NO  NO  esc esc
 wave s                   NO  NO  NO  NO  NO  esc esc
-wave s 2022              NO  NO  NO  NO  SI  SI  SI 
+wave s 2022              NO  NO  NO  NO  NO  SI  SI 
 110 wave                 NO  NO  NO  NO  NO  esc esc
 110                      SI  SI  SI  SI  esc esc esc
 una 110                  SI  SI  SI  SI  esc esc esc
@@ -51,7 +51,7 @@ tengo un 110             SI  SI  SI  SI  esc esc esc
 Okinoi 110               SI  SI  SI  SI  esc esc esc
 Gilera 110               SI  SI  SI  SI  esc esc esc
 rouser                   esc esc esc esc esc esc esc
-rouser 125               SI  SI  esc esc esc esc esc
+rouser 125               esc SI  esc esc esc esc esc
 rouser 200               esc esc esc esc esc esc esc
 Ferrari 500              esc esc esc esc esc esc esc
 Weber 150                esc esc esc esc esc esc esc

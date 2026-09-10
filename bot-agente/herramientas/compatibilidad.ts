@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
 import { resolverMoto, listarCandidatos, esTypoDe, cilindradasEn } from "../nucleo/motos"
@@ -45,6 +46,71 @@ async function kitDelEmbudo(embudo: EstadoEmbudo | undefined): Promise<string | 
     }
 
     return null
+}
+
+/**
+ * Las piezas que componen el kit por el que se preguntó.
+ *
+ * Por qué hace falta: las filas de `chat_articulo_compatibilidad` entran al
+ * mismo pozo que las del combo, y se filtran por NOMBRE — el del artículo. Con
+ * eso, "Cilindro 170 varillero" contesta por "Kit 170 varillero + leva" (bien:
+ * es una de sus dos piezas) pero también cualquier artículo que comparta
+ * palabras o un número con el kit preguntado, sea parte de él o no. Es la misma
+ * puerta por la que en la conv 2882 una pieza periférica del combo terminó
+ * hablando por el cilindro.
+ *
+ * Devuelve `resuelto: false` cuando el nombre no cae en ningún pack ni grupo del
+ * catálogo (un kit viejo, un nombre inventado por el modelo). En ese caso NO se
+ * filtra nada: sin saber qué compone el kit, descartar filas sería adivinar.
+ */
+async function composicionDelKitPedido(
+    kitPedido: string | undefined
+): Promise<{ resuelto: boolean; articuloIds: Set<number>; packIds: Set<number> }> {
+    const vacio = { resuelto: false, articuloIds: new Set<number>(), packIds: new Set<number>() }
+    const pedido = (kitPedido || "").trim()
+    if (!pedido) return vacio
+
+    const packs = await prisma.$queryRaw<{ id: number; nombre: string; grupo_id: number | null }[]>`
+        SELECT id, nombre, grupo_id FROM chat_packs WHERE activo = true
+    `.catch(() => [])
+    const grupos = await prisma.$queryRaw<{ id: number; nombre: string }[]>`
+        SELECT id, nombre FROM chat_pack_grupos WHERE activo = true
+    `.catch(() => [])
+
+    const packIds = new Set<number>()
+
+    const conPrefijo = pedido.match(/^(pack|grupo)\s*:\s*(\d+)$/i)
+    if (conPrefijo) {
+        const id = Number(conPrefijo[2])
+        if (normalizarTexto(conPrefijo[1]) === "pack") {
+            if (packs.some((p) => Number(p.id) === id)) packIds.add(id)
+        } else {
+            for (const p of packs) if (Number(p.grupo_id) === id) packIds.add(Number(p.id))
+        }
+    } else {
+        // Un grupo son sus dos variantes: preguntar por "Kit 120 para 110" es
+        // preguntar por el corto Y el largo, así que entran las piezas de ambos.
+        const gruposCoinciden = grupos.filter((g) => coincideKitInteligente(pedido, g.nombre))
+        const idsGrupo = new Set(gruposCoinciden.map((g) => Number(g.id)))
+        for (const p of packs) {
+            if (coincideKitInteligente(pedido, p.nombre) || (p.grupo_id != null && idsGrupo.has(Number(p.grupo_id)))) {
+                packIds.add(Number(p.id))
+            }
+        }
+    }
+
+    if (packIds.size === 0) return vacio
+
+    const filas = await prisma.$queryRaw<{ articulo_id: number }[]>`
+        SELECT DISTINCT articulo_id FROM chat_pack_articulos
+        WHERE pack_id IN (${Prisma.join([...packIds])})
+    `.catch(() => [])
+
+    // Un pack sin composición cargada no dice nada sobre sus piezas: se trata
+    // como no resuelto para no dejar al kit sin ninguna fila que lo respalde.
+    if (filas.length === 0) return vacio
+
+    return { resuelto: true, articuloIds: new Set(filas.map((f) => Number(f.articulo_id))), packIds }
 }
 
 export interface ResultadoCompatibilidad {
@@ -579,17 +645,45 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             ? cilindradasDelModelo(motoCanonicaResuelta)
             : new Set<number>()
 
-        // Buscamos coincidencia con puntuación
+        // Qué piezas componen el kit preguntado. Con esto, una fila de artículo
+        // que NO es parte del kit deja de poder contestar por él.
+        const composicion = await composicionDelKitPedido(args.kit_nombre_o_id).catch(() => ({
+            resuelto: false,
+            articuloIds: new Set<number>(),
+            packIds: new Set<number>(),
+        }))
+
+        // Buscamos coincidencia con puntuación.
+        //
+        // DOS CAPAS, no una. Una fila de `chat_combo_compatibilidad` o de la
+        // tabla legacy habla DEL KIT; una de `chat_articulo_compatibilidad`
+        // habla de UNA PIEZA. Hasta el 10/09 competían por el mismo score y
+        // ganaba la de mayor puntaje textual, así que una pieza con la grafía
+        // exacta que escribió el cliente le ganaba a la fila curada del combo —
+        // y si se contradecían, el cliente se enteraba de la que puntuara más
+        // alto. Ahora la pieza solo contesta cuando el kit no tiene nada cargado.
         let mejorMatch: typeof registros[0] | null = null
         let maxScore = 0
         /** ¿La fila ganadora nombra literalmente el modelo que dijo el cliente? */
         let mejorCoincidenciaExacta = false
+        /** Idem para la mejor fila de PIEZA: solo se usa si el kit no tiene fila. */
+        let mejorPieza: typeof registros[0] | null = null
+        let maxScorePieza = 0
+        let mejorPiezaCoincidenciaExacta = false
+        /** Veredictos que dieron las piezas del kit, para detectar contradicciones. */
+        const veredictosPieza = new Map<boolean, string>()
         /** Motivo de respaldo por veredicto, ver más abajo. */
         const respaldoDetalle = new Map<boolean, { score: number; detalle: string }>()
 
         for (const reg of registros) {
             // Filtro por kit inteligente (o match directo de kit_id)
             if (!coincideKitPedido(args.kit_nombre_o_id, reg)) {
+                continue
+            }
+
+            // Pieza que no forma parte del kit preguntado: no habla por él por
+            // más que su nombre se parezca.
+            if (reg.origen === "articulo" && composicion.resuelto && !composicion.articuloIds.has(Number(reg.kit_id))) {
                 continue
             }
 
@@ -713,11 +807,42 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 if (!previo || score > previo.score) respaldoDetalle.set(reg.compatible, { score, detalle: reg.detalle })
             }
 
+            if (reg.origen === "articulo") {
+                if (!veredictosPieza.has(reg.compatible)) veredictosPieza.set(reg.compatible, reg.kit)
+                // Entre piezas, la que dice que NO gana siempre: el kit se
+                // instala completo, así que la pieza que no entra decide por
+                // todas. No es un desempate por puntaje sino por lógica de
+                // armado, y el motivo bueno ("hay que alesar los cárteres")
+                // está justo en esa fila.
+                const piezaNegativaPrevia = mejorPieza != null && !mejorPieza.compatible
+                const mandaPorNegativa = !reg.compatible && !piezaNegativaPrevia
+                if (mandaPorNegativa || (score > maxScorePieza && reg.compatible === (mejorPieza?.compatible ?? reg.compatible))) {
+                    maxScorePieza = score
+                    mejorPieza = reg
+                    mejorPiezaCoincidenciaExacta = coincidenciaExacta
+                }
+                continue
+            }
+
             if (score > maxScore) {
                 maxScore = score
                 mejorMatch = reg
                 mejorCoincidenciaExacta = coincidenciaExacta
             }
+        }
+
+        if (!mejorMatch && mejorPieza) {
+            // El kit no tiene ninguna fila propia para esta moto: contesta la
+            // pieza. Es lo que hoy sostiene al Kit 170, cuya compatibilidad
+            // entera está cargada sobre el cilindro y la leva.
+            //
+            // Cuando las piezas se contradicen manda la negativa (ver arriba).
+            // Antes ganaba la que puntuara más alto: a una Wave S le salía
+            // COMPATIBLE el Kit 170 porque la fila de la leva puntuaba más que
+            // la del cilindro, que es la que decía que hay que alesar el motor.
+            mejorMatch = mejorPieza
+            maxScore = maxScorePieza
+            mejorCoincidenciaExacta = mejorPiezaCoincidenciaExacta
         }
 
         if (mejorMatch && !mejorMatch.detalle?.trim()) {

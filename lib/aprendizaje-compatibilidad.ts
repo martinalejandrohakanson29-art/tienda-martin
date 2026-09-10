@@ -86,6 +86,36 @@ export async function resolverDestinoPorNombre(
     return mejor.destino
 }
 
+/**
+ * `kit_id` que le corresponde a una fila de `compatibilidades` (la tabla legacy).
+ *
+ * Acá vivía el bug que rompía "Aprender y responder": se guardaba el id del
+ * grupo/pack de `chat_pack_grupos`/`chat_packs`, pero esa columna es una FK a
+ * `kits_publicidad` — otra tabla, con otra numeración. Con un kit cuyo id no
+ * existe allá (el "kit dakar 200 economico" es el pack 12 y `kits_publicidad`
+ * llega hasta 9) el INSERT moría con violación de foreign key, y el escalado
+ * quedaba sin cerrar. Cuando el id SÍ existía era peor que un error: la fila
+ * quedaba colgada del kit viejo equivocado (el grupo 3 "Tapa CDI + Cilindro 120"
+ * apuntaba al "KIT POTENCIADO 220cc"), que es lo que agrupa el panel de
+ * /admin/chatwoot/conocimiento y lo que borra en cascada eliminar un kit viejo.
+ *
+ * Se matchea por nombre exacto (normalizado) porque es el único puente confiable
+ * entre las dos numeraciones; si el kit nuevo no existe en la tabla vieja, `null`.
+ * El bot no pierde nada: en las filas legacy el kit se resuelve por NOMBRE
+ * (`coincideKitPedido` en bot-agente/herramientas/compatibilidad.ts), no por id.
+ */
+async function idKitPublicidadPorNombre(nombre: string): Promise<number | null> {
+    const buscado = normalizarTexto(nombre)
+    if (!buscado) return null
+
+    const filas = await prisma
+        .$queryRaw<{ id: number; nombre: string }[]>`SELECT id, nombre FROM kits_publicidad`
+        .catch(() => [] as { id: number; nombre: string }[])
+
+    const match = filas.find((k) => normalizarTexto(k.nombre) === buscado)
+    return match ? Number(match.id) : null
+}
+
 /** "Sí, el Kit 120 para 110 le va bien a tu Gilera Smash." / el texto de incompatibilidad configurado. */
 export async function armarMensajeCompatibilidad(params: {
     compatible: boolean
@@ -124,6 +154,11 @@ export async function armarMensajeCompatibilidad(params: {
  * Es idempotente: vuelve a cargar la misma moto para el mismo kit y la fila se
  * reemplaza en vez de duplicarse (dos filas contradictorias para la misma moto
  * son la forma más rápida de que el bot conteste cualquier cosa).
+ *
+ * Las tres escrituras van en UNA transacción: mientras no lo estuvieron, un
+ * error en la segunda tabla dejaba la compatibilidad a medias (cargada donde el
+ * bot la lee, ausente donde la busca el sweep) y el escalado abierto, sin que el
+ * equipo supiera qué había quedado guardado y qué no.
  */
 export async function aprenderCompatibilidad(params: {
     destino: DestinoCompat
@@ -141,79 +176,83 @@ export async function aprenderCompatibilidad(params: {
     const grupoId = esGrupo ? destino.id : null
     const packId = esGrupo ? null : destino.id
 
-    // 1. chat_combo_compatibilidad (reemplazo, no acumulación)
-    await prisma.$executeRawUnsafe(
-        `DELETE FROM chat_combo_compatibilidad
-         WHERE lower(btrim(modelo_moto)) = lower(btrim($1))
-           AND (($2::int IS NOT NULL AND grupo_id = $2::int) OR ($3::int IS NOT NULL AND kit_id = $3::int))`,
-        modeloMoto,
-        grupoId,
-        packId
-    )
-    const combo = await prisma.$executeRawUnsafe(
-        `INSERT INTO chat_combo_compatibilidad (grupo_id, kit_id, modelo_moto, compatible, detalle, creado_en)
-         VALUES ($1::int, $2::int, $3, $4, $5, NOW())`,
-        grupoId,
-        packId,
-        modeloMoto,
-        compatible,
-        detalle
-    )
+    const kitIdLegacy = await idKitPublicidadPorNombre(destino.nombre)
 
-    // 2. compatibilidades (legacy). `kit_id` guarda el id del grupo o del pack,
-    // igual que venía haciéndolo el workflow.
-    // El reemplazo se hace por NOMBRE de kit, no por `kit_id`: en esta tabla el
-    // id no dice si es un grupo o un pack, y los ids de una y otra tabla se
-    // pisan — borrar por id se llevaría puesta la fila de otro kit.
-    await prisma.$executeRawUnsafe(
-        `DELETE FROM compatibilidades
-         WHERE lower(btrim(modelo_moto)) = lower(btrim($1))
-           AND lower(btrim(kit)) = lower(btrim($2))`,
-        modeloMoto,
-        destino.nombre
-    )
-    const legacy = await prisma.$executeRawUnsafe(
-        `INSERT INTO compatibilidades (modelo_moto, kit, kit_id, compatible, detalle, fuente, creado_en)
-         VALUES ($1, $2, $3::int, $4, $5, 'equipo', NOW())`,
-        modeloMoto,
-        destino.nombre,
-        destino.id,
-        compatible,
-        detalle
-    )
+    const { combo, legacy, articulos } = await prisma.$transaction(async (tx) => {
+        // 1. chat_combo_compatibilidad (reemplazo, no acumulación)
+        await tx.$executeRawUnsafe(
+            `DELETE FROM chat_combo_compatibilidad
+             WHERE lower(btrim(modelo_moto)) = lower(btrim($1))
+               AND (($2::int IS NOT NULL AND grupo_id = $2::int) OR ($3::int IS NOT NULL AND kit_id = $3::int))`,
+            modeloMoto,
+            grupoId,
+            packId
+        )
+        const combo = await tx.$executeRawUnsafe(
+            `INSERT INTO chat_combo_compatibilidad (grupo_id, kit_id, modelo_moto, compatible, detalle, creado_en)
+             VALUES ($1::int, $2::int, $3, $4, $5, NOW())`,
+            grupoId,
+            packId,
+            modeloMoto,
+            compatible,
+            detalle
+        )
 
-    // 3. Piezas sueltas del kit, solo si se pidió.
-    let articulos = 0
-    if (params.aplicarAPiezas) {
-        const filas = esGrupo
-            ? await prisma.$queryRaw<{ articulo_id: number }[]>`
-                  SELECT DISTINCT cpa.articulo_id
-                  FROM chat_pack_articulos cpa
-                  JOIN chat_packs p ON p.id = cpa.pack_id
-                  WHERE p.grupo_id = ${destino.id}
-              `
-            : await prisma.$queryRaw<{ articulo_id: number }[]>`
-                  SELECT DISTINCT articulo_id FROM chat_pack_articulos WHERE pack_id = ${destino.id}
-              `
+        // 2. compatibilidades (legacy).
+        // El reemplazo se hace por NOMBRE de kit, no por `kit_id`: en esta tabla el
+        // id no dice si es un grupo o un pack, y los ids de una y otra tabla se
+        // pisan — borrar por id se llevaría puesta la fila de otro kit.
+        await tx.$executeRawUnsafe(
+            `DELETE FROM compatibilidades
+             WHERE lower(btrim(modelo_moto)) = lower(btrim($1))
+               AND lower(btrim(kit)) = lower(btrim($2))`,
+            modeloMoto,
+            destino.nombre
+        )
+        const legacy = await tx.$executeRawUnsafe(
+            `INSERT INTO compatibilidades (modelo_moto, kit, kit_id, compatible, detalle, fuente, creado_en)
+             VALUES ($1, $2, $3::int, $4, $5, 'equipo', NOW())`,
+            modeloMoto,
+            destino.nombre,
+            kitIdLegacy,
+            compatible,
+            detalle
+        )
 
-        for (const fila of filas) {
-            await prisma.$executeRawUnsafe(
-                `DELETE FROM chat_articulo_compatibilidad
-                 WHERE articulo_id = $1::int AND lower(btrim(modelo_moto)) = lower(btrim($2))`,
-                fila.articulo_id,
-                modeloMoto
-            )
-            await prisma.$executeRawUnsafe(
-                `INSERT INTO chat_articulo_compatibilidad (articulo_id, modelo_moto, compatible, detalle, creado_en)
-                 VALUES ($1::int, $2, $3, $4, NOW())`,
-                fila.articulo_id,
-                modeloMoto,
-                compatible,
-                detalle
-            )
-            articulos++
+        // 3. Piezas sueltas del kit, solo si se pidió.
+        let articulos = 0
+        if (params.aplicarAPiezas) {
+            const filas = esGrupo
+                ? await tx.$queryRaw<{ articulo_id: number }[]>`
+                      SELECT DISTINCT cpa.articulo_id
+                      FROM chat_pack_articulos cpa
+                      JOIN chat_packs p ON p.id = cpa.pack_id
+                      WHERE p.grupo_id = ${destino.id}
+                  `
+                : await tx.$queryRaw<{ articulo_id: number }[]>`
+                      SELECT DISTINCT articulo_id FROM chat_pack_articulos WHERE pack_id = ${destino.id}
+                  `
+
+            for (const fila of filas) {
+                await tx.$executeRawUnsafe(
+                    `DELETE FROM chat_articulo_compatibilidad
+                     WHERE articulo_id = $1::int AND lower(btrim(modelo_moto)) = lower(btrim($2))`,
+                    fila.articulo_id,
+                    modeloMoto
+                )
+                await tx.$executeRawUnsafe(
+                    `INSERT INTO chat_articulo_compatibilidad (articulo_id, modelo_moto, compatible, detalle, creado_en)
+                     VALUES ($1::int, $2, $3, $4, NOW())`,
+                    fila.articulo_id,
+                    modeloMoto,
+                    compatible,
+                    detalle
+                )
+                articulos++
+            }
         }
-    }
+        return { combo, legacy, articulos }
+    })
 
     const mensajeSugerido = await armarMensajeCompatibilidad({
         compatible,

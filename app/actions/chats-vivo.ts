@@ -46,6 +46,11 @@ export type { PanelChatsVivo, MensajeConversacion, AdjuntoConversacion, EstadoMe
 
 const ACCOUNT_ID = 1
 
+/** Mensaje de un error para mostrarlo en el panel (Next lo borraría al lanzarlo). */
+function detalleDeError(e: unknown): string {
+    return e instanceof Error ? e.message : String(e)
+}
+
 export async function obtenerChatsVivo(periodoDias: number): Promise<PanelChatsVivo> {
     await requireAdmin()
     return listarChatsVivo(periodoDias)
@@ -787,6 +792,11 @@ export async function descartarEscaladoChatVivo(tipo: TipoEscalado, id: number):
  * ahora sin IA de por medio ni nota intermedia: el Sí/No y el detalle que cargó
  * el equipo se guardan tal cual, y el texto que sale al cliente es el que el
  * equipo vio y pudo editar antes de enviarlo.
+ *
+ * Los fallos vuelven en el payload (`success: false`) en vez de tirar: Next
+ * borra el mensaje de toda excepción de un server action en producción, así que
+ * lanzar deja al equipo con el "An error occurred in the Server Components
+ * render..." y sin ninguna pista de qué salió mal.
  */
 export async function responderEscaladoTecnicoChatVivo(params: {
     pendienteId: number
@@ -800,16 +810,24 @@ export async function responderEscaladoTecnicoChatVivo(params: {
     mensajeCliente?: string
     /** Dejar que el bot siga a cargo de la conversación en vez de pausarlo. */
     reanudarBot?: boolean
-}): Promise<{ success: boolean; aprendido: ResultadoAprendizaje; mensajeEnviado: boolean }> {
+}): Promise<
+    | { success: true; aprendido: ResultadoAprendizaje; mensajeEnviado: boolean }
+    | { success: false; error: string }
+> {
     await requireAdmin()
 
-    const aprendido = await aprenderCompatibilidad({
-        destino: params.destino,
-        modeloMoto: params.modeloMoto,
-        compatible: params.compatible,
-        detalle: params.detalle,
-        aplicarAPiezas: params.aplicarAPiezas,
-    })
+    let aprendido: ResultadoAprendizaje
+    try {
+        aprendido = await aprenderCompatibilidad({
+            destino: params.destino,
+            modeloMoto: params.modeloMoto,
+            compatible: params.compatible,
+            detalle: params.detalle,
+            aplicarAPiezas: params.aplicarAPiezas,
+        })
+    } catch (e) {
+        return { success: false, error: `No se pudo guardar la compatibilidad: ${detalleDeError(e)}` }
+    }
 
     // La pendiente se cierra recién con el dato ya guardado: si el aprendizaje
     // falla, el escalado sigue abierto y el equipo lo vuelve a ver.
@@ -821,11 +839,21 @@ export async function responderEscaladoTecnicoChatVivo(params: {
     let mensajeEnviado = false
 
     if (texto) {
-        await enviarMensajeManualChatwoot({
-            accountId: ACCOUNT_ID,
-            conversationId: params.conversationId,
-            content: texto,
-        })
+        try {
+            await enviarMensajeManualChatwoot({
+                accountId: ACCOUNT_ID,
+                conversationId: params.conversationId,
+                content: texto,
+            })
+        } catch (e) {
+            // La compatibilidad ya quedó cargada y el escalado cerrado: se avisa
+            // que lo que falló fue el envío, para que el equipo lo mande a mano y
+            // no vuelva a cargar el mismo dato pensando que no se guardó nada.
+            return {
+                success: false,
+                error: `Se guardó la compatibilidad, pero no se pudo enviar el mensaje: ${detalleDeError(e)}`,
+            }
+        }
         // Lo manda el equipo: pausa el bot como cualquier respuesta manual, salvo
         // que se pida explícitamente que el bot siga a cargo.
         await registrarMensajeSalienteEnEspejo(params.conversationId, texto, {

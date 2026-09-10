@@ -186,6 +186,10 @@ export function EscaladosPanel({
                     mensajeCliente: form.enviarMensaje ? form.mensaje : "",
                     reanudarBot: form.reanudarBot,
                 })
+                if (!res.success) {
+                    setFallo(res.error)
+                    return
+                }
                 const piezas = res.aprendido.filas.articulos
                 setExito(
                     `Guardado: ${destino.nombre} ${form.compatible ? "le va" : "no le va"} a ${form.modeloMoto.trim()}` +

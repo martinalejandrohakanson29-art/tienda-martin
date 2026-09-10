@@ -112,18 +112,26 @@ export function BotOnOffPanel({ inicial, error }: { inicial: PanelBot | null; er
                             </p>
                         )}
                         {panel.pendientes > 0 && (
-                            <Link
-                                href="/admin/chatwoot/cola"
-                                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:underline"
-                            >
-                                {panel.despachando ? (
-                                    <Send className="h-4 w-4 animate-pulse" />
-                                ) : (
-                                    <Clock className="h-4 w-4" />
-                                )}
-                                {panel.pendientes} {panel.pendientes === 1 ? "respuesta esperando" : "respuestas esperando"}
-                                {panel.despachando ? " · saliendo ahora" : " · ver la cola"}
-                            </Link>
+                            <div className="mt-2 flex flex-wrap items-center gap-3">
+                                <Link
+                                    href="/admin/chatwoot/cola"
+                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:underline"
+                                >
+                                    {panel.despachando ? (
+                                        <Send className="h-4 w-4 animate-pulse" />
+                                    ) : (
+                                        <Clock className="h-4 w-4" />
+                                    )}
+                                    {panel.pendientes} {panel.pendientes === 1 ? "conversación esperando en cola" : "conversaciones esperando en cola"}
+                                    {panel.despachando ? " · saliendo ahora" : " · ver la cola"}
+                                </Link>
+                                <a
+                                    href="#cola-historico"
+                                    className="text-xs font-semibold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200 hover:bg-sky-100 transition-colors"
+                                >
+                                    Ver histórico mañana / tarde ↓
+                                </a>
+                            </div>
                         )}
                         {!panel.tokenChatwoot && (
                             <p className="mt-2 flex items-start gap-1.5 text-sm text-red-600">

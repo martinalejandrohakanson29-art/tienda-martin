@@ -763,8 +763,17 @@ export async function numeroExceptuado(telefono: string | null): Promise<boolean
 }
 
 export async function contarPendientes(): Promise<number> {
-    const filas = await prisma.$queryRaw<{ n: bigint }[]>`
-        SELECT count(*)::bigint AS n FROM respuestas_pendientes WHERE estado IN ('pendiente', 'enviando', 'error')
-    `
-    return Number(filas[0]?.n ?? 0)
+    try {
+        const [legacy, agente] = await Promise.all([
+            prisma.$queryRaw<{ n: bigint }[]>`
+                SELECT count(*)::bigint AS n FROM respuestas_pendientes WHERE estado IN ('pendiente', 'enviando', 'error')
+            `.catch(() => [{ n: BigInt(0) }]),
+            prisma.$queryRaw<{ n: bigint }[]>`
+                SELECT count(*)::bigint AS n FROM bot_agente_entrantes_pendientes
+            `.catch(() => [{ n: BigInt(0) }]),
+        ])
+        return Number(legacy[0]?.n ?? 0) + Number(agente[0]?.n ?? 0)
+    } catch {
+        return 0
+    }
 }

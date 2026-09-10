@@ -8,7 +8,9 @@ import {
     enviarMensajeChatwoot,
     enviarNotaPrivadaChatwoot,
     esPlaceholderDeChatwoot,
+    getEstadoBot,
 } from "@/lib/chatwoot-bot"
+import { registrarMensajeEnColaHistorico, marcarBloqueDespachado } from "@/lib/chatwoot-cola-historico"
 import { ejecutarTurnoAgente } from "@/bot-agente/motor"
 import { escalarAHumano } from "@/bot-agente/herramientas/escalar-humano"
 import { MensajeChat, RespuestaAgente } from "@/bot-agente/tipos"
@@ -382,16 +384,18 @@ async function procesarTurno(accountId: number, conversationId: number) {
     }
 
     try {
-        // Local cerrado: NO se llama al modelo y NO se encola una respuesta por
+        // Local cerrado o bot en pausa: NO se llama al modelo y NO se encola una respuesta por
         // mensaje. La fila de `bot_agente_entrantes_pendientes` (la puso el
         // webhook) queda tal cual; al abrir el local, `atenderEntrantesPendientes()`
-        // reconstruye el hilo completo y responde UNA sola vez. Así se corta la
-        // lluvia de mensajes desfasados que salía cuando cada mensaje de la
-        // noche encolaba su propia respuesta (convs 3528 / 3565 / 2900).
+        // reconstruye el hilo completo y responde UNA sola vez.
+        const estadoBot = await getEstadoBot().catch(() => ({ encendido: true, horarioAutomatico: true }))
         const dentroDeHorario = await botDentroDeHorario().catch(() => true)
-        if (!dentroDeHorario) {
+        const botActivo = estadoBot.horarioAutomatico ? dentroDeHorario : estadoBot.encendido
+
+        if (!botActivo) {
             // Defensivo por si el webhook no llegó a registrarlo.
             await marcarEntrantePendiente(accountId, conversationId)
+            await registrarMensajeEnColaHistorico({ conversationId }).catch(() => {})
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -401,7 +405,9 @@ async function procesarTurno(accountId: number, conversationId: number) {
                 herramientas: [],
                 latenciaMs: Date.now() - inicio,
                 resultadoEnvio: "encolado",
-                detalleEnvio: "Local cerrado: se responde consolidado al abrir",
+                detalleEnvio: estadoBot.horarioAutomatico
+                    ? "Local cerrado: se responde consolidado al abrir"
+                    : "Bot en pausa manual: se responde consolidado al prender",
             })
             return
         }
@@ -781,6 +787,7 @@ export async function atenderEntrantesPendientes(
     if (filas.length === 0) return
 
     barridoDesde = Date.now()
+    await marcarBloqueDespachado().catch(() => {})
     try {
         let primera = true
         for (const fila of filas) {

@@ -3,6 +3,8 @@ import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, B
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
+import { obtenerHistoricoColas, obtenerEstadoColaEnVivo } from "@/lib/chatwoot-cola-historico"
+import { ColaHistoricoPanel } from "./cola-historico-panel"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +18,16 @@ export default async function ChatwootPage() {
     } catch (e) {
         errorBot = e instanceof Error ? e.message : "No se pudo leer el estado del bot"
     }
+
+    const [historicoColas, colaEnVivo] = await Promise.all([
+        obtenerHistoricoColas(14).catch(() => []),
+        obtenerEstadoColaEnVivo().catch(() => null),
+    ])
+
+    const chatwootUrl = (process.env.CHATWOOT_API_URL || "https://chat.revolucionmotos.tech/api/v1").replace(
+        /\/api\/v1\/?$/,
+        ""
+    )
 
     const secciones = [
         {
@@ -105,6 +117,12 @@ export default async function ChatwootPage() {
             </div>
 
             <BotOnOffPanel inicial={panelBot} error={errorBot} />
+
+            <ColaHistoricoPanel
+                inicialHistorico={historicoColas}
+                inicialEnVivo={colaEnVivo}
+                chatwootUrl={chatwootUrl}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {secciones.map((seccion, index) => (

@@ -8,6 +8,7 @@ import {
     telefonoDeConversacion,
 } from "@/lib/chatwoot-bot"
 import { sincronizarEstadoBot } from "@/lib/chatwoot-cola"
+import { registrarMensajeEnColaHistorico } from "@/lib/chatwoot-cola-historico"
 
 // Único punto de salida de los mensajes que ve el cliente.
 //
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
                     origen,
                     fotoUrl,
                 })
+                await registrarMensajeEnColaHistorico({ conversationId }).catch(() => {})
                 return NextResponse.json({ enviado: false, encolado: true, id })
             }
         }

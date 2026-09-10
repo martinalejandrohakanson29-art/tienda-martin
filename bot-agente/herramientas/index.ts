@@ -1,6 +1,7 @@
 import { DefinicionHerramienta, EjecutorHerramienta, HerramientaEjecutadaInfo } from "../tipos"
 import { herramientaCompatibilidad } from "./compatibilidad"
 import { herramientaCatalogoPrecios } from "./catalogo-precios"
+import { herramientaCotizarSueltas } from "./cotizar-sueltas"
 import { herramientaInfoNegocio } from "./info-negocio"
 import { herramientaEscalarHumano } from "./escalar-humano"
 import { herramientaResolverVariante } from "./resolver-variante"
@@ -8,6 +9,7 @@ import { herramientaResolverVariante } from "./resolver-variante"
 export const todasLasHerramientas: Record<string, EjecutorHerramienta> = {
     consultar_compatibilidad: herramientaCompatibilidad,
     consultar_catalogo_y_precios: herramientaCatalogoPrecios,
+    cotizar_piezas_sueltas: herramientaCotizarSueltas,
     resolver_variante: herramientaResolverVariante,
     consultar_info_negocio: herramientaInfoNegocio,
     escalar_a_humano: herramientaEscalarHumano

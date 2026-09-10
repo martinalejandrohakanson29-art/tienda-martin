@@ -25,6 +25,8 @@ export interface ParametroPropiedad {
     type: string
     description: string
     enum?: string[]
+    /** Tipo de los elementos cuando `type` es "array" (lo exige el JSON Schema de la API). */
+    items?: { type: string }
 }
 
 export interface DefinicionHerramienta {

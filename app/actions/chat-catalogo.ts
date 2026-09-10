@@ -30,6 +30,11 @@ export type ChatArticulo = {
     precio: number | null
     detalle: string | null
     categoria: string | null
+    // Política de envío de la pieza VENDIDA SOLA. Tri-estado a propósito:
+    // true = gratis, false = lo paga el cliente, null = todavía no se definió.
+    // El bot no puede afirmar nada sobre envío mientras esté en null (conv 3860).
+    envio_gratis: boolean | null
+    envio: string | null
     activo: boolean
     creado_en: Date
     es_pack: boolean
@@ -43,6 +48,8 @@ export type ChatArticuloInput = {
     precio: string // vacío = no se vende suelto
     detalle: string
     categoria: string // vacío = sin categoría
+    envioGratis: "si" | "no" | "" // "" = sin definir
+    envio: string // aclaración opcional (transporte, demora, costo)
     activo: boolean
 }
 
@@ -83,7 +90,8 @@ export async function buscarArticulosMostrador(query: string): Promise<ArticuloM
 export async function getChatArticulos(): Promise<ChatArticulo[]> {
     await requireAdmin()
     return prisma.$queryRaw<ChatArticulo[]>`
-        SELECT ca.id, ca.articulo_mostrador_id, am.nombre, ca.titulo_comercial, ca.alias, ca.precio, ca.detalle, ca.categoria, ca.activo, ca.creado_en,
+        SELECT ca.id, ca.articulo_mostrador_id, am.nombre, ca.titulo_comercial, ca.alias, ca.precio, ca.detalle, ca.categoria,
+               ca.envio_gratis, ca.envio, ca.activo, ca.creado_en,
                COALESCE(am."esPack", false) AS es_pack
         FROM chat_articulos ca
         JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
@@ -102,19 +110,22 @@ export async function guardarChatArticulo(data: ChatArticuloInput) {
     const precio = parsePrecio(data.precio)
     const detalle = data.detalle.trim() || null
     const categoria = data.categoria.trim() || null
+    const envioGratis = data.envioGratis === "si" ? true : data.envioGratis === "no" ? false : null
+    const envio = data.envio?.trim() || null
 
     let id = data.id
     if (id) {
         await prisma.$executeRaw`
             UPDATE chat_articulos
-            SET titulo_comercial = ${tituloComercial}, alias = ${alias}, precio = ${precio}, detalle = ${detalle}, categoria = ${categoria}, activo = ${data.activo}
+            SET titulo_comercial = ${tituloComercial}, alias = ${alias}, precio = ${precio}, detalle = ${detalle}, categoria = ${categoria},
+                envio_gratis = ${envioGratis}, envio = ${envio}, activo = ${data.activo}
             WHERE id = ${id}
         `
     } else {
         try {
             const inserted = await prisma.$queryRaw<{ id: number }[]>`
-                INSERT INTO chat_articulos (articulo_mostrador_id, titulo_comercial, alias, precio, detalle, categoria, activo)
-                VALUES (${articuloMostradorId}, ${tituloComercial}, ${alias}, ${precio}, ${detalle}, ${categoria}, ${data.activo})
+                INSERT INTO chat_articulos (articulo_mostrador_id, titulo_comercial, alias, precio, detalle, categoria, envio_gratis, envio, activo)
+                VALUES (${articuloMostradorId}, ${tituloComercial}, ${alias}, ${precio}, ${detalle}, ${categoria}, ${envioGratis}, ${envio}, ${data.activo})
                 RETURNING id
             `
             id = inserted[0].id

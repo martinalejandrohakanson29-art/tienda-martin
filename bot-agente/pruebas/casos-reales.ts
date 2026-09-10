@@ -1007,5 +1007,31 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "El combo es SIEMPRE recorrido corto: se escala con motivo producto_no_catalogado y no se le confirma ni cotiza nada."
         }
+    },
+    {
+        // Conv 3860 (10/09). El cliente vino por el combo del anuncio y despues
+        // saco dos piezas: "pero yo queria el carbu y el filtro nomas". El bot
+        // sumo de cabeza ("los dos juntos te quedan en $38.500") y no dijo una
+        // palabra del envio: el "envio gratis" es del KIT, no de sus piezas
+        // vendidas por separado, y ese dato ni siquiera existia en la BD.
+        // Ahora el total lo calcula `cotizar_piezas_sueltas` y el envio sale de
+        // `chat_articulos.envio_gratis`.
+        id: "caso-64-dos-piezas-sueltas-total-y-envio",
+        titulo: "Pide dos piezas sueltas del combo: total por herramienta, sin prometer envio gratis",
+        mensajeCliente: "Para moto 110\nPero yo queria el carbu y el filtro nomas",
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
+            { rol: "assistant", contenido: "Hola!\n\nEl combo incluye:\n✅ Cilindro 120\n✅ Carburador CG 125\n✅ Codo de admisión\n✅ Filtro de aire alto flujo\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000\n\nEnvío gratis a todo el país!\n\nPara qué moto lo estás buscando?" }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["cotizar_piezas_sueltas"],
+            debeEscalarHumano: false,
+            // El carbu y el filtro estan marcados envio_gratis=false (todo lo
+            // que sale menos de $70.000 lo esta): el envio gratis del kit no se
+            // les puede atribuir.
+            patronProhibido: /env[ií]o gratis (?:de|para|con) (?:las|los|el|la) (?:piezas|partes|dos)|los dos con env[ií]o gratis/i,
+            descripcionEsperada:
+                "Debe cotizar las dos piezas con el total que devuelve la herramienta ($38.500), aclarar que el envio corre por cuenta del cliente y no atribuirle el envio gratis del kit a las piezas sueltas."
+        }
     }
 ]

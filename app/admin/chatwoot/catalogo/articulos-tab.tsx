@@ -31,6 +31,7 @@ import { matchTodasPalabras } from "@/lib/busqueda-texto"
 import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 
 const SIN_CATEGORIA = "ninguna"
+const SIN_ENVIO_DEFINIDO = "sin-definir"
 
 const FORM_VACIO: ChatArticuloInput = {
     articuloMostradorId: "",
@@ -39,6 +40,8 @@ const FORM_VACIO: ChatArticuloInput = {
     precio: "",
     detalle: "",
     categoria: "",
+    envioGratis: "",
+    envio: "",
     activo: true,
 }
 
@@ -126,6 +129,8 @@ export function ArticulosTab({
             precio: articulo.precio !== null ? String(articulo.precio) : "",
             detalle: articulo.detalle || "",
             categoria: articulo.categoria || "",
+            envioGratis: articulo.envio_gratis === true ? "si" : articulo.envio_gratis === false ? "no" : "",
+            envio: articulo.envio || "",
             activo: articulo.activo,
         })
         setNombreSeleccionado(articulo.nombre)
@@ -174,6 +179,8 @@ export function ArticulosTab({
                 precio: form.precio.trim() ? Number(form.precio.trim().replace(/[^\d.,]/g, "").replace(",", ".")) : null,
                 detalle: form.detalle.trim() || null,
                 categoria: form.categoria.trim() || null,
+                envio_gratis: form.envioGratis === "si" ? true : form.envioGratis === "no" ? false : null,
+                envio: form.envio.trim() || null,
                 activo: form.activo,
                 creado_en: articulos.find((a) => a.id === form.id)?.creado_en || new Date(),
                 es_pack: esPackSeleccionado,
@@ -385,6 +392,35 @@ export function ArticulosTab({
                             />
                         </div>
 
+                        <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <Label htmlFor="envio-gratis">Envío cuando se lleva esta pieza SOLA</Label>
+                            <Select
+                                value={form.envioGratis || SIN_ENVIO_DEFINIDO}
+                                onValueChange={(v) => actualizarCampo("envioGratis", v === SIN_ENVIO_DEFINIDO ? "" : (v as "si" | "no"))}
+                            >
+                                <SelectTrigger id="envio-gratis" disabled={guardando} className="bg-white">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={SIN_ENVIO_DEFINIDO}>Sin definir — el bot no dice nada de envío</SelectItem>
+                                    <SelectItem value="si">Envío gratis</SelectItem>
+                                    <SelectItem value="no">El envío lo paga el cliente</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Input
+                                className="bg-white"
+                                placeholder="Aclaración opcional (ej. 'por Andreani a domicilio, 4 a 6 días')"
+                                value={form.envio}
+                                onChange={(e) => actualizarCampo("envio", e.target.value)}
+                                disabled={guardando}
+                            />
+                            <p className="text-xs text-gray-400">
+                                Esto NO es el envío del kit (ese se carga en el pack): es qué pasa si el cliente se lleva
+                                solo esta pieza. Mientras quede "sin definir", el bot cotiza la pieza pero no promete ni
+                                niega envío gratis; si el cliente pregunta, escala.
+                            </p>
+                        </div>
+
                         <div className="space-y-3 pt-6 border-t border-slate-200">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                 <Label>Compatibilidad de este artículo</Label>
@@ -491,6 +527,7 @@ export function ArticulosTab({
                                         <TableHead>Alias</TableHead>
                                         <TableHead>Categoría</TableHead>
                                         <TableHead>Precio</TableHead>
+                                        <TableHead>Envío suelta</TableHead>
                                         <TableHead>Estado</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
@@ -516,6 +553,15 @@ export function ArticulosTab({
                                                 ) : "—"}
                                             </TableCell>
                                             <TableCell className="text-sm">{formatearPrecio(articulo.precio)}</TableCell>
+                                            <TableCell className="text-sm">
+                                                {articulo.envio_gratis === true ? (
+                                                    <Badge variant="outline" className="font-normal text-emerald-700 border-emerald-300 bg-emerald-50">Gratis</Badge>
+                                                ) : articulo.envio_gratis === false ? (
+                                                    <Badge variant="outline" className="font-normal text-slate-600">Lo paga el cliente</Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="font-normal text-amber-700 border-amber-300 bg-amber-50">Sin definir</Badge>
+                                                )}
+                                            </TableCell>
                                             <TableCell>
                                                 <Badge
                                                     onClick={() => handleToggleActivo(articulo)}

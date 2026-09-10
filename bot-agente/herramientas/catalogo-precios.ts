@@ -33,6 +33,18 @@ export interface ArticuloSueltoInfo {
     alias: string | null
     precio: number
     detalle?: string | null
+    /**
+     * Envío de la pieza VENDIDA SOLA. Tri-estado: true = gratis,
+     * false = lo paga el cliente, null/undefined = no se cargó.
+     *
+     * El envío gratis de un kit NO se hereda a sus piezas sueltas: es una
+     * decisión comercial distinta. Antes esta línea no existía y el bloque de
+     * piezas sueltas viajaba al modelo con precio pelado, rodeado de "Envío
+     * gratis a todo el país" del kit: o callaba (conv 3860) o lo prometía por
+     * arrastre.
+     */
+    envio_gratis?: boolean | null
+    envio?: string | null
 }
 
 export interface GrupoInfo {
@@ -87,6 +99,24 @@ export const definicionCatalogoPrecios: DefinicionHerramienta = {
 
 function formatearPrecio(monto: number): string {
     return formatearPrecioAR(monto)
+}
+
+/**
+ * ENVÍO DE UNA PIEZA VENDIDA SOLA
+ * --------------------------------
+ * El "envío gratis a todo el país" es del KIT, no de sus piezas. Cuando el
+ * cliente saca dos piezas del combo y se las lleva por separado, el envío es
+ * otra decisión comercial y sale de `chat_articulos.envio_gratis`.
+ *
+ * Los tres estados dicen cosas distintas al modelo y ninguno se puede deducir
+ * de los otros: `null` NO es "no es gratis", es "no tengo el dato" — y ahí lo
+ * único válido es no afirmar nada. Ver conv 3860 (10/09).
+ */
+export function describirEnvioSuelto(art: ArticuloSueltoInfo): string {
+    const aclaracion = art.envio?.trim() ? ` ${art.envio.trim()}` : ""
+    if (art.envio_gratis === true) return `Envío gratis llevándola sola.${aclaracion}`
+    if (art.envio_gratis === false) return `El envío de esta pieza sola lo paga el cliente.${aclaracion}`
+    return `SIN DATO de envío para esta pieza sola: PROHIBIDO decir "envío gratis" o "el envío lo pagás vos". Si el cliente pregunta por el envío de la pieza suelta, escalá con escalar_a_humano.`
 }
 
 /**
@@ -546,6 +576,8 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 alias: string | null
                 precio: any
                 detalle: string | null
+                envio_gratis: boolean | null
+                envio: string | null
             }[]
         >`
             SELECT 
@@ -556,7 +588,9 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 ca.categoria,
                 ca.alias,
                 ca.precio,
-                ca.detalle
+                ca.detalle,
+                ca.envio_gratis,
+                ca.envio
             FROM chat_pack_articulos cpa
             JOIN chat_articulos ca ON ca.id = cpa.articulo_id
             LEFT JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
@@ -579,7 +613,9 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 // juntas, perno, aros, seguros y pistón"). Se pedía en el SELECT
                 // y se descartaba acá: la composición quedaba en tres títulos
                 // pelados y el bot NEGABA piezas que sí vienen (conv 3707).
-                detalle: a.detalle
+                detalle: a.detalle,
+                envio_gratis: a.envio_gratis,
+                envio: a.envio
             })
         }
 
@@ -764,6 +800,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 lineas.push(`   - Artículos y piezas sueltas de este kit (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of p.articulos_sueltos) {
                     lineas.push(`     * ${art.nombre}: ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
+                    lineas.push(`       Envío suelta: ${describirEnvioSuelto(art)}`)
                     if (art.alias) lineas.push(`       Alias de búsqueda: ${art.alias}`)
                 }
             }
@@ -823,14 +860,23 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 lineas.push(`   - Artículos y piezas sueltas que componen este combo (SOLO si el cliente pide expresamente una pieza sola por separado):`)
                 for (const art of g.articulos_sueltos) {
                     lineas.push(`     * ${art.nombre}: ${formatearPrecio(art.precio)} (ID Art. ${art.id})`)
+                    lineas.push(`       Envío suelta: ${describirEnvioSuelto(art)}`)
                     if (art.alias) lineas.push(`       Alias de búsqueda: ${art.alias}`)
                 }
             }
             lineas.push("")
         }
 
+        // Dos piezas sueltas NO son un combo: el total y su envío los calcula
+        // `cotizar_piezas_sueltas`, nunca el modelo. En la conv 3860 el bot sumó
+        // de cabeza ($30.000 + $8.500 = "$38.500 los dos juntos"): la cuenta dio
+        // bien, pero era un combo inexistente, sin una palabra de envío, y el
+        // catálogo tenía un pack real que cubría lo que el cliente pedía.
+        const reglaSuma = `⚠️ VARIAS PIEZAS SUELTAS A LA VEZ: PROHIBIDO sumar precios vos mismo ni decir "los dos juntos te quedan en $X". Si el cliente pide 2 o más piezas por separado, llamá a cotizar_piezas_sueltas(articulo_ids: [...]) y respondé SOLO con lo que devuelva: ella calcula el total, resuelve el envío del conjunto y te avisa si existe un pack armado que ya cubre eso.`
+
         if (todoYaPresentado) {
             lineas.push(`⚠️ PIEZAS SUELTAS: solo si el cliente las pide con palabras explícitas ("sola", "solo", "suelto", "separado", "nomás"). En ese caso, nombre comercial y precio, sin ficha técnica y sin repetir el combo completo.`)
+            lineas.push(reglaSuma)
         } else {
             lineas.push(`⚠️ REGLA COMERCIAL PARA PIEZAS SUELTAS / ARTÍCULOS POR SEPARADO:`)
             lineas.push(`- Una consulta por pieza suelta requiere que el cliente EXPLÍCITAMENTE use palabras como "sola", "solo", "suelto", "separado", "nomás" (ej: "la tapa sola cuánto sale?", "vendés el carburador solo?").`)
@@ -841,6 +887,8 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             lineas.push(`  3. Podés invitar amablemente a coordinar: "Si te interesa avisame y coordinamos!"`)
             lineas.push(`  4. ¡PROHIBIDO repetir el mensaje de bienvenida del combo completo cuando preguntan por una pieza suelta!`)
             lineas.push(`  5. Solo podés ofrecer piezas sueltas que pertenezcan al kit del cual se está hablando en la conversación.`)
+            lineas.push(`  6. El envío gratis del kit NO se hereda a la pieza suelta: usá la línea "Envío suelta" de cada artículo. Si dice SIN DATO, no menciones el envío.`)
+            lineas.push(reglaSuma)
         }
 
         return {

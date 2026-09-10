@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Loader2, Percent, DollarSign, TrendingUp, Info, PieChart as PieIcon,
+  Loader2, Percent, DollarSign, TrendingUp, Info, PieChart as PieIcon, FileSpreadsheet,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -113,6 +113,115 @@ export default function ComparativaMensualTab() {
   const [inflacionModo, setInflacionModo] = useState<InflacionModo>("off");
   const [ipc, setIpc] = useState<Map<string, number> | null>(null);
   const [ipcError, setIpcError] = useState(false);
+  const [exportando, setExportando] = useState(false);
+
+  const handleExportarExcel = async () => {
+    if (filas.length === 0) return;
+    setExportando(true);
+    try {
+      const XLSX = await import("xlsx");
+
+      // 1. Hoja principal: Valores Reales ($) y Composición (%) juntos por canal
+      const datosPrincipales = filas.map(f => {
+        const t = f.total > 0 ? f.total : 1;
+        const mlMonto = Math.round(f.canales.MercadoLibre * 100) / 100;
+        const mostradorMonto = Math.round(f.canales.Mostrador * 100) / 100;
+        const igMonto = Math.round(f.canales.Instagram * 100) / 100;
+        const mayMonto = Math.round(f.canales.Mayorista * 100) / 100;
+
+        const mlPct = Number(((f.canales.MercadoLibre / t) * 100).toFixed(2));
+        const mostradorPct = Number(((f.canales.Mostrador / t) * 100).toFixed(2));
+        const igPct = Number(((f.canales.Instagram / t) * 100).toFixed(2));
+        const mayPct = Number(((f.canales.Mayorista / t) * 100).toFixed(2));
+
+        return {
+          "Período": f.label,
+          "Año": f.anio,
+          "Mes": f.mes,
+          "MercadoLibre ($)": mlMonto,
+          "MercadoLibre (%)": mlPct,
+          "Mostrador ($)": mostradorMonto,
+          "Mostrador (%)": mostradorPct,
+          "Instagram ($)": igMonto,
+          "Instagram (%)": igPct,
+          "Mayorista ($)": mayMonto,
+          "Mayorista (%)": mayPct,
+          "Total Ventas ($)": f.total,
+          "Total (%)": Number((mlPct + mostradorPct + igPct + mayPct).toFixed(2)),
+          "Origen": f.origen === "historico" ? "Histórico CSV" : "Sistema Nuevo",
+        };
+      });
+
+      // 2. Hoja solo Valores Reales ($)
+      const datosValoresReales = filas.map(f => ({
+        "Período": f.label,
+        "Año": f.anio,
+        "Mes": f.mes,
+        "MercadoLibre ($)": Math.round(f.canales.MercadoLibre * 100) / 100,
+        "Mostrador ($)": Math.round(f.canales.Mostrador * 100) / 100,
+        "Instagram ($)": Math.round(f.canales.Instagram * 100) / 100,
+        "Mayorista ($)": Math.round(f.canales.Mayorista * 100) / 100,
+        "Total Ventas ($)": f.total,
+      }));
+
+      // 3. Hoja solo Mix (%)
+      const datosMix = filas.map(f => {
+        const t = f.total > 0 ? f.total : 1;
+        const mlPct = Number(((f.canales.MercadoLibre / t) * 100).toFixed(2));
+        const mostradorPct = Number(((f.canales.Mostrador / t) * 100).toFixed(2));
+        const igPct = Number(((f.canales.Instagram / t) * 100).toFixed(2));
+        const mayPct = Number(((f.canales.Mayorista / t) * 100).toFixed(2));
+
+        return {
+          "Período": f.label,
+          "Año": f.anio,
+          "Mes": f.mes,
+          "MercadoLibre (%)": mlPct,
+          "Mostrador (%)": mostradorPct,
+          "Instagram (%)": igPct,
+          "Mayorista (%)": mayPct,
+          "Total (%)": Number((mlPct + mostradorPct + igPct + mayPct).toFixed(2)),
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+
+      // Hoja 1: Valores Reales y Mix (primera hoja visible)
+      const wsPrincipal = XLSX.utils.json_to_sheet(datosPrincipales);
+      wsPrincipal["!cols"] = [
+        { wch: 12 }, { wch: 8 }, { wch: 6 },
+        { wch: 20 }, { wch: 18 },
+        { wch: 18 }, { wch: 16 },
+        { wch: 18 }, { wch: 16 },
+        { wch: 18 }, { wch: 16 },
+        { wch: 22 }, { wch: 12 }, { wch: 16 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsPrincipal, "Ventas Reales y Mix");
+
+      // Hoja 2: Solo Valores Reales ($)
+      const wsValores = XLSX.utils.json_to_sheet(datosValoresReales);
+      wsValores["!cols"] = [
+        { wch: 12 }, { wch: 8 }, { wch: 6 },
+        { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 22 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsValores, "Valores Reales ($)");
+
+      // Hoja 3: Solo Mix (%)
+      const wsMix = XLSX.utils.json_to_sheet(datosMix);
+      wsMix["!cols"] = [
+        { wch: 12 }, { wch: 8 }, { wch: 6 },
+        { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 12 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsMix, "Mix %");
+
+      XLSX.writeFile(wb, "composicion_ventas_reales_y_mix.xlsx");
+    } catch (err) {
+      console.error("Error al exportar a Excel:", err);
+      alert("Ocurrió un error al generar el archivo Excel.");
+    } finally {
+      setExportando(false);
+    }
+  };
 
   useEffect(() => {
     if (inflacionModo === "off" || ipc || ipcError) return;
@@ -389,6 +498,21 @@ export default function ComparativaMensualTab() {
         <Panel
           titulo={`${metrica === "mix" ? "Composición de ventas (mix %)" : `Ventas (montos ${inflacionModo === "constante" && ipc ? "en pesos constantes" : "nominales"})`} · ${vista === "mlvsresto" ? "MercadoLibre vs Resto" : "por canal"}`}
           icono={TrendingUp}
+          derecha={
+            <button
+              onClick={handleExportarExcel}
+              disabled={exportando || filas.length === 0}
+              className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+              title="Exportar todo el histórico de composición de ventas a Excel"
+            >
+              {exportando ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+              ) : (
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+              )}
+              <span>Exportar a Excel</span>
+            </button>
+          }
         >
           <ResponsiveContainer width="100%" height={360}>
             <BarChart data={chartData} stackOffset={barStackOffset as any} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>

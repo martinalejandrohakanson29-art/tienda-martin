@@ -5,8 +5,9 @@
  *   npx tsx bot-agente/pruebas/sweep-compatibilidad.ts --actualizar
  *
  * Cruza TODAS las motos de `motos_modelos` (más un puñado de grafías sueltas que
- * en su momento rompieron algo) contra TODOS los grupos activos, y compara el
- * veredicto con el snapshot de `sweep-compatibilidad.esperado.txt`.
+ * en su momento rompieron algo) contra TODOS los grupos activos Y contra los
+ * packs sueltos (los que no pertenecen a un grupo), y compara el veredicto con
+ * el snapshot de `sweep-compatibilidad.esperado.txt`.
  *
  * POR QUÉ EXISTE
  * --------------
@@ -19,6 +20,17 @@
  * Ya pagó su costo: corriéndolo salió que una fila de "Bajaj Boxer 150" le
  * confirmaba el cilindro 120 a una Rouser NS 200, y que 12 motos de 125cc para
  * arriba recibían "le va bien" para el Kit 120 que se anuncia "para 110".
+ *
+ * POR QUÉ TAMBIÉN LOS PACKS SUELTOS
+ * ---------------------------------
+ * Hasta el 10/09 el sweep solo miraba grupos, y por eso NO vio el "le va bien
+ * el Kit 170 a la Gilera 110" de la conv 3894: el Kit 170 es un pack sin grupo.
+ * Las dos capas se recorren distinto a propósito, porque así las recorre el bot:
+ *  - grupo  -> `resolverVariante`, que valida la moto antes de la variante.
+ *  - pack suelto -> `consultarCompatibilidad`, porque un pack sin variantes NO
+ *    pasa por la validación de moto: `resolverVariante` devuelve "resuelta" para
+ *    cualquier cosa, incluso para una moto que no existe. El único chequeo real
+ *    es que el modelo llame a la tool de compatibilidad.
  *
  * CÓMO LEER EL SNAPSHOT
  * ---------------------
@@ -36,6 +48,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs"
 import { join } from "path"
 import { prisma } from "@/lib/prisma"
 import { resolverVariante } from "../herramientas/resolver-variante"
+import { consultarCompatibilidad } from "../herramientas/compatibilidad"
 
 const SNAPSHOT = join(__dirname, "sweep-compatibilidad.esperado.txt")
 
@@ -47,6 +60,9 @@ const SNAPSHOT = join(__dirname, "sweep-compatibilidad.esperado.txt")
  *    compatible" a todo contradiciendo la grafía canónica (borradas el 09/09).
  *  - "110" / "una 110" / "Okinoi 110": el "le va a cualquier 110" tiene que
  *    seguir saliendo de la fila genérica `110`, no de un flag.
+ *  - "Gilera 110": conv 3894. El Kit 170 es para varilleras 150 y le contestó
+ *    "le va directo" a una 110, por dos filas de artículo envenenadas. Tiene
+ *    que dar `esc` en la columna del Kit 170, nunca `SI`.
  *  - "Ferrari 500" / "Weber 150": moto que no existe, nunca se confirma.
  *  - "rouser" / "rouser 125" / "rouser 200": la fila `rouser 125` no tiene que
  *    hablar por la NS 200 (otra cilindrada), pero sí por su propia moto.
@@ -54,7 +70,7 @@ const SNAPSHOT = join(__dirname, "sweep-compatibilidad.esperado.txt")
 const GRAFIAS_EXTRA = [
     "biz", "wave", "wave nf", "NF 100", "wawe nf", "criptón", "viz 105",
     "weve nf", "wuave", "wave s", "wave s 2022", "110 wave",
-    "110", "una 110", "tengo un 110", "Okinoi 110",
+    "110", "una 110", "tengo un 110", "Okinoi 110", "Gilera 110",
     "rouser", "rouser 125", "rouser 200",
     "Ferrari 500", "Weber 150", "mi moto",
 ]
@@ -63,12 +79,17 @@ async function construirSweep(): Promise<string> {
     const grupos = await prisma.$queryRaw<{ nombre: string }[]>`
         SELECT nombre FROM chat_pack_grupos WHERE activo = true ORDER BY id
     `
+    // Packs que no cuelgan de un grupo: su compatibilidad no la mira nadie más.
+    const packsSueltos = await prisma.$queryRaw<{ nombre: string }[]>`
+        SELECT nombre FROM chat_packs WHERE activo = true AND grupo_id IS NULL ORDER BY id
+    `
     const motos = await prisma.$queryRaw<{ nombre_completo: string }[]>`
         SELECT nombre_completo FROM motos_modelos ORDER BY marca, modelo
     `
 
     const lineas: string[] = [
         `# grupos: ${grupos.map((g) => g.nombre).join(" | ")}`,
+        `# packs sueltos: ${packsSueltos.map((p) => p.nombre).join(" | ")}`,
         `# SI=confirma  NO=incompatible  esc=escala en silencio  ?=sigue la charla`,
         "",
     ]
@@ -83,6 +104,20 @@ async function construirSweep(): Promise<string> {
             })
             veredictos.push(
                 r.incompatible ? "NO" : r.escalar ? "esc" : r.moto_confirmada ? "SI" : "?"
+            )
+        }
+        for (const p of packsSueltos) {
+            const r = await consultarCompatibilidad({
+                modelo_moto: moto,
+                kit_nombre_o_id: p.nombre,
+            })
+            veredictos.push(
+                // "parcial" = la moto no resuelve firme y el bot repregunta con
+                // candidatos: no confirma ni escala, sigue la charla.
+                r.confianza === "parcial" ? "?" :
+                !r.encontrado ? "esc" :
+                r.compatible === true ? "SI" :
+                r.compatible === false ? "NO" : "?"
             )
         }
         lineas.push(`${moto.padEnd(24)} ${veredictos.map((v) => v.padEnd(3)).join(" ")}`)

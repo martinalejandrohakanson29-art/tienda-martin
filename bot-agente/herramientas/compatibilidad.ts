@@ -2,11 +2,49 @@ import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
 import { resolverMoto, listarCandidatos, esTypoDe, cilindradasEn } from "../nucleo/motos"
+import type { EstadoEmbudo } from "./index"
 
 export interface ArgsCompatibilidad {
     modelo_moto: string
     kit_nombre_o_id?: string
     variante_elegida?: string
+    /** Lo inyecta el motor (no el modelo): en qué punto del embudo va la charla. */
+    __embudo?: EstadoEmbudo
+}
+
+/**
+ * De qué kit se está hablando cuando el modelo no lo dice.
+ *
+ * `coincideKitPedido` sin kit acepta CUALQUIER fila del catálogo: es el
+ * comportamiento correcto para un "¿tenés algo para mi Skua?" a secas, y es una
+ * bomba cuando el kit sí estaba definido y solo se perdió en el camino. En la
+ * conv 3894 el modelo mandó el kit con la clave mal escrita, la tool se quedó
+ * sin kit y le confirmó el Kit 170 a una Gilera 110 con la fila de otro producto.
+ *
+ * El embudo sabe lo que el modelo se olvidó de pasar: si ya hay una variante
+ * resuelta, un pack presentado o un grupo pineado, la consulta es sobre ESO. Se
+ * toma del más específico al más general. Si el embudo está vacío, se sigue sin
+ * kit como siempre: preferimos abrir el universo antes que inventar un kit.
+ */
+async function kitDelEmbudo(embudo: EstadoEmbudo | undefined): Promise<string | null> {
+    if (!embudo) return null
+
+    const packId = embudo.varianteResuelta?.packId ?? embudo.packPresentadoId ?? null
+    if (packId != null) {
+        const [pack] = await prisma.$queryRaw<{ nombre: string }[]>`
+            SELECT nombre FROM chat_packs WHERE id = ${Number(packId)}
+        `
+        if (pack?.nombre) return pack.nombre
+    }
+
+    if (embudo.grupoPineadoId != null) {
+        const [grupo] = await prisma.$queryRaw<{ nombre: string }[]>`
+            SELECT nombre FROM chat_pack_grupos WHERE id = ${Number(embudo.grupoPineadoId)}
+        `
+        if (grupo?.nombre) return grupo.nombre
+    }
+
+    return null
 }
 
 export interface ResultadoCompatibilidad {
@@ -257,6 +295,15 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
     }
 
     try {
+        // El kit puede no venir en los argumentos (el modelo lo omitió o le erró
+        // al nombre de la clave). Antes de mirar una sola fila, se completa con
+        // lo que el embudo ya tiene firme: una consulta sin kit lee TODO el
+        // catálogo y contesta con la fila de cualquier producto.
+        if (!(args.kit_nombre_o_id || "").trim()) {
+            const delEmbudo = await kitDelEmbudo(args.__embudo).catch(() => null)
+            if (delEmbudo) args = { ...args, kit_nombre_o_id: delEmbudo }
+        }
+
         // Obtenemos dinámicamente las variantes de catálogo existentes para no confundir variantes con motos
         const packsConVariante = await prisma.$queryRaw<{ criterio_variante: string }[]>`
             SELECT DISTINCT criterio_variante 

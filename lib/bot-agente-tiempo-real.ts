@@ -695,7 +695,7 @@ export async function marcarEntrantePendiente(accountId: number, conversationId:
             (conversation_id, account_id, primer_mensaje_en, ultimo_mensaje_en, actualizado_en)
         VALUES (${conversationId}, ${accountId}, now(), now(), now())
         ON CONFLICT (conversation_id) DO UPDATE
-        SET ultimo_mensaje_en = now(), actualizado_en = now()
+        SET ultimo_mensaje_en = now(), actualizado_en = now(), tomado_en = NULL
     `.catch((err) =>
         console.error("[bot-agente-tiempo-real] no se pudo marcar entrante pendiente:", err)
     )
@@ -739,7 +739,13 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms))
 // --- Barrido de ENTRANTES PENDIENTES ----------------------------------------
 // Se guarda el MOMENTO en que arrancó (no un booleano) para que un run colgado
 // no bloquee para siempre -- mismo patrón que `despachandoDesde` en la cola.
+// OJO: este lock es solo en memoria y VENCE; no alcanza para garantizar un
+// barrido único (ver `RESERVA_FILA_MS`). La reserva real es por fila, en BD.
 const BARRIDO_MAX_MS = 5 * 60 * 1000
+// Cuánto vale la reserva (`tomado_en`) de una fila que otro barrido está
+// atendiendo. Pasado ese rato se asume que ese barrido murió y la fila se
+// puede volver a tomar.
+const RESERVA_FILA_MS = 10 * 60 * 1000
 // Grace: no tocar filas más nuevas que esto -- un turno vivo (modelo + demora
 // humana 50-70s) puede tardar ~2 min; recién pasado ese margen asumimos que
 // murió y hay que recuperarlo.
@@ -776,12 +782,14 @@ export async function atenderEntrantesPendientes(
     if (!opciones.forzar && !(await botDentroDeHorario().catch(() => false))) return
 
     const graceCutoff = new Date(Date.now() - (opciones.forzar ? 0 : BARRIDO_GRACE_MS))
+    const reservaCutoff = new Date(Date.now() - RESERVA_FILA_MS)
     const filas = await prisma.$queryRaw<
-        { conversation_id: bigint; account_id: bigint; intentos: number }[]
+        { conversation_id: bigint; account_id: bigint }[]
     >`
-        SELECT conversation_id, account_id, intentos
+        SELECT conversation_id, account_id
         FROM bot_agente_entrantes_pendientes
         WHERE ultimo_mensaje_en <= ${graceCutoff}
+          AND (tomado_en IS NULL OR tomado_en < ${reservaCutoff})
         ORDER BY primer_mensaje_en ASC
     `
     if (filas.length === 0) return
@@ -802,26 +810,48 @@ export async function atenderEntrantesPendientes(
                 )
             }
 
+            // Soltar la reserva de una fila que queda para reintento: si no, el
+            // próximo barrido (3 min) la vería tomada y esperaría 10 min de más.
+            const liberarFila = async () => {
+                await prisma.$executeRaw`
+                    UPDATE bot_agente_entrantes_pendientes
+                    SET tomado_en = NULL WHERE conversation_id = ${conversationId}
+                `.catch((e) =>
+                    console.error(`[entrantes-pendientes] no se pudo liberar la fila de conv ${conversationId}:`, e.message)
+                )
+            }
+
             if (!primera) await dormir(ESPERA_ENTRE_CONVERSACIONES_MS)
             primera = false
 
             try {
+                // RESERVA de la fila: la lista de arriba se leyó fría y puede
+                // estar vieja -- otro barrido en paralelo (el lock en memoria
+                // vence a los 5 min y la cola de la noche tarda más que eso) o
+                // el camino en vivo pueden haberla atendido ya. Si el UPDATE no
+                // devuelve nada, esta conversación no es nuestra: seguir de largo.
+                // Sin esto, conv 3836 recibió la misma bienvenida dos veces (10/09).
+                const reclamada = await prisma.$queryRaw<{ intentos: number }[]>`
+                    UPDATE bot_agente_entrantes_pendientes
+                    SET tomado_en = now(), intentos = intentos + 1, actualizado_en = now()
+                    WHERE conversation_id = ${conversationId}
+                      AND (tomado_en IS NULL OR tomado_en < ${new Date(Date.now() - RESERVA_FILA_MS)})
+                    RETURNING intentos
+                `
+                if (reclamada.length === 0) continue
+
                 // Corte anti-loop: si esta conversación ya falló 3 barridos, se
                 // saca de la cola y se escala para que la vea un humano.
-                if (fila.intentos >= 3) {
+                const intentosPrevios = reclamada[0].intentos - 1
+                if (intentosPrevios >= 3) {
                     await escalarAHumano({
                         motivo: "entrante_pendiente_sin_resolver",
-                        resumen_consulta: `[entrantes-pendientes] conv ${conversationId}: ${fila.intentos} intentos fallidos`,
+                        resumen_consulta: `[entrantes-pendientes] conv ${conversationId}: ${intentosPrevios} intentos fallidos`,
                         conversation_id: conversationId,
                     }).catch(() => {})
                     await quitarFila()
                     continue
                 }
-                await prisma.$executeRaw`
-                    UPDATE bot_agente_entrantes_pendientes
-                    SET intentos = intentos + 1, actualizado_en = now()
-                    WHERE conversation_id = ${conversationId}
-                `
 
                 const transcripcion = await traerTranscripcion(accountId, conversationId)
                 if (transcripcion.length === 0) {
@@ -958,10 +988,12 @@ export async function atenderEntrantesPendientes(
                         detalleEnvio: err.message || String(err),
                     })
                     // NO se borra la fila: se reintenta en el próximo barrido (hasta 3).
+                    await liberarFila()
                 }
             } catch (err: any) {
                 console.error(`[entrantes-pendientes] error procesando conv ${conversationId}:`, err)
                 // La fila queda para reintento en el próximo barrido.
+                await liberarFila()
             }
         }
     } finally {

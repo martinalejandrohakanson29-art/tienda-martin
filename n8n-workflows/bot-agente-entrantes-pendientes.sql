@@ -38,3 +38,16 @@ CREATE TABLE IF NOT EXISTS bot_agente_entrantes_pendientes (
 
 CREATE INDEX IF NOT EXISTS idx_bot_agente_entrantes_pendientes_ultimo
     ON bot_agente_entrantes_pendientes (ultimo_mensaje_en);
+
+-- ----------------------------------------------------------------------------
+-- 10/09: `tomado_en` -- RESERVA de la fila mientras un barrido la atiende.
+-- El lock del barrido vivía solo en memoria y vencía a los 5 min: con la cola
+-- de la noche acumulada (45+ convs a 6s + latencia) el barrido tarda MAS que
+-- eso, asi que el tick siguiente arrancaba un segundo barrido en paralelo que
+-- leia las MISMAS filas todavia sin borrar y las contestaba de nuevo (conv 3836:
+-- dos bienvenidas identicas a las 09:09 y 09:11).
+-- Ahora cada fila se reclama con un UPDATE condicional antes de tocarla: el
+-- segundo barrido la ve tomada y sigue de largo.
+-- ----------------------------------------------------------------------------
+ALTER TABLE bot_agente_entrantes_pendientes
+    ADD COLUMN IF NOT EXISTS tomado_en timestamptz;

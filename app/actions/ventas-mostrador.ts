@@ -1007,7 +1007,15 @@ export async function crearVentaMostrador(data: {
       title: `Nueva venta de mostrador #${result.numeroVenta}`,
       body: `Cliente: ${data.cliente} — Total: $${Number(data.totalFinal).toLocaleString("es-AR")}`,
     })
-    return { success: true, id: result.id, numeroVenta: result.numeroVenta };
+    return {
+      success: true,
+      id: result.id,
+      numeroVenta: result.numeroVenta,
+      cae: result.cae ?? undefined,
+      facturaNumero: result.facturaNumero ?? undefined,
+      facturaPuntoVenta: result.facturaPuntoVenta ?? undefined,
+      tipoComprobante: result.tipoComprobante ?? undefined,
+    };
   } catch (error) {
     console.error("Error al crear venta:", error);
     const mensaje = error instanceof Error ? error.message : "No se pudo guardar la venta";
@@ -2030,7 +2038,16 @@ export async function generarFacturaARCA(ventaId: string) {
     });
 
     if (!venta) return { success: false, error: "Venta no encontrada" };
-    if (venta.cae) return { success: false, error: "Esta venta ya fue facturada (CAE existente)" };
+    if (venta.cae) {
+      return {
+        success: true,
+        cae: venta.cae,
+        numero: venta.facturaNumero,
+        facturaPuntoVenta: venta.facturaPuntoVenta || 9,
+        tipoComprobante: venta.tipoComprobante,
+        yaFacturada: true,
+      };
+    }
 
     // Sanitizar datos fiscales
     const docNroLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');

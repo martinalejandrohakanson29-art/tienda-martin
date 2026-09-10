@@ -127,10 +127,20 @@ Desde el 10/09 el proveedor es **`deepseek-flash`** (V4.1 Flash) con **`gpt-5` d
 
 **Cómo analizarlo (una sola instrucción):**
 ```
-npx tsx scripts/comparar-modelos.ts 7   # costo + tasa de escalados por modelo y por día
-npx tsx scripts/costo-bot.ts 7          # desglose de costo, cache%, razon%, fallback
-npx tsx scripts/correr-banco.ts --modelo deepseek-v4-flash   # banco de regresión desde la CLI
+npx tsx scripts/comparar-modelos.ts 7   # costo + tasa de escalados por modelo y por día (producción)
+npx tsx scripts/costo-bot.ts 7          # desglose de costo, cache%, razon%, fallback (producción)
+npx tsx scripts/correr-banco.ts --modelo deepseek-flash      # banco de regresión desde la CLI
 ```
+
+**Para evaluar un modelo NUEVO antes de migrar** (el circuito con el que se decidió V4.1 el 10/09):
+```
+npx tsx scripts/correr-banco.ts --modelo <nuevo> --salida scratch/a.json   # banco entero
+npx tsx scripts/correr-banco.ts --salida scratch/b.json                    # y el de producción
+npx tsx scripts/comparar-banco.ts scratch/a.json scratch/b.json            # diff caso por caso
+npx tsx scripts/correr-banco.ts --modelo <nuevo> --caso <los,que,difieren> --repetir 3
+npx tsx scripts/medir-tokens-modelos.ts <nuevo>:enabled,<nuevo>:disabled   # tokens y US$/1000 turnos
+```
+El paso del `--repetir 3` no es opcional: una corrida sola del banco mueve uno o dos puntos por casos flaky, y esa moneda al aire se lee como "el modelo nuevo razona mejor". El 10/09 la única diferencia entre V4 y V4.1 se evaporó al repetirla.
 En `costo-bot.ts` mirar `fallback` (si sube, el principal está fallando y lo cubre el caro), `cache%` (si se desploma, se rompió la regla 1) y `razon%`.
 
 Los tokens de cada turno quedan en `bot_agente_turnos_reales.tokens` (jsonb: prompt, cacheados, razonamiento, pasos, modelo, fallback). **Si se agrega un punto de registro de turno nuevo, pasarle `tokens`** o ese turno queda fuera del análisis de costo.

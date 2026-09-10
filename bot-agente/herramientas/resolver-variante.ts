@@ -3,6 +3,7 @@ import { resolverMoto } from "../nucleo/motos"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
+import { detectarRestoNoCubierto } from "../nucleo/resto-no-cubierto"
 import { consultarCompatibilidad } from "./compatibilidad"
 
 /**
@@ -565,6 +566,27 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             }
         }
 
+        // 1.bis. ¿Quedó algo del mensaje que NINGUNA de estas dos lecturas miró?
+        //
+        //    El match de variante es literal contra `sinonimos_variante`: una
+        //    palabra que no matchea no genera ninguna señal, simplemente se cae.
+        //    En la conv 3820 el cliente dijo "No leva larga con freno", el
+        //    sistema leyó "larga" y el modelo, para no dejar el tema colgado,
+        //    metió el sobrante adentro de la confirmación: "Con freno: $99.000".
+        //    Le puso precio a una configuración que no existe.
+        //
+        //    Se descuenta todo lo consumido acá (variantes, moto, nombre del
+        //    combo) y `resto-no-cubierto` descuenta además el vocabulario del
+        //    catálogo y la charla normal. Ver ese módulo para por qué el aviso
+        //    prohíbe SIEMPRE y escala solo si el término es del producto.
+        const restoDelMensaje = await detectarRestoNoCubierto(args.mensaje_cliente, [
+            grupo.nombre,
+            ...grupo.variantes.flatMap((v) => [v.etiqueta, v.nombre, ...v.sinonimos]),
+            motoTexto,
+            motoConfirmadaOk || "",
+        ]).catch(() => null)
+        const avisoResto = restoDelMensaje ? `\n\n${restoDelMensaje.aviso}` : ""
+
         // 2. ¿El cliente ya nombró la variante? (la moto ya pasó el chequeo)
         const hits = matchearVariantes(args.mensaje_cliente || "", variantes)
         if (hits.length === 1) {
@@ -591,8 +613,8 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                         // Ya estaba resuelta de antes: el cliente ya escuchó esta
                         // opción con su precio. Re-confirmarla es el arranque de
                         // la respuesta larga que no venía a cuento (conv 2763).
-                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.${avisoFijo}`
-                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.${avisoFijo}`
+                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.${avisoFijo}${avisoResto}`
+                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.${avisoFijo}${avisoResto}`
             }
         }
         // El "no sé" GANA sobre el ambiguo. Un cliente que no sabe qué variante
@@ -634,7 +656,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 grupo_id: grupo.id,
                 moto_confirmada: motoConfirmadaOk,
                 pregunta_directa: guiaMoto,
-                mensaje_para_agente: `Le va bien a ${motoDelMensaje}. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
+                mensaje_para_agente: `Le va bien a ${motoDelMensaje}. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
             }
         }
 

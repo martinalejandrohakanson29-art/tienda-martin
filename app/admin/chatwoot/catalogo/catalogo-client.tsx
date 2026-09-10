@@ -72,6 +72,7 @@ export function CatalogoClient({
                         compatibilidadesIniciales={compatibilidadesArticulosIniciales}
                         kitsParaCopiar={kitsParaCopiar}
                         compatibilidadesKits={compatibilidadesKits}
+                        costoEnvioInicial={configInicial.costoEnvioSueltas}
                     />
                 </TabsContent>
                 <TabsContent value="packs">

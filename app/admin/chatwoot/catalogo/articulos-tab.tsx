@@ -16,6 +16,7 @@ import {
     guardarChatArticulo,
     eliminarChatArticulo,
     alternarActivoChatArticulo,
+    alternarEnvioChatArticulo,
     buscarArticulosMostrador,
     sincronizarCompatibilidadArticulo,
     getChatArticuloCompatibilidades,
@@ -24,6 +25,7 @@ import {
     type ArticuloMostradorResultado,
     type ChatArticuloCompatibilidad,
 } from "@/app/actions/chat-catalogo"
+import { guardarCostoEnvioSueltas } from "@/app/actions/chat-config"
 import { CATEGORIAS_ARTICULO } from "@/lib/chat-catalogo-categorias"
 import type { Kit } from "@/app/actions/kits-publicidad"
 import type { Compatibilidad } from "@/app/actions/compatibilidades"
@@ -56,12 +58,14 @@ export function ArticulosTab({
     compatibilidadesIniciales,
     kitsParaCopiar,
     compatibilidadesKits,
+    costoEnvioInicial,
 }: {
     articulosIniciales: ChatArticulo[]
     errorInicial: string | null
     compatibilidadesIniciales: ChatArticuloCompatibilidad[]
     kitsParaCopiar: Kit[]
     compatibilidadesKits: Compatibilidad[]
+    costoEnvioInicial: number | null
 }) {
     const [articulos, setArticulos] = useState<ChatArticulo[]>(articulosIniciales)
     const [form, setForm] = useState<ChatArticuloInput>(FORM_VACIO)
@@ -70,6 +74,10 @@ export function ArticulosTab({
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
     const [busqueda, setBusqueda] = useState("")
+
+    const [costoEnvio, setCostoEnvio] = useState(costoEnvioInicial === null ? "" : String(costoEnvioInicial))
+    const [costoEnvioGuardado, setCostoEnvioGuardado] = useState(costoEnvioInicial)
+    const [guardandoCosto, setGuardandoCosto] = useState(false)
 
     const [busquedaMostrador, setBusquedaMostrador] = useState("")
     const [resultadosMostrador, setResultadosMostrador] = useState<ArticuloMostradorResultado[]>([])
@@ -219,6 +227,39 @@ export function ArticulosTab({
             alert(err instanceof Error ? err.message : "Error al cambiar el estado")
         }
     }
+
+    // Tri-estado en un solo click: sin definir -> gratis -> lo paga el cliente.
+    const CICLO_ENVIO: (boolean | null)[] = [null, true, false]
+    const handleToggleEnvio = async (articulo: ChatArticulo) => {
+        const actual = CICLO_ENVIO.findIndex((v) => v === (articulo.envio_gratis ?? null))
+        const siguiente = CICLO_ENVIO[(actual + 1) % CICLO_ENVIO.length]
+        setArticulos((prev) => prev.map((a) => (a.id === articulo.id ? { ...a, envio_gratis: siguiente } : a)))
+        try {
+            await alternarEnvioChatArticulo(articulo.id, siguiente)
+        } catch (err) {
+            setArticulos((prev) =>
+                prev.map((a) => (a.id === articulo.id ? { ...a, envio_gratis: articulo.envio_gratis } : a))
+            )
+            alert(err instanceof Error ? err.message : "Error al cambiar el envío")
+        }
+    }
+
+    const handleGuardarCosto = async () => {
+        setGuardandoCosto(true)
+        setError(null)
+        try {
+            const res = await guardarCostoEnvioSueltas(costoEnvio)
+            setCostoEnvioGuardado(res.valor)
+            setCostoEnvio(res.valor === null ? "" : String(res.valor))
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Error al guardar el costo de envío")
+        } finally {
+            setGuardandoCosto(false)
+        }
+    }
+
+    const sinPagarEnvio = articulos.filter((a) => a.envio_gratis === false).length
+    const sinDefinirEnvio = articulos.filter((a) => a.envio_gratis == null).length
 
     return (
         <div className="space-y-6">
@@ -502,6 +543,52 @@ export function ArticulosTab({
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <div className="flex flex-wrap items-end gap-3">
+                            <div className="space-y-1">
+                                <Label htmlFor="costo-envio" className="text-sm">Costo del envío (piezas sueltas)</Label>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">$</span>
+                                    <Input
+                                        id="costo-envio"
+                                        className="w-36 bg-white"
+                                        inputMode="numeric"
+                                        placeholder="sin cargar"
+                                        value={costoEnvio}
+                                        onChange={(e) => setCostoEnvio(e.target.value)}
+                                        disabled={guardandoCosto}
+                                    />
+                                    <Button
+                                        size="sm"
+                                        onClick={handleGuardarCosto}
+                                        disabled={guardandoCosto || costoEnvio.trim() === (costoEnvioGuardado === null ? "" : String(costoEnvioGuardado))}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                                    >
+                                        {guardandoCosto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                        Guardar
+                                    </Button>
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-500 flex-1 min-w-[240px]">
+                                Uno solo para todo el catálogo, por paquete (no por pieza). El bot lo suma al total cuando
+                                el cliente se lleva piezas que no van con envío gratis. Vacío = el bot dice que el envío
+                                corre por cuenta del cliente, pero no da un monto.
+                            </p>
+                        </div>
+                        {costoEnvioGuardado === null && sinPagarEnvio > 0 && (
+                            <p className="text-xs text-amber-700 flex items-center gap-1">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                Hay {sinPagarEnvio} artículo(s) con el envío a cargo del cliente y no cargaste el costo:
+                                el bot va a cotizarlos sin decir cuánto sale el envío.
+                            </p>
+                        )}
+                        {sinDefinirEnvio > 0 && (
+                            <p className="text-xs text-gray-500">
+                                {sinDefinirEnvio} artículo(s) sin definir el envío: el bot no promete ni niega envío gratis
+                                en esos, y escala si el cliente pregunta.
+                            </p>
+                        )}
+                    </div>
                     {articulos.length > 0 && (
                         <div className="relative max-w-sm">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -554,13 +641,24 @@ export function ArticulosTab({
                                             </TableCell>
                                             <TableCell className="text-sm">{formatearPrecio(articulo.precio)}</TableCell>
                                             <TableCell className="text-sm">
-                                                {articulo.envio_gratis === true ? (
-                                                    <Badge variant="outline" className="font-normal text-emerald-700 border-emerald-300 bg-emerald-50">Gratis</Badge>
-                                                ) : articulo.envio_gratis === false ? (
-                                                    <Badge variant="outline" className="font-normal text-slate-600">Lo paga el cliente</Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="font-normal text-amber-700 border-amber-300 bg-amber-50">Sin definir</Badge>
-                                                )}
+                                                <Badge
+                                                    variant="outline"
+                                                    onClick={() => handleToggleEnvio(articulo)}
+                                                    title="Click para cambiar: sin definir → gratis → lo paga el cliente"
+                                                    className={`cursor-pointer select-none font-normal whitespace-nowrap ${
+                                                        articulo.envio_gratis === true
+                                                            ? "text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100"
+                                                            : articulo.envio_gratis === false
+                                                              ? "text-slate-600 hover:bg-slate-100"
+                                                              : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
+                                                    }`}
+                                                >
+                                                    {articulo.envio_gratis === true
+                                                        ? "Gratis"
+                                                        : articulo.envio_gratis === false
+                                                          ? "Lo paga el cliente"
+                                                          : "Sin definir"}
+                                                </Badge>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge

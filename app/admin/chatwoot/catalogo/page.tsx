@@ -9,7 +9,7 @@ import {
 import { getKits } from "@/app/actions/kits-publicidad"
 import { getCompatibilidades } from "@/app/actions/compatibilidades"
 import { getChatConfig } from "@/app/actions/chat-config"
-import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT, COSTO_ENVIO_SUELTAS_DEFAULT } from "@/lib/chat-config-constants"
 
 export const dynamic = "force-dynamic"
 
@@ -30,7 +30,10 @@ export default async function CatalogoPage() {
         safe(getCompatibilidades, []),
         safe(getChatPackGrupos, []),
         safe(getChatComboCompatibilidades, []),
-        safe(getChatConfig, { mensajeIncompatibilidad: MENSAJE_INCOMPATIBILIDAD_DEFAULT }),
+        safe(getChatConfig, {
+            mensajeIncompatibilidad: MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+            costoEnvioSueltas: COSTO_ENVIO_SUELTAS_DEFAULT,
+        }),
     ])
 
     return (

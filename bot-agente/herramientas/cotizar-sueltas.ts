@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { formatearPrecioAR } from "../nucleo/texto"
-import { describirEnvioSuelto, type ArticuloSueltoInfo } from "./catalogo-precios"
+import { obtenerCostoEnvioSueltas, type ArticuloSueltoInfo } from "./catalogo-precios"
 
 /**
  * COTIZAR VARIAS PIEZAS SUELTAS
@@ -39,8 +39,13 @@ export interface PackQueCubre {
 export interface ResultadoCotizarSueltas {
     encontrado: boolean
     piezas: { id: number; nombre: string; precio: number }[]
+    /** Solo las piezas, sin envío. */
     total: number
     envio_conjunto: "gratis" | "lo_paga_el_cliente" | "sin_dato"
+    /** Costo del envío aplicado, o null si es gratis / no está cargado. */
+    costo_envio: number | null
+    /** El número que se le dice al cliente: piezas + envío cuando corresponde. */
+    total_con_envio: number
     packs_que_cubren: PackQueCubre[]
     mensaje_para_agente: string
 }
@@ -83,6 +88,8 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
         piezas: [],
         total: 0,
         envio_conjunto: "sin_dato",
+        costo_envio: null,
+        total_con_envio: 0,
         packs_que_cubren: [],
         mensaje_para_agente: mensaje
     })
@@ -140,6 +147,9 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
         const faltantes = ids.filter((id) => !piezas.some((p) => p.id === id))
         const total = piezas.reduce((acc, p) => acc + p.precio, 0)
         const envio = envioDelConjunto(piezas)
+        // El envío es UNO por paquete, no uno por pieza: se suma una sola vez.
+        const costoEnvio = envio === "lo_paga_el_cliente" ? await obtenerCostoEnvioSueltas() : null
+        const totalConEnvio = total + (costoEnvio || 0)
 
         // Packs armados que YA cubren todo lo pedido. Le agregan piezas al
         // cliente, nunca le sacan: se listan de menor a mayor "agregado", así
@@ -170,11 +180,16 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
             })
             .sort((a, b) => a.agrega.length - b.agrega.length || a.precio - b.precio)
 
-        const lineas: string[] = ["COTIZACIÓN DE PIEZAS SUELTAS (total calculado por el sistema, NO lo recalcules):"]
+        const unaSola = piezas.length === 1
+        const lineas: string[] = [
+            unaSola
+                ? "COTIZACIÓN DE UNA PIEZA SUELTA (números calculados por el sistema, NO los recalcules):"
+                : "COTIZACIÓN DE PIEZAS SUELTAS (números calculados por el sistema, NO los recalcules):"
+        ]
         for (const p of piezas) {
             lineas.push(`   * ${p.nombre}: ${formatearPrecioAR(p.precio)}`)
         }
-        lineas.push(`   TOTAL EXACTO: ${formatearPrecioAR(total)} — este es el único número que podés decir como total.`)
+        if (!unaSola) lineas.push(`   Subtotal de las piezas: ${formatearPrecioAR(total)}`)
         if (faltantes.length > 0) {
             lineas.push(
                 `   ⚠️ No encontré los artículos con ID ${faltantes.join(", ")}: el total de arriba NO los incluye. No los menciones ni los des por incluidos.`
@@ -183,19 +198,35 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
 
         lineas.push("")
         if (envio === "gratis") {
-            lineas.push("ENVÍO DEL CONJUNTO: gratis. Podés decirle que va con envío gratis.")
+            lineas.push(`ENVÍO: gratis. TOTAL A DECIR: ${formatearPrecioAR(total)} con envío gratis.`)
         } else if (envio === "lo_paga_el_cliente") {
             const conCosto = piezas.filter((p) => p.envio_gratis === false)
-            lineas.push(
-                `ENVÍO DEL CONJUNTO: NO es gratis (${conCosto.map((p) => p.nombre).join(", ")} va con envío a cargo del cliente). Decíselo con naturalidad al pasar el total; PROHIBIDO decir "envío gratis".`
-            )
+            if (costoEnvio != null) {
+                // El envío ya viene sumado: el modelo no hace ninguna cuenta.
+                lineas.push(
+                    `ENVÍO: NO es gratis. Sale ${formatearPrecioAR(costoEnvio)}, uno solo por paquete (ya sumado abajo).`
+                )
+                lineas.push(
+                    `   TOTAL A DECIR: ${formatearPrecioAR(totalConEnvio)} con el envío incluido. Es el ÚNICO número que podés dar como total y NO lo recalcules. Si el cliente pide el desglose: ${formatearPrecioAR(
+                        total
+                    )} las piezas + ${formatearPrecioAR(costoEnvio)} de envío.`
+                )
+            } else {
+                lineas.push(
+                    `ENVÍO: NO es gratis (${conCosto.map((p) => p.nombre).join(", ")} va con envío a cargo del cliente) y no tenemos cargado cuánto sale. TOTAL A DECIR: ${formatearPrecioAR(
+                        total
+                    )} de las piezas, aclarando que el envío va aparte y SIN dar un monto. PROHIBIDO decir "envío gratis" e inventar el costo. Si el cliente pregunta cuánto es el envío, escalá con escalar_a_humano.`
+                )
+            }
             for (const p of conCosto) {
                 if (p.envio?.trim()) lineas.push(`   - ${p.nombre}: ${p.envio.trim()}`)
             }
         } else {
             const sinDato = piezas.filter((p) => p.envio_gratis == null)
             lineas.push(
-                `ENVÍO DEL CONJUNTO: SIN DATO (falta cargar la política de ${sinDato.map((p) => p.nombre).join(", ")}). Pasá el total y NO menciones el envío: ni gratis ni con costo. Si el cliente pregunta por el envío de estas piezas sueltas, escalá con escalar_a_humano (motivo de precio) y no improvises.`
+                `ENVÍO: sin definir (falta cargar la política de ${sinDato.map((p) => p.nombre).join(", ")}). TOTAL A DECIR: ${formatearPrecioAR(
+                    total
+                )}, y NO menciones el envío: ni gratis ni con costo. Si el cliente pregunta por el envío de estas piezas sueltas, escalá con escalar_a_humano (motivo de precio) y no improvises.`
             )
         }
 
@@ -235,6 +266,8 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
             piezas: piezas.map((p) => ({ id: p.id, nombre: p.nombre, precio: p.precio })),
             total,
             envio_conjunto: envio,
+            costo_envio: costoEnvio,
+            total_con_envio: totalConEnvio,
             packs_que_cubren: packsQueCubren,
             mensaje_para_agente: lineas.join("\n")
         }
@@ -250,6 +283,3 @@ export const herramientaCotizarSueltas: EjecutorHerramienta<ArgsCotizarSueltas, 
     definicion: definicionCotizarSueltas,
     ejecutar: cotizarPiezasSueltas
 }
-
-/** Reexport para las pruebas: el envío de UNA pieza sola se describe igual acá. */
-export { describirEnvioSuelto }

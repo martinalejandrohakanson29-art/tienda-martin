@@ -159,6 +159,22 @@ export async function eliminarChatArticulo(id: number) {
     revalidatePath(RUTA)
 }
 
+/**
+ * Cambia el envío de una pieza suelta desde la propia tabla del listado, sin
+ * abrir el formulario. Tri-estado: `null` (sin definir) -> true (gratis) ->
+ * false (lo paga el cliente) -> `null`.
+ *
+ * El "sin definir" se conserva a propósito aunque sea un click de más: es el
+ * estado en el que el bot NO promete ni niega envío, y es donde tiene que caer
+ * un artículo recién cargado hasta que alguien lo decida.
+ */
+export async function alternarEnvioChatArticulo(id: number, envioGratis: boolean | null) {
+    await requireAdmin()
+    await prisma.$executeRaw`UPDATE chat_articulos SET envio_gratis = ${envioGratis} WHERE id = ${id}`
+    revalidatePath(RUTA)
+    return { ok: true, envioGratis }
+}
+
 export async function alternarActivoChatArticulo(id: number, activo: boolean) {
     await requireAdmin()
     await prisma.$executeRaw`UPDATE chat_articulos SET activo = ${activo} WHERE id = ${id}`

@@ -209,6 +209,66 @@ function coincideKitPedido(
 }
 
 /**
+ * ¿El motivo cargado en una fila habla de plata?
+ *
+ * Un motivo técnico ("hay que alesar los cárteres", "le va perfecto") describe la
+ * relación entre la moto y la pieza, y vale igual si la pieza se vende sola o
+ * dentro de un kit. Un precio NO: el del cilindro no es el del combo que lo
+ * incluye. Por eso una pieza le presta al kit su explicación pero nunca su
+ * importe — que encima es la parte que el aprendizaje copia mal de una fila a
+ * toda la tanda.
+ */
+function mencionaPrecio(detalle: string): boolean {
+    // Sobre el texto CRUDO en minúsculas: `normalizarTexto` borra el "$", que
+    // es justo la señal más clara.
+    const t = detalle.toLowerCase()
+    return /\$|\d{3}\.\d{3}|cuesta|precio|pesos/.test(t)
+}
+
+/** Lo mínimo que hace falta para saber de qué producto habla una fila. */
+type FilaProducto = {
+    kit: string
+    kit_id: number | null
+    grupo_id: number | null
+    grupo_padre: number | null
+    origen: OrigenCompat
+}
+
+/**
+ * ¿Dos filas de compatibilidad hablan del MISMO producto?
+ *
+ * Se usa para prestar el `detalle` (el motivo que el bot le dice al cliente)
+ * cuando la fila ganadora vino pelada. Las filas llegan desde tres tablas cuyos
+ * ids viven en espacios distintos, así que la identidad se arma por capas:
+ *  1. mismo espacio y mismo id,
+ *  2. mismo grupo (las dos variantes de un grupo son el mismo kit: el corto y el
+ *     largo comparten compatibilidad y motivo),
+ *  3. mismo nombre de kit. Es la única identidad que tiene la tabla legacy, y es
+ *     justo la que hace falta: el aprendizaje escribe la misma tanda en
+ *     `chat_combo_compatibilidad` y en `compatibilidades` con el nombre del kit.
+ *
+ * Lo que deliberadamente NO cuenta como el mismo producto: dos piezas distintas
+ * de un mismo combo (el motivo del cilindro no explica al carburador) ni dos kits
+ * que solo comparten un número en el nombre.
+ */
+function mismoProducto(a: FilaProducto, b: FilaProducto): boolean {
+    const idEspacio = (f: FilaProducto) => (f.origen === "grupo" ? f.grupo_id : f.kit_id)
+    const ia = idEspacio(a)
+    const ib = idEspacio(b)
+    if (a.origen === b.origen && ia != null && ia === ib) return true
+
+    if (a.origen !== "articulo" && b.origen !== "articulo") {
+        const ga = a.origen === "grupo" ? a.grupo_id : a.grupo_padre
+        const gb = b.origen === "grupo" ? b.grupo_id : b.grupo_padre
+        if (ga != null && ga === gb) return true
+    }
+
+    const na = normalizarTexto(a.kit || "")
+    const nb = normalizarTexto(b.kit || "")
+    return na.length > 0 && na === nb
+}
+
+/**
  * ¿Dos tokens de modelo se refieren al mismo modelo?
  *
  * La contención de substrings ("uno está dentro del otro") es indispensable
@@ -407,6 +467,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 kit: string
                 kit_id: number | null
                 grupo_id: number | null
+                /** Grupo al que pertenece la fila (el propio, o el del pack). */
+                grupo_padre: number | null
                 compatible: boolean
                 detalle: string | null
                 contexto_extra: string | null
@@ -422,6 +484,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 cc.compatible,
                 cc.detalle,
                 COALESCE(p.mensaje_bienvenida, g.mensaje_bienvenida, '') as contexto_extra,
+                COALESCE(cc.grupo_id, p.grupo_id) as grupo_padre,
                 CASE WHEN cc.kit_id IS NOT NULL THEN 'pack' ELSE 'grupo' END as origen
             FROM chat_combo_compatibilidad cc
             LEFT JOIN chat_packs p ON p.id = cc.kit_id
@@ -436,6 +499,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 kit: string
                 kit_id: number | null
                 grupo_id: number | null
+                /** Grupo al que pertenece la fila (el propio, o el del pack). */
+                grupo_padre: number | null
                 compatible: boolean
                 detalle: string | null
                 contexto_extra: string | null
@@ -448,6 +513,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 COALESCE(ca.titulo_comercial, ca.categoria, am.nombre, '') as kit,
                 ac.articulo_id as kit_id,
                 null as grupo_id,
+                null as grupo_padre,
                 ac.compatible,
                 ac.detalle,
                 ca.alias as contexto_extra,
@@ -466,6 +532,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 kit: string
                 kit_id: number | null
                 grupo_id: number | null
+                /** Grupo al que pertenece la fila (el propio, o el del pack). */
+                grupo_padre: number | null
                 compatible: boolean
                 detalle: string | null
                 contexto_extra: string | null
@@ -478,6 +546,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 kit,
                 kit_id,
                 null as grupo_id,
+                null as grupo_padre,
                 compatible,
                 detalle,
                 null as contexto_extra,
@@ -672,8 +741,8 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         let mejorPiezaCoincidenciaExacta = false
         /** Veredictos que dieron las piezas del kit, para detectar contradicciones. */
         const veredictosPieza = new Map<boolean, string>()
-        /** Motivo de respaldo por veredicto, ver más abajo. */
-        const respaldoDetalle = new Map<boolean, { score: number; detalle: string }>()
+        /** Filas con motivo cargado que pueden prestárselo al ganador, ver más abajo. */
+        const candidatosRespaldo: { reg: typeof registros[0]; score: number }[] = []
 
         for (const reg of registros) {
             // Filtro por kit inteligente (o match directo de kit_id)
@@ -802,10 +871,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             // Nf") y sin detalle, que por match literal le ganan a la fila
             // curada del mismo modelo, y el cliente recibía un "no es
             // compatible" sin motivo teniéndolo cargado al lado (conv 3660).
-            if (reg.detalle?.trim()) {
-                const previo = respaldoDetalle.get(reg.compatible)
-                if (!previo || score > previo.score) respaldoDetalle.set(reg.compatible, { score, detalle: reg.detalle })
-            }
+            if (reg.detalle?.trim()) candidatosRespaldo.push({ reg, score })
 
             if (reg.origen === "articulo") {
                 if (!veredictosPieza.has(reg.compatible)) veredictosPieza.set(reg.compatible, reg.kit)
@@ -846,8 +912,33 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         }
 
         if (mejorMatch && !mejorMatch.detalle?.trim()) {
-            const respaldo = respaldoDetalle.get(mejorMatch.compatible)
-            if (respaldo) mejorMatch = { ...mejorMatch, detalle: respaldo.detalle }
+            // Solo presta el motivo una fila del MISMO producto y del mismo
+            // veredicto. Sin el filtro de producto, una fila que entró al pozo
+            // por el atajo del número compartido le pasaba su motivo —y su
+            // precio— al kit preguntado: a una Gilera Smash 110 le salía
+            // "CONFIRMADO el Kit 120 para 110. Es la tapa completa, lista para
+            // instalar. Cuesta $129.999", que es el combo de Tapa CDI. El
+            // cliente recibía el precio de otro producto.
+            //
+            // Segunda capa: una PIEZA del kit sí puede explicar al kit —es lo
+            // único que sostiene el motivo del Kit 170 y de varias 110, cuya
+            // compatibilidad está cargada sobre el cilindro— pero solo con su
+            // explicación técnica, nunca con un importe: el precio de la pieza no
+            // es el del combo. Las filas de pieza que no componen el kit ya
+            // quedaron afuera del pozo más arriba.
+            const ganador = mejorMatch
+            const elegibles = candidatosRespaldo.filter((c) => {
+                if (c.reg.compatible !== ganador.compatible) return false
+                if (mismoProducto(c.reg, ganador)) return true
+                const piezaDelKit =
+                    c.reg.origen === "articulo" &&
+                    ganador.origen !== "articulo" &&
+                    composicion.resuelto &&
+                    composicion.articuloIds.has(Number(c.reg.kit_id))
+                return piezaDelKit && !mencionaPrecio(c.reg.detalle || "")
+            })
+            const respaldo = elegibles.sort((a, b) => b.score - a.score)[0]
+            if (respaldo) mejorMatch = { ...mejorMatch, detalle: respaldo.reg.detalle }
         }
 
         if (mejorMatch) {

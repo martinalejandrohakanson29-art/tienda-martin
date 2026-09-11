@@ -6,6 +6,65 @@ import { normalizarTexto } from "../nucleo/texto"
  * de las normas de estilo y tono de Revolución Motos.
  */
 
+/**
+ * ENLACES: un link es un dato binario, anda o no anda.
+ * ----------------------------------------------------
+ * Desde que `info_negocio` carga las URLs reales (Instagram, TikTok, Maps,
+ * Mercado Libre), el texto que sale puede tener una URL adentro. Todo este
+ * archivo está escrito para texto en prosa y la maltrata sin querer:
+ *   - las palabras prohibidas del admin y los reemplazos de modismos aplican
+ *     `\b`, así que una palabra adentro del path la mutilan;
+ *   - `pareceRespuestaNoConfiable` cuenta palabras inglesas y "me" (de
+ *     `wa.me`) o "note"/"call" adentro de una URL son falsos positivos que
+ *     descartan el mensaje ENTERO y escalan;
+ *   - los filtros de repetición borrarían el link si el cliente lo vuelve a
+ *     pedir, que es justo cuando hay que mandarlo.
+ *
+ * Solución: las URLs se enmascaran antes de tocar el texto y se restauran al
+ * final, y los filtros que borran tienen excepción explícita para ellas.
+ */
+const RX_URL_FUENTE = "https?:\\/\\/[^\\s<>()\\[\\]\"']+|www\\.[^\\s<>()\\[\\]\"']+"
+
+/** Nuevo regex en cada uso: son `/g`, compartirlos arrastra `lastIndex`. */
+function rxUrl(): RegExp {
+    return new RegExp(RX_URL_FUENTE, "gi")
+}
+
+export function contieneUrl(texto: string | null | undefined): boolean {
+    return rxUrl().test(texto || "")
+}
+
+/** Reemplaza las URLs por un token opaco (área de uso privado Unicode). */
+function enmascararUrls(texto: string): { texto: string; urls: string[] } {
+    const urls: string[] = []
+    const conMascara = texto.replace(rxUrl(), (url) => {
+        urls.push(url)
+        return `${urls.length - 1}`
+    })
+    return { texto: conMascara, urls }
+}
+
+function restaurarUrls(texto: string, urls: string[]): string {
+    if (urls.length === 0) return texto
+    return texto.replace(/(\d+)/g, (match, i) => urls[Number(i)] ?? match)
+}
+
+/**
+ * WhatsApp no renderiza markdown: `[Instagram](https://...)` llega con los
+ * corchetes a la vista. Se desarma a "Instagram: https://..." (o a la URL
+ * pelada si el texto del link ya era la URL).
+ */
+export function normalizarEnlaces(texto: string): string {
+    return (texto || "")
+        .replace(/\[([^\]]*)\]\(\s*(https?:\/\/[^\s)]+|www\.[^\s)]+)\s*\)/gi, (_m, etiqueta: string, url: string) => {
+            const t = (etiqueta || "").trim()
+            if (!t || t === url || contieneUrl(t)) return url
+            return `${t}: ${url}`
+        })
+        // <https://...> (autolink de markdown)
+        .replace(/<\s*((?:https?:\/\/|www\.)[^\s>]+)\s*>/gi, "$1")
+}
+
 // Palabras o modismos que el bot NUNCA debe decir
 const REEMPLAZOS_MODISMOS: [RegExp, string][] = [
     [/\bculia[do]s?\b/gi, "amigo"],
@@ -168,7 +227,10 @@ export function pareceRespuestaNoConfiable(texto: string | null | undefined): bo
     }
 
     // Detección de inglés: 2+ palabras inequívocamente inglesas como tokens.
-    const tokens = t.toLowerCase().match(/[a-z']+/g) || []
+    // Las URLs se sacan primero: `wa.me`, `/note`, `?user=` no son inglés
+    // filtrado, son el link que cargó Martín — y un falso positivo acá tira el
+    // mensaje entero y escala.
+    const tokens = t.replace(rxUrl(), " ").toLowerCase().match(/[a-z']+/g) || []
     const setIngles = new Set(PALABRAS_INGLES)
     let hits = 0
     const vistas = new Set<string>()
@@ -228,7 +290,10 @@ export function extraerHechos(texto: string): Set<string> {
     // Normalizacion propia, NO `normalizarTexto`: ese reemplaza el punto por un
     // espacio y parte "99.990" en "99 990", con lo cual ningun precio matcheaba.
     // Aca los separadores de miles se unen ANTES de limpiar la puntuacion.
+    // Las URLs no son hechos: `.../p9bdB46a7JtNJXZP7` tiene digitos sueltos que
+    // el regex de rangos lee como plazos o precios inexistentes.
     const plano = (texto || "")
+        .replace(rxUrl(), " ")
         .toLowerCase()
         .normalize("NFD")
         .replace(/[̀-ͯ]/g, "")
@@ -349,6 +414,9 @@ export function quitarHechosYaDichos(
             // plazo pero no obliga a tirar el resto de lo que diga.
             const frases = oracion.split(/(?:,|;| y (?=[a-z]))/)
             const conservadas = frases.filter((frase) => {
+                // Una frase con un link nunca se recorta: si el cliente lo
+                // vuelve a pedir, mandarlo de nuevo es la respuesta.
+                if (contieneUrl(frase)) return true
                 const hechos = extraerHechos(frase)
                 if (hechos.size === 0) return true
                 return ![...hechos].some((h) => yaDichos.has(h))
@@ -401,6 +469,7 @@ export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: st
         const oraciones = linea.split(/(?<=[.!?])\s+/)
         const conservadas = oraciones.filter((o) => {
             if (o.trim().endsWith("?")) return true // repreguntar es válido
+            if (contieneUrl(o)) return true // volver a pasar un link es responder, no repetirse
             const clave = claveOracion(o)
             if (clave.split(" ").length < 4) return true
             return !yaDichas.has(clave)
@@ -496,6 +565,18 @@ export function sanitizarMensajeSalida(
     let limpio = texto.trim()
     let modificado = false
     let alertasIA = false
+
+    // Los enlaces se normalizan (markdown -> texto plano, que es lo único que
+    // WhatsApp muestra) y se enmascaran: el resto de este sanitizador trabaja
+    // sobre prosa y le partiría el path a la URL. Se restauran al final, tal
+    // cual vinieron de la base.
+    const conEnlacesPlanos = normalizarEnlaces(limpio)
+    if (conEnlacesPlanos !== limpio) {
+        limpio = conEnlacesPlanos
+        modificado = true
+    }
+    const { texto: enmascarado, urls } = enmascararUrls(limpio)
+    limpio = enmascarado
 
     // 0. Si la conversación ya está en curso (turno 2 en adelante o globos secundarios),
     // remover cualquier saludo inicial residual que el modelo o la plantilla hayan arrastrado
@@ -648,6 +729,8 @@ export function sanitizarMensajeSalida(
         .replace(/[^\S\r\n]+([.,?!])/g, "$1") // quita espacio antes de signo de puntuación en la misma línea
         .replace(/^[.,\s]+/, "")
         .trim()
+
+    limpio = restaurarUrls(limpio, urls)
 
     return {
         textoLimpio: limpio,

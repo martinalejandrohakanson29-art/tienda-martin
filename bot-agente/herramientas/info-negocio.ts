@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto } from "../nucleo/texto"
+import { contieneUrl } from "../guardrails/sanitizador"
 
 /**
  * HERRAMIENTA `consultar_info_negocio` — DEVUELVE DATOS, NO UN GUION
@@ -50,13 +51,13 @@ export const definicionInfoNegocio: DefinicionHerramienta = {
     type: "function",
     function: {
         name: "consultar_info_negocio",
-        description: "Consulta las políticas oficiales del negocio cargadas en el sistema (ej. envíos a todo el país, ubicación física en Córdoba, formas de pago, horarios de atención, garantías, seguridad y confianza de compra).",
+        description: "Consulta las políticas y datos oficiales del negocio cargados en el sistema (ej. envíos a todo el país, ubicación física en Córdoba, formas de pago, horarios de atención, garantías, seguridad y confianza de compra, y nuestras redes y perfiles oficiales: Instagram, TikTok, Google Maps, Mercado Libre).",
         parameters: {
             type: "object",
             properties: {
                 tema: {
                     type: "string",
-                    description: "El tema a consultar. Ejemplos: 'envios', 'ubicacion', 'pagos', 'horarios', 'garantia' (para dudas de seguridad, estafa o confianza de compra)."
+                    description: "El tema a consultar. Ejemplos: 'envios', 'ubicacion', 'pagos', 'horarios', 'garantia' (para dudas de seguridad, estafa o confianza de compra, y también para pedidos de nuestras redes: instagram, tiktok, google maps, mercado libre)."
                 },
                 pregunta_cliente: {
                     type: "string",
@@ -97,6 +98,19 @@ export function construirGuiaInfoNegocio(params: {
         ? `\nEl cliente dijo, textual: "${preguntaCliente.trim()}"`
         : ""
 
+    // Los datos se cuentan con las palabras del vendedor, pero un ENLACE no es
+    // redacción: o está carácter por carácter o no funciona. Si el dato oficial
+    // trae URLs, la regla del turno lo dice explícito (misma familia que el
+    // precio y la negativa de compatibilidad: dato duro, no improvisado).
+    const reglaEnlaces = hechos.some((h) => contieneUrl(h))
+        ? [
+              "",
+              "ENLACES: si el dato que vas a dar tiene un link, copialo EXACTO, caracter por caracter, tal como figura arriba.",
+              "Prohibido acortarlo, reescribirlo, traducirlo, ponerle formato con corchetes o parentesis, o inventar uno que no este en esta lista.",
+              "Mandas UNICAMENTE el link del dato que te pidieron: si pregunto por uno solo, no le pegues los demas."
+          ].join("\n")
+        : ""
+
     if (yaRespondido) {
         return [
             `OJO: el tema ${tema.toUpperCase()} YA se lo contestaste antes en esta conversación.`,
@@ -105,8 +119,10 @@ export function construirGuiaInfoNegocio(params: {
             listado,
             dijo,
             "",
-            "REGLA DE ESTE TURNO: NO repitas lo que ya le dijiste. Contestá SOLO el matiz nuevo que trae (en un renglón). Si no trae nada nuevo, un acuse corto y natural alcanza."
-        ].filter((l) => l !== null).join("\n")
+            "REGLA DE ESTE TURNO: NO repitas lo que ya le dijiste. Contestá SOLO el matiz nuevo que trae (en un renglón). Si no trae nada nuevo, un acuse corto y natural alcanza.",
+            "EXCEPCION: si lo que pide es un link (o un dato que todavía no le pasaste de este tema), dáselo igual aunque el tema ya se haya tocado.",
+            reglaEnlaces
+        ].filter((l) => l !== null).join("\n").trimEnd()
     }
 
     return [
@@ -114,8 +130,9 @@ export function construirGuiaInfoNegocio(params: {
         listado,
         dijo,
         "",
-        "REGLA DE ESTE TURNO: contestá con TUS palabras SOLO el dato que responde lo que preguntó, en 1 o 2 renglones. Los demás datos son contexto tuyo: no los menciones si no los pidió."
-    ].join("\n")
+        "REGLA DE ESTE TURNO: contestá con TUS palabras SOLO el dato que responde lo que preguntó, en 1 o 2 renglones. Los demás datos son contexto tuyo: no los menciones si no los pidió.",
+        reglaEnlaces
+    ].join("\n").trimEnd()
 }
 
 export function calcularContextoHorarioCordoba(fechaReferencia: Date = new Date()): {
@@ -187,6 +204,20 @@ export function calcularContextoHorarioCordoba(fechaReferencia: Date = new Date(
     }
 }
 
+/**
+ * El bloque de confianza vive en la fila `garantia`, pero el cliente casi nunca
+ * lo pide con esa palabra: pregunta por el Instagram, el TikTok, si estamos en
+ * Mercado Libre o si nos puede ver en Maps. Sin estos sinónimos, el modelo pedía
+ * `tema: "instagram"`, no matcheaba ninguna fila y el turno terminaba escalado
+ * en silencio con el dato cargado en la base.
+ */
+const SINONIMOS_CONFIANZA = [
+    "garant", "confian", "estaf", "segur",
+    "instagram", "insta", "ig", "tiktok", "tik tok", "red", "redes",
+    "mercadolibre", "mercado libre", "meli", "maps", "google",
+    "link", "enlace", "perfil", "referencia", "reseña", "resena", "opinion"
+]
+
 export async function consultarInfoNegocio(args: ArgsInfoNegocio): Promise<ResultadoInfoNegocio> {
     const temaBuscado = (args.tema || "").toLowerCase().trim()
 
@@ -220,7 +251,7 @@ export async function consultarInfoNegocio(args: ArgsInfoNegocio): Promise<Resul
             if (temaBuscado.includes("pago") || temaBuscado.includes("tarjeta") || temaBuscado.includes("transferencia")) {
                 return t.includes("pago") || t.includes("medio")
             }
-            if (temaBuscado.includes("garant") || temaBuscado.includes("confian") || temaBuscado.includes("estaf") || temaBuscado.includes("segur")) {
+            if (SINONIMOS_CONFIANZA.some((s) => temaBuscado.includes(s))) {
                 return t.includes("garantia") || t.includes("confian")
             }
             return t.includes(temaBuscado)

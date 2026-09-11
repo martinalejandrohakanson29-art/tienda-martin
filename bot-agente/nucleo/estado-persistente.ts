@@ -214,11 +214,32 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
  * cliente no recibio NADA y espero una hora a que contestara una persona.
  *
  * Por eso quien envia (`lib/bot-agente-tiempo-real.ts`) saca una foto de estos
- * campos ANTES del turno y la restaura si el turno no llego al cliente. Los
- * datos aprendidos (moto, grupo pineado, variante) y el escalado persistido NO
- * se tocan: esos siguen siendo verdad aunque el mensaje no haya salido.
+ * campos ANTES del turno y la restaura si el turno no llego al cliente.
+ *
+ * Conv 3997 (11/09, Keller 110): el combo venia del anuncio, el cliente contesto
+ * "Ah una keller 110" y el motor resolvio bien — le va, falta la leva — pero un
+ * segundo mensaje ("soy de Santiago del Estero") descarto el turno. Como
+ * `motoConfirmada` NO se revertia, el recalculo leyo "Moto ya confirmada
+ * compatible: no la vuelvas a preguntar ni consultes compatibilidad de nuevo" y
+ * solo contesto el envio: la charla de la moto no volvio a aparecer nunca.
+ *
+ * Por eso el grupo pineado, la moto y la variante tambien se revierten. Como
+ * DATO siguen siendo verdad, pero la memoria no los guarda como dato: los tres
+ * se le sirven al modelo como "ya se lo dijiste" ("ya recibio la ficha y la
+ * foto", "no consultes compatibilidad de nuevo", "el precio final esta 100%
+ * determinado"), y esa afirmacion es falsa si el turno no salio. Perderlos no
+ * cuesta nada: el mensaje del cliente sigue en la rafaga y en el historial, asi
+ * que el recalculo los vuelve a resolver con las mismas herramientas. Y si se
+ * habian aprendido en un turno ANTERIOR que si salio, la foto los devuelve tal
+ * cual estaban — revertir solo borra lo que aprendio el turno descartado.
+ *
+ * El escalado persistido es la excepcion y no se toca: ese no le promete nada al
+ * cliente, le avisa al bot que el equipo ya tiene la consulta en la bandeja.
  */
 export interface EntregaRevertible {
+    grupoPineado: EstadoConversacion["grupoPineado"]
+    varianteResuelta: EstadoConversacion["varianteResuelta"]
+    motoConfirmada: string | null
     packPresentado: EstadoConversacion["packPresentado"]
     negativaEntregada: EstadoConversacion["negativaEntregada"]
     temasRespondidos: string[]
@@ -228,6 +249,9 @@ export interface EntregaRevertible {
 /** Foto de la memoria de entrega tal como estaba antes de arrancar el turno. */
 export function fotoEntrega(estado: EstadoConversacion): EntregaRevertible {
     return {
+        grupoPineado: estado.grupoPineado ?? null,
+        varianteResuelta: estado.varianteResuelta ?? null,
+        motoConfirmada: estado.motoConfirmada ?? null,
         packPresentado: estado.packPresentado ?? null,
         negativaEntregada: estado.negativaEntregada ?? null,
         temasRespondidos: [...(estado.temasRespondidos || [])],
@@ -241,37 +265,66 @@ export function fotoEntrega(estado: EstadoConversacion): EntregaRevertible {
  *
  * Escribe los valores EXACTOS (no es un merge): `temasRespondidos` se pisa en
  * vez de acumularse, que es justo lo que `guardarEstadoConversacion` no puede
- * hacer. No toca ninguna otra columna.
+ * hacer. No toca ninguna columna fuera de la foto.
+ *
+ * `incluirAprendido: false` deja quieto lo que el turno aprendio (grupo, moto,
+ * variante) y revierte solo la entrega pura. Es para el unico descarte donde
+ * OTRO tramo del bot si le hablo al cliente en paralelo (el lote reencolado):
+ * ahi el estado nuevo puede ser del tramo que si salio, y pisarlo con la foto
+ * vieja hace que el turno siguiente repita la ficha y la foto.
  */
 export async function revertirEntregaNoEnviada(
     clave: string | undefined,
-    previo: EntregaRevertible | null | undefined
+    previo: EntregaRevertible | null | undefined,
+    opciones?: { incluirAprendido?: boolean }
 ): Promise<void> {
     if (!clave || !previo) return
+    const incluirAprendido = opciones?.incluirAprendido !== false
+    const sets = [
+        "pack_presentado_id = $2",
+        "pack_presentado_nombre = $3",
+        "pack_presentado_precio = $4",
+        "temas_respondidos = $5",
+        "negativa_moto = $6",
+        "negativa_kit = $7",
+        "negativa_detalle = $8",
+        "negativa_en = $9",
+        "repreguntas_moto = $10"
+    ]
+    const params: any[] = [
+        clave,
+        previo.packPresentado?.id ?? null,
+        previo.packPresentado?.nombre ?? null,
+        previo.packPresentado?.precio ?? null,
+        previo.temasRespondidos || [],
+        previo.negativaEntregada?.moto ?? null,
+        previo.negativaEntregada?.kit ?? null,
+        previo.negativaEntregada?.detalle ?? null,
+        previo.negativaEntregada?.en ? new Date(previo.negativaEntregada.en) : null,
+        previo.repreguntasMoto ?? 0
+    ]
+    if (incluirAprendido) {
+        sets.push(
+            "grupo_pineado_id = $11",
+            "grupo_pineado_nombre = $12",
+            "variante_pack_id = $13",
+            "variante_etiqueta = $14",
+            "variante_precio = $15",
+            "moto_confirmada = $16"
+        )
+        params.push(
+            previo.grupoPineado?.id ?? null,
+            previo.grupoPineado?.nombre ?? null,
+            previo.varianteResuelta?.packId ?? null,
+            previo.varianteResuelta?.etiqueta ?? null,
+            previo.varianteResuelta?.precio ?? null,
+            previo.motoConfirmada ?? null
+        )
+    }
     try {
         await prisma.$executeRawUnsafe(
-            `UPDATE chat_conversacion_estado SET
-                pack_presentado_id = $2,
-                pack_presentado_nombre = $3,
-                pack_presentado_precio = $4,
-                temas_respondidos = $5,
-                negativa_moto = $6,
-                negativa_kit = $7,
-                negativa_detalle = $8,
-                negativa_en = $9,
-                repreguntas_moto = $10,
-                actualizado_en = NOW()
-             WHERE clave = $1`,
-            clave,
-            previo.packPresentado?.id ?? null,
-            previo.packPresentado?.nombre ?? null,
-            previo.packPresentado?.precio ?? null,
-            previo.temasRespondidos || [],
-            previo.negativaEntregada?.moto ?? null,
-            previo.negativaEntregada?.kit ?? null,
-            previo.negativaEntregada?.detalle ?? null,
-            previo.negativaEntregada?.en ? new Date(previo.negativaEntregada.en) : null,
-            previo.repreguntasMoto ?? 0
+            `UPDATE chat_conversacion_estado SET ${sets.join(", ")}, actualizado_en = NOW() WHERE clave = $1`,
+            ...params
         )
     } catch (err) {
         console.warn("[estado] no se pudo revertir la memoria de entrega:", (err as any)?.message)

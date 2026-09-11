@@ -589,8 +589,8 @@ async function procesarTurno(accountId: number, conversationId: number) {
         const entregaPrevia: EntregaRevertible = fotoEntrega(
             await cargarEstadoConversacion(String(conversationId)).catch(() => ({}))
         )
-        const revertirEntrega = () =>
-            revertirEntregaNoEnviada(String(conversationId), entregaPrevia).catch(() => {})
+        const revertirEntrega = (opciones?: { incluirAprendido?: boolean }) =>
+            revertirEntregaNoEnviada(String(conversationId), entregaPrevia, opciones).catch(() => {})
 
         const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
             conversationId,
@@ -659,7 +659,11 @@ async function procesarTurno(accountId: number, conversationId: number) {
         const ultimoPostEspera = transcripcionPostEspera[transcripcionPostEspera.length - 1]
         if (ultimoPostEspera?.saliente) {
             const reencolado = ultimoPostEspera.delBot && reencolarLote()
-            await revertirEntrega()
+            // Si el saliente nuevo es del BOT, otro tramo de la misma ráfaga le
+            // habló al cliente en paralelo y el estado puede ser suyo: se
+            // revierte solo la entrega, sin pisar lo aprendido, para no hacerle
+            // repetir la ficha y la foto al turno siguiente.
+            await revertirEntrega({ incluirAprendido: !ultimoPostEspera.delBot })
             await registrarTurno({
                 conversationId,
                 accountId,

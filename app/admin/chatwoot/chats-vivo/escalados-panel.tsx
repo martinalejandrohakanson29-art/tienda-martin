@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react"
 import { AlertTriangle, Check, Loader2, Sparkles, X } from "lucide-react"
 import {
     descartarEscaladoChatVivo,
-    listarEscaladosChatVivo,
     opcionesAprendizajeChatVivo,
     responderEscaladoTecnicoChatVivo,
     type EscaladoChatVivo,
@@ -14,13 +13,14 @@ import {
 import { textoIncompatibleSugerido, unirMensajeYDetalle, type DestinoCompat } from "@/lib/compat-mensaje"
 
 /**
- * Panel de escalados dentro del chat.
+ * Escalados del bot dentro del chat, en dos formatos según cuánto pidan del equipo:
  *
- * El bot deriva en silencio: hasta acá el equipo no veía en la conversación que
- * había una consulta esperándolo, solo el badge de categoría en la lista. Esto
- * muestra qué se derivó y, para la bandeja técnica, permite cargar la
- * compatibilidad (que el bot va a usar de acá en más) y contestarle al cliente
- * en un solo paso.
+ * - Compatibilidad (bandeja técnica): la tarjeta grande con el formulario, porque
+ *   ahí la respuesta además se aprende y el bot la usa de acá en más.
+ * - Todo lo demás (precio, negocio, sin resolver): un cartel de una línea en el
+ *   hilo (`AvisoDerivacion`) que dice por qué se derivó y nada más. Antes también
+ *   abrían tarjeta: con dos escalados abiertos el panel tapaba la conversación
+ *   y no aportaba nada que no se resolviera contestando abajo como siempre.
  */
 
 const ETIQUETA: Record<TipoEscalado, { texto: string; clase: string }> = {
@@ -71,40 +71,26 @@ const claveDestino = (d: DestinoCompat) => `${d.tipo}:${d.id}`
 
 export function EscaladosPanel({
     conversationId,
-    refrescoExterno,
+    escalados,
     onResuelto,
 }: {
     conversationId: number
-    /** Cambia cuando llega actividad nueva al chat: vuelve a leer los escalados. */
-    refrescoExterno?: number
+    /** Solo escalados de compatibilidad: el resto se dibuja en el hilo. */
+    escalados: EscaladoChatVivo[]
     /** Avisa al panel padre que se cerró un escalado (para refrescar badges/lista). */
     onResuelto?: () => void
 }) {
-    const [escalados, setEscalados] = useState<EscaladoChatVivo[]>([])
+    const [cerrados, setCerrados] = useState<number[]>([])
     const [opciones, setOpciones] = useState<OpcionesAprendizaje | null>(null)
-    const [cargando, setCargando] = useState(false)
     const [fallo, setFallo] = useState<string | null>(null)
     const [exito, setExito] = useState<string | null>(null)
     const [formularios, setFormularios] = useState<Record<number, FormTecnica>>({})
     const [guardando, arrancarGuardado] = useTransition()
 
-    useEffect(() => {
-        let vivo = true
-        setCargando(true)
-        listarEscaladosChatVivo(conversationId)
-            .then((filas) => {
-                if (vivo) setEscalados(filas)
-            })
-            .catch((e) => vivo && setFallo(e instanceof Error ? e.message : "No se pudieron leer los escalados"))
-            .finally(() => vivo && setCargando(false))
-        return () => {
-            vivo = false
-        }
-    }, [conversationId, refrescoExterno])
+    const visibles = useMemo(() => escalados.filter((e) => !cerrados.includes(e.id)), [escalados, cerrados])
 
-    // Las opciones (kits + texto de incompatibilidad) se piden una sola vez y
-    // solo si hay algo técnico que responder.
-    const hayTecnica = escalados.some((e) => e.tipo === "tecnica")
+    // Las opciones (kits + texto de incompatibilidad) se piden una sola vez.
+    const hayTecnica = visibles.length > 0
     useEffect(() => {
         if (!hayTecnica || opciones) return
         opcionesAprendizajeChatVivo()
@@ -152,7 +138,7 @@ export function EscaladosPanel({
     }
 
     const quitarDeLaLista = (id: number) => {
-        setEscalados((prev) => prev.filter((e) => e.id !== id))
+        setCerrados((prev) => [...prev, id])
         onResuelto?.()
     }
 
@@ -215,11 +201,10 @@ export function EscaladosPanel({
         })
     }
 
-    if (cargando && escalados.length === 0) return null
-    if (escalados.length === 0 && !exito) return null
+    if (visibles.length === 0 && !exito) return null
 
     return (
-        <div className="border-t border-amber-200 bg-amber-50/70 px-4 py-2.5 space-y-2 max-h-[52%] overflow-y-auto">
+        <div className="border-t border-amber-200 bg-amber-50/70 px-4 py-2.5 space-y-2 max-h-[44%] overflow-y-auto">
             {exito && (
                 <p className="flex items-center gap-1.5 text-[11px] text-emerald-700">
                     <Check className="h-3.5 w-3.5" /> {exito}
@@ -227,14 +212,16 @@ export function EscaladosPanel({
             )}
             {fallo && <p className="text-[11px] text-red-600">{fallo}</p>}
 
-            {escalados.length > 0 && (
+            {visibles.length > 0 && (
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-900">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    El bot derivó {escalados.length === 1 ? "esta consulta" : `${escalados.length} consultas`} al equipo
+                    {visibles.length === 1
+                        ? "Compatibilidad sin resolver: cargala acá y el bot la aprende"
+                        : `${visibles.length} compatibilidades sin resolver: cargalas acá y el bot las aprende`}
                 </p>
             )}
 
-            {escalados.map((item) => {
+            {visibles.map((item) => {
                 const form = formDe(item)
                 const destino = destinosPorClave.get(form.destinoClave)
                 return (
@@ -248,7 +235,6 @@ export function EscaladosPanel({
                                 <p className="text-[10px] text-[#667781] mt-0.5">
                                     {hora(item.creadoEn)}
                                     {item.motivo ? ` · ${item.motivo}` : ""}
-                                    {item.kit && item.tipo !== "tecnica" ? ` · ${item.kit}` : ""}
                                 </p>
                             </div>
                             <button
@@ -262,135 +248,178 @@ export function EscaladosPanel({
                             </button>
                         </div>
 
-                        {item.tipo === "tecnica" && (
-                            <div className="mt-2 space-y-2 border-t border-gray-100 pt-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <input
-                                        value={form.modeloMoto}
-                                        onChange={(e) => actualizarForm(item, { modeloMoto: e.target.value })}
-                                        placeholder="Moto (ej: Gilera Smash 110)"
-                                        className="flex-1 min-w-[160px] rounded-md border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                                    />
-                                    <select
-                                        value={form.destinoClave}
-                                        onChange={(e) => actualizarForm(item, { destinoClave: e.target.value })}
-                                        className="flex-1 min-w-[180px] rounded-md border border-gray-200 px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-                                    >
-                                        <option value="">
-                                            {opciones ? "Elegí el kit…" : "Cargando kits…"}
+                        <div className="mt-2 space-y-2 border-t border-gray-100 pt-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                    value={form.modeloMoto}
+                                    onChange={(e) => actualizarForm(item, { modeloMoto: e.target.value })}
+                                    placeholder="Moto (ej: Gilera Smash 110)"
+                                    className="flex-1 min-w-[160px] rounded-md border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                />
+                                <select
+                                    value={form.destinoClave}
+                                    onChange={(e) => actualizarForm(item, { destinoClave: e.target.value })}
+                                    className="flex-1 min-w-[180px] rounded-md border border-gray-200 px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                >
+                                    <option value="">
+                                        {opciones ? "Elegí el kit…" : "Cargando kits…"}
+                                    </option>
+                                    {(opciones?.destinos ?? []).map((d) => (
+                                        <option key={claveDestino(d)} value={claveDestino(d)}>
+                                            {d.nombre}
+                                            {d.tipo === "grupo" ? " (combo con variantes)" : ""}
                                         </option>
-                                        {(opciones?.destinos ?? []).map((d) => (
-                                            <option key={claveDestino(d)} value={claveDestino(d)}>
-                                                {d.nombre}
-                                                {d.tipo === "grupo" ? " (combo con variantes)" : ""}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => actualizarForm(item, { compatible: true })}
-                                        className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
-                                            form.compatible === true
-                                                ? "bg-emerald-600 text-white border-emerald-600"
-                                                : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                                        }`}
-                                    >
-                                        Le va
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => actualizarForm(item, { compatible: false })}
-                                        className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
-                                            form.compatible === false
-                                                ? "bg-rose-600 text-white border-rose-600"
-                                                : "bg-white text-rose-700 border-rose-200 hover:bg-rose-50"
-                                        }`}
-                                    >
-                                        No le va
-                                    </button>
-                                    <input
-                                        value={form.detalle}
-                                        onChange={(e) => actualizarForm(item, { detalle: e.target.value })}
-                                        placeholder="Aclaración (opcional): qué hay que modificar, con qué entra…"
-                                        className="flex-1 min-w-[200px] rounded-md border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                                    />
-                                </div>
-
-                                {form.compatible !== null && (
-                                    <div className="space-y-1.5">
-                                        <label className="flex items-center gap-1.5 text-[10px] text-[#667781]">
-                                            <input
-                                                type="checkbox"
-                                                checked={form.enviarMensaje}
-                                                onChange={(e) => actualizarForm(item, { enviarMensaje: e.target.checked })}
-                                                className="h-3 w-3"
-                                            />
-                                            Mandarle esta respuesta al cliente
-                                        </label>
-                                        {form.enviarMensaje && (
-                                            <textarea
-                                                value={form.mensaje}
-                                                onChange={(e) => actualizarForm(item, { mensaje: e.target.value, mensajeEditado: true })}
-                                                rows={2}
-                                                className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                                            />
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <label
-                                        className="flex items-center gap-1.5 text-[10px] text-[#667781]"
-                                        title="Cargar la misma regla para cada pieza suelta del kit. Ojo: una pieza periférica puede terminar hablando por el cilindro."
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={form.aplicarAPiezas}
-                                            onChange={(e) => actualizarForm(item, { aplicarAPiezas: e.target.checked })}
-                                            className="h-3 w-3"
-                                        />
-                                        Aplicar también a las piezas sueltas
-                                    </label>
-                                    <label
-                                        className="flex items-center gap-1.5 text-[10px] text-[#667781]"
-                                        title="Por defecto responder pausa el bot en esta charla, como cualquier respuesta manual."
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={form.reanudarBot}
-                                            onChange={(e) => actualizarForm(item, { reanudarBot: e.target.checked })}
-                                            className="h-3 w-3"
-                                        />
-                                        Que siga el bot
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => guardarTecnica(item)}
-                                        disabled={guardando || !destino || form.compatible === null}
-                                        className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                                    >
-                                        {guardando ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                            <Sparkles className="h-3.5 w-3.5" />
-                                        )}
-                                        Aprender y responder
-                                    </button>
-                                </div>
+                                    ))}
+                                </select>
                             </div>
-                        )}
 
-                        {item.tipo !== "tecnica" && (
-                            <p className="mt-1.5 text-[10px] text-[#667781]">
-                                Contestale abajo como siempre; con la ✕ sacás el aviso.
-                            </p>
-                        )}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => actualizarForm(item, { compatible: true })}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                                        form.compatible === true
+                                            ? "bg-emerald-600 text-white border-emerald-600"
+                                            : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                    }`}
+                                >
+                                    Le va
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => actualizarForm(item, { compatible: false })}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                                        form.compatible === false
+                                            ? "bg-rose-600 text-white border-rose-600"
+                                            : "bg-white text-rose-700 border-rose-200 hover:bg-rose-50"
+                                    }`}
+                                >
+                                    No le va
+                                </button>
+                                <input
+                                    value={form.detalle}
+                                    onChange={(e) => actualizarForm(item, { detalle: e.target.value })}
+                                    placeholder="Aclaración (opcional): qué hay que modificar, con qué entra…"
+                                    className="flex-1 min-w-[200px] rounded-md border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                />
+                            </div>
+
+                            {form.compatible !== null && (
+                                <div className="space-y-1.5">
+                                    <label className="flex items-center gap-1.5 text-[10px] text-[#667781]">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.enviarMensaje}
+                                            onChange={(e) => actualizarForm(item, { enviarMensaje: e.target.checked })}
+                                            className="h-3 w-3"
+                                        />
+                                        Mandarle esta respuesta al cliente
+                                    </label>
+                                    {form.enviarMensaje && (
+                                        <textarea
+                                            value={form.mensaje}
+                                            onChange={(e) => actualizarForm(item, { mensaje: e.target.value, mensajeEditado: true })}
+                                            rows={2}
+                                            className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                        />
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                <label
+                                    className="flex items-center gap-1.5 text-[10px] text-[#667781]"
+                                    title="Cargar la misma regla para cada pieza suelta del kit. Ojo: una pieza periférica puede terminar hablando por el cilindro."
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={form.aplicarAPiezas}
+                                        onChange={(e) => actualizarForm(item, { aplicarAPiezas: e.target.checked })}
+                                        className="h-3 w-3"
+                                    />
+                                    Aplicar también a las piezas sueltas
+                                </label>
+                                <label
+                                    className="flex items-center gap-1.5 text-[10px] text-[#667781]"
+                                    title="Por defecto responder pausa el bot en esta charla, como cualquier respuesta manual."
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={form.reanudarBot}
+                                        onChange={(e) => actualizarForm(item, { reanudarBot: e.target.checked })}
+                                        className="h-3 w-3"
+                                    />
+                                    Que siga el bot
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => guardarTecnica(item)}
+                                    disabled={guardando || !destino || form.compatible === null}
+                                    className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                                >
+                                    {guardando ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                    )}
+                                    Aprender y responder
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )
             })}
+        </div>
+    )
+}
+
+/**
+ * Cartel de una línea dentro del hilo: "el bot derivó esto y por qué".
+ * No pide nada al equipo — se contesta abajo como cualquier mensaje — así que
+ * no ocupa más que un renglón entre los globos. La ✕ solo lo saca de la vista
+ * (cierra la pendiente como "descartada", igual que antes la tarjeta).
+ */
+export function AvisoDerivacion({
+    escalado,
+    onDescartado,
+}: {
+    escalado: EscaladoChatVivo
+    onDescartado?: () => void
+}) {
+    const [cerrando, arrancarCierre] = useTransition()
+    const [cerrado, setCerrado] = useState(false)
+    if (cerrado) return null
+    const etiqueta = ETIQUETA[escalado.tipo]
+    return (
+        <div className="flex justify-center py-0.5">
+            <div className="group flex max-w-[85%] items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50/95 px-2.5 py-1 text-[10px] text-amber-900 shadow-sm">
+                <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+                <span className="font-semibold shrink-0">Derivado al equipo</span>
+                <span className={`shrink-0 rounded-full border px-1.5 leading-4 ${etiqueta.clase}`}>{etiqueta.texto}</span>
+                <span className="truncate text-amber-800/90">
+                    {escalado.motivo || escalado.resumen}
+                </span>
+                <span className="shrink-0 text-amber-700/60">{hora(escalado.creadoEn)}</span>
+                <button
+                    type="button"
+                    title="Sacar el aviso"
+                    disabled={cerrando}
+                    onClick={() =>
+                        arrancarCierre(async () => {
+                            try {
+                                await descartarEscaladoChatVivo(escalado.tipo, escalado.id)
+                                setCerrado(true)
+                                onDescartado?.()
+                            } catch {
+                                /* si falla queda el aviso, que es lo correcto */
+                            }
+                        })
+                    }
+                    className="shrink-0 rounded-full p-0.5 text-amber-700/50 opacity-0 transition-opacity hover:bg-amber-100 hover:text-amber-900 group-hover:opacity-100 disabled:opacity-50"
+                >
+                    <X className="h-3 w-3" />
+                </button>
+            </div>
         </div>
     )
 }

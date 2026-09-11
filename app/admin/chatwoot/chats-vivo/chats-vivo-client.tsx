@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, Star, X, Zap, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import {
     crearNotaRapida,
     enviarMensajeComposerChatVivo,
     forzarSincronizacionChatsVivo,
+    listarEscaladosChatVivo,
     listarKitsEnvioRapido,
     listarNotasRapidas,
     marcarConversacionComoLeida,
@@ -20,6 +21,7 @@ import {
     obtenerHiloChatVivo,
     sincronizarChatsVivoLigero,
     toggleDestacadoChatVivo,
+    type EscaladoChatVivo,
     type KitEnvioRapido,
     type MensajeConversacion,
     type NotaRapida,
@@ -27,7 +29,7 @@ import {
 } from "@/app/actions/chats-vivo"
 import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
 import { CheckEstadoMensaje, ImageLightboxModal, MensajeAdjuntos } from "@/components/chatwoot/chat-media-viewer"
-import { EscaladosPanel } from "./escalados-panel"
+import { AvisoDerivacion, EscaladosPanel } from "./escalados-panel"
 
 // Panel de chats en vivo. Lee directamente desde la tabla espejo en PostgreSQL
 // para carga instantánea (< 20ms); la categoría de cada una sale de
@@ -1271,6 +1273,56 @@ export function ChatsVivoClient({
         }
     }, [hiloActual?.length])
 
+    // Escalados de la charla abierta. Se leen acá (y no dentro del panel) porque
+    // se dibujan en dos lugares: la compatibilidad abajo, con su formulario, y el
+    // resto como un cartel de una línea en el hilo, donde ocurrió.
+    const [escalados, setEscalados] = useState<EscaladoChatVivo[]>([])
+    const [recargaEscalados, setRecargaEscalados] = useState(0)
+    useEffect(() => {
+        if (!seleccionada) {
+            setEscalados([])
+            return
+        }
+        let vivo = true
+        listarEscaladosChatVivo(seleccionada.id)
+            .then((filas) => vivo && setEscalados(filas))
+            .catch(() => vivo && setEscalados([]))
+        return () => {
+            vivo = false
+        }
+    }, [seleccionada?.id, hiloActual?.length, recargaEscalados])
+
+    // Los comandos /bot on|off no se muestran: el hilo visible es el que manda
+    // también para anclar los avisos.
+    const hiloVisible = useMemo(
+        () =>
+            (hiloActual ?? []).filter((m) => {
+                const txt = m.contenido.trim().toLowerCase()
+                return !(m.privado && (txt === "/bot on" || txt === "/bot off"))
+            }),
+        [hiloActual]
+    )
+
+    const escaladosTecnicos = useMemo(() => escalados.filter((e) => e.tipo === "tecnica"), [escalados])
+
+    /** Avisos (no técnicos) anclados al último mensaje anterior a cada uno. */
+    const avisosPorMensaje = useMemo(() => {
+        const mapa = new Map<string, EscaladoChatVivo[]>()
+        const otros = escalados.filter((e) => e.tipo !== "tecnica")
+        if (otros.length === 0 || hiloVisible.length === 0) return mapa
+        for (const av of otros) {
+            let anclaId = hiloVisible[0].id
+            for (const m of hiloVisible) {
+                if (m.creadoEn <= av.creadoEn) anclaId = m.id
+                else break
+            }
+            const clave = String(anclaId)
+            mapa.set(clave, [...(mapa.get(clave) ?? []), av])
+        }
+        for (const lista of mapa.values()) lista.sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
+        return mapa
+    }, [escalados, hiloVisible])
+
     const handleToggleBot = async (conversationId: number, currentBotPausado: boolean) => {
         const nuevoEncendido = currentBotPausado // si estaba pausado (true), lo prendemos (true); si no, lo apagamos (false)
         const nuevoPausado = !nuevoEncendido
@@ -2019,13 +2071,10 @@ export function ChatsVivoClient({
                                 {hilosCargados.has(seleccionada.id) && hiloActual?.length === 0 && (
                                     <p className="text-xs text-[#667781] text-center mt-6">Sin mensajes en esta conversación</p>
                                 )}
-                                {hilosCargados.has(seleccionada.id) && hiloActual
-                                    ?.filter((m) => {
-                                        const txt = m.contenido.trim().toLowerCase()
-                                        return !(m.privado && (txt === "/bot on" || txt === "/bot off"))
-                                    })
-                                    .map((m) =>
-                                        m.privado ? (
+                                {hilosCargados.has(seleccionada.id) &&
+                                    hiloVisible.map((m) => (
+                                        <Fragment key={`hilo-${m.id}`}>
+                                        {m.privado ? (
                                             <div key={m.id} className="flex justify-center py-1">
                                                 <div className="max-w-[85%] rounded-md px-3 py-1.5 bg-[#fff3cd] text-[#664d03] text-xs border border-amber-200/90 shadow-sm">
                                                     <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-800/80 mb-0.5">
@@ -2097,19 +2146,32 @@ export function ChatsVivoClient({
                                                     </div>
                                                 </div>
                                             </div>
-                                        )
-                                    )}
+                                        )}
+                                        {(avisosPorMensaje.get(String(m.id)) ?? []).map((av) => (
+                                            <AvisoDerivacion
+                                                key={`aviso-${av.tipo}-${av.id}`}
+                                                escalado={av}
+                                                onDescartado={() => {
+                                                    setRecargaEscalados((v) => v + 1)
+                                                    refrescar(periodoDias)
+                                                }}
+                                            />
+                                        ))}
+                                        </Fragment>
+                                    ))}
                                 <div ref={mensajesEndRef} />
                             </div>
 
-                            {/* Consultas que el bot derivó al equipo en esta charla.
-                                El escalado es mudo para el cliente y hasta acá también
-                                lo era para nosotros: solo se veía el badge de categoría
-                                en la lista. */}
+                            {/* Solo compatibilidad: es el único escalado que además de
+                                contestarse se aprende. El resto ya se vio como cartel
+                                en el hilo. */}
                             <EscaladosPanel
                                 conversationId={seleccionada.id}
-                                refrescoExterno={hiloActual?.length ?? 0}
-                                onResuelto={() => refrescar(periodoDias)}
+                                escalados={escaladosTecnicos}
+                                onResuelto={() => {
+                                    setRecargaEscalados((v) => v + 1)
+                                    refrescar(periodoDias)
+                                }}
                             />
 
                             {/* Barra para escribir y responder manualmente (4 renglones) */}

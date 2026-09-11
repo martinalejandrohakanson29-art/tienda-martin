@@ -2049,7 +2049,16 @@ export function ChatsVivoClient({
                                     ayuda={
                                         <>
                                             Respuestas de &quot;Info del negocio&quot; (medios de pago, envíos, horarios,
-                                            ubicación…). Se cargan en el cuadro de abajo para editarlas antes de mandar.
+                                            confianza y redes…). Son los mismos textos que usa el bot: se editan en{" "}
+                                            <a
+                                                href="/admin/chatwoot/catalogo"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="underline text-emerald-700"
+                                            >
+                                                Catálogo → Mensajes del bot
+                                            </a>
+                                            . Se cargan en el cuadro de abajo para editarlas antes de mandar.
                                             Arrastrá
                                             <GripVertical className="h-3 w-3 inline mx-0.5 -mt-0.5" />
                                             para reordenar.

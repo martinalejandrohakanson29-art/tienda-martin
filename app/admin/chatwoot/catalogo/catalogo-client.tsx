@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import type { ChatArticulo, ChatPack, ChatArticuloCompatibilidad, ChatPackGrupo, ChatComboCompatibilidad } from "@/app/actions/chat-catalogo"
 import type { ChatConfig } from "@/app/actions/chat-config"
+import type { InfoNegocio } from "@/app/actions/info-negocio"
 import type { Kit } from "@/app/actions/kits-publicidad"
 import type { Compatibilidad } from "@/app/actions/compatibilidades"
 
@@ -26,6 +27,8 @@ type Props = {
     compatibilidadesComboIniciales: ChatComboCompatibilidad[]
     configInicial: ChatConfig
     configError: string | null
+    infoNegocioInicial: InfoNegocio[]
+    infoNegocioError: string | null
 }
 
 export function CatalogoClient({
@@ -41,6 +44,8 @@ export function CatalogoClient({
     compatibilidadesComboIniciales,
     configInicial,
     configError,
+    infoNegocioInicial,
+    infoNegocioError,
 }: Props) {
     return (
         <div className="space-y-6 pb-12">
@@ -93,7 +98,12 @@ export function CatalogoClient({
                     />
                 </TabsContent>
                 <TabsContent value="mensajes">
-                    <MensajesTab configInicial={configInicial} errorInicial={configError} />
+                    <MensajesTab
+                        configInicial={configInicial}
+                        errorInicial={configError}
+                        infoNegocioInicial={infoNegocioInicial}
+                        infoNegocioError={infoNegocioError}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

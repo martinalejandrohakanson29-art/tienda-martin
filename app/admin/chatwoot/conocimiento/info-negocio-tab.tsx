@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -82,6 +83,16 @@ export function InfoNegocioTab({ itemsIniciales, errorInicial }: { itemsIniciale
                 Horarios de atención, medios de pago, formas de envío, ubicación, garantía y cualquier otra
                 pregunta frecuente sobre el negocio (no sobre un repuesto puntual). Solo puede haber una
                 respuesta activa por tema: si cargás otra para el mismo tema, reemplaza a la anterior.
+            </p>
+
+            <p className="text-sm text-gray-500 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+                Esta misma info se edita ahora desde{" "}
+                <Link href="/admin/chatwoot/catalogo" className="text-emerald-700 underline font-medium">
+                    Catálogo del Bot → Mensajes del bot
+                </Link>
+                , junto con las respuestas fijas (incompatibilidad, costo de envío). Allá se ve además cómo queda
+                partida en hechos y con qué preguntas del cliente la sirve el bot. Es la misma tabla: lo que
+                cambies en cualquiera de los dos lados es lo que contesta.
             </p>
 
             {error && (

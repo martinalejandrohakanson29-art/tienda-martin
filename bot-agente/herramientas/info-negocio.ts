@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto } from "../nucleo/texto"
 import { contieneUrl } from "../guardrails/sanitizador"
+import { SINONIMOS_CONFIANZA } from "@/lib/temas-negocio"
 
 /**
  * HERRAMIENTA `consultar_info_negocio` — DEVUELVE DATOS, NO UN GUION
@@ -205,18 +206,10 @@ export function calcularContextoHorarioCordoba(fechaReferencia: Date = new Date(
 }
 
 /**
- * El bloque de confianza vive en la fila `garantia`, pero el cliente casi nunca
- * lo pide con esa palabra: pregunta por el Instagram, el TikTok, si estamos en
- * Mercado Libre o si nos puede ver en Maps. Sin estos sinónimos, el modelo pedía
- * `tema: "instagram"`, no matcheaba ninguna fila y el turno terminaba escalado
- * en silencio con el dato cargado en la base.
+ * Los sinónimos del bloque de confianza (instagram, tiktok, meli, maps...) viven
+ * en `lib/temas-negocio` junto a la ficha que muestra el panel: quien edita el
+ * texto tiene que ver con qué preguntas se lo va a servir el bot.
  */
-const SINONIMOS_CONFIANZA = [
-    "garant", "confian", "estaf", "segur",
-    "instagram", "insta", "ig", "tiktok", "tik tok", "red", "redes",
-    "mercadolibre", "mercado libre", "meli", "maps", "google",
-    "link", "enlace", "perfil", "referencia", "reseña", "resena", "opinion"
-]
 
 export async function consultarInfoNegocio(args: ArgsInfoNegocio): Promise<ResultadoInfoNegocio> {
     const temaBuscado = (args.tema || "").toLowerCase().trim()

@@ -57,11 +57,22 @@ export async function guardarInfoNegocio(data: InfoNegocioInput) {
         }
     }
 
-    revalidatePath("/admin/chatwoot/conocimiento")
+    revalidarPaneles()
 }
 
 export async function eliminarInfoNegocio(id: number) {
     await requireAdmin()
     await prisma.$executeRaw`DELETE FROM info_negocio WHERE id = ${id}`
+    revalidarPaneles()
+}
+
+/**
+ * La misma info se edita desde dos lados (Base de Conocimiento y Catálogo del
+ * bot -> Mensajes del bot) y se sirve en las notas rápidas de chats en vivo:
+ * cualquier cambio tiene que refrescar los tres.
+ */
+function revalidarPaneles() {
     revalidatePath("/admin/chatwoot/conocimiento")
+    revalidatePath("/admin/chatwoot/catalogo")
+    revalidatePath("/admin/chatwoot/chats-vivo")
 }

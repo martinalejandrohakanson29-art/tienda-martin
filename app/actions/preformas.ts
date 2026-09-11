@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/prisma"
 import { s3Client } from "@/lib/s3"
-import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import * as XLSX from "xlsx"
 import JSZip from "jszip"
 import { revalidatePath } from "next/cache"
@@ -60,7 +61,36 @@ async function subirArchivoS3(buffer: Buffer, fileName: string, contentType: str
 }
 
 /**
- * Sube una foto de ítem individual a S3 y devuelve su URL
+ * Genera una URL firmada de S3 válida por 24 horas (igual que en /admin/mercadolibre/preparacion)
+ */
+async function generarUrlFirmadaFoto(urlOrKey: string | null | undefined): Promise<string | null> {
+  if (!urlOrKey) return null
+  try {
+    let key = urlOrKey
+    if (key.includes(`/${BUCKET_NAME}/`)) {
+      key = key.split(`/${BUCKET_NAME}/`)[1]
+    } else if (key.startsWith("http")) {
+      const idx = key.indexOf("importaciones/")
+      if (idx !== -1) {
+        key = key.substring(idx)
+      }
+    }
+    if (key.startsWith("/")) key = key.substring(1)
+    if (!key) return null
+
+    const getCommand = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    })
+    return await getSignedUrl(s3Client, getCommand, { expiresIn: 86400 })
+  } catch (err) {
+    console.error("Error generando signed URL de foto:", err)
+    return null
+  }
+}
+
+/**
+ * Sube una foto de ítem individual a S3 y devuelve su clave en el bucket
  */
 async function subirFotoItemS3(buffer: Buffer, fileName: string): Promise<string | null> {
   try {
@@ -76,9 +106,7 @@ async function subirFotoItemS3(buffer: Buffer, fileName: string): Promise<string
       })
     )
 
-    const baseUrl = process.env.GARAGE_S3_API_URL || process.env.S3_ENDPOINT || ""
-    const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl
-    return `${cleanBaseUrl}/${BUCKET_NAME}/${key}`
+    return key
   } catch (err) {
     console.error("Error al subir foto de ítem a S3:", err)
     return null
@@ -688,10 +716,27 @@ export async function obtenerPreformasAction(filtroEstado?: string) {
       },
     })
 
-    return {
-      success: true,
-      data: preformas.map((p) => {
+    const data = await Promise.all(
+      preformas.map(async (p) => {
         const vinculados = p.items.filter((i) => i.articuloId !== null).length
+        const items = await Promise.all(
+          p.items.map(async (i) => ({
+            id: i.id,
+            supplierItemNo: i.supplierItemNo,
+            descripcionOriginal: i.descripcionOriginal,
+            logo: i.logo,
+            size: i.size,
+            fotoUrl: await generarUrlFirmadaFoto(i.fotoUrl),
+            cantidad: i.cantidad,
+            precioUnitarioUsd: i.precioUnitarioUsd ? Number(i.precioUnitarioUsd) : null,
+            precioTotalUsd: i.precioTotalUsd ? Number(i.precioTotalUsd) : null,
+            articuloId: i.articuloId,
+            articuloNombre: i.articulo?.nombre || null,
+            articuloStock: i.articulo?.stock ?? null,
+            articuloCodigoProveedor: i.articulo?.codigoProveedor || null,
+          }))
+        )
+
         return {
           id: p.id,
           numero: p.numero,
@@ -709,23 +754,14 @@ export async function obtenerPreformasAction(filtroEstado?: string) {
           noVinculados: p.totalArticulos - vinculados,
           createdAt: p.createdAt.toISOString(),
           updatedAt: p.updatedAt.toISOString(),
-          items: p.items.map((i) => ({
-            id: i.id,
-            supplierItemNo: i.supplierItemNo,
-            descripcionOriginal: i.descripcionOriginal,
-            logo: i.logo,
-            size: i.size,
-            fotoUrl: i.fotoUrl ? `/api/importaciones/items/${i.id}/foto` : null,
-            cantidad: i.cantidad,
-            precioUnitarioUsd: i.precioUnitarioUsd ? Number(i.precioUnitarioUsd) : null,
-            precioTotalUsd: i.precioTotalUsd ? Number(i.precioTotalUsd) : null,
-            articuloId: i.articuloId,
-            articuloNombre: i.articulo?.nombre || null,
-            articuloStock: i.articulo?.stock ?? null,
-            articuloCodigoProveedor: i.articulo?.codigoProveedor || null,
-          })),
+          items,
         }
-      }),
+      })
+    )
+
+    return {
+      success: true,
+      data,
     }
   } catch (error: any) {
     console.error("Error al obtener preformas:", error)

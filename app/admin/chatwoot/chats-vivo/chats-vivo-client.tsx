@@ -1408,6 +1408,9 @@ export function ChatsVivoClient({
                 tooltip: k.nombre,
                 badges: (
                     <>
+                        {k.tipo === "grupo" && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-violet-100 text-violet-700 shrink-0">combo</span>
+                        )}
                         {!k.activo && (
                             <span className="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">pausado</span>
                         )}
@@ -1440,7 +1443,9 @@ export function ChatsVivoClient({
         if (!kit) return
         setModoNota(false)
         setTextoMensaje(kit.mensaje ?? "")
-        setKitCargado({ id: kit.id, nombre: kit.nombre })
+        // Lo que viaja es el pack real: si la fila es un combo, su 1ª variante
+        // activa, que es lo que el motor usa para pinear el grupo en la memoria.
+        setKitCargado({ id: kit.packId, nombre: kit.nombre })
         setPinearKit(true)
         setAdjunto((prev) => {
             revocarPreview(prev)
@@ -2021,7 +2026,8 @@ export function ChatsVivoClient({
                                     ayuda={
                                         <>
                                             Carga el mensaje y la foto del kit en el cuadro de abajo para revisarlos y
-                                            editarlos antes de mandar. Arrastrá
+                                            editarlos antes de mandar. Los combos van en una sola fila: la variante
+                                            (corto/largo) la define el bot según la moto. Arrastrá
                                             <GripVertical className="h-3 w-3 inline mx-0.5 -mt-0.5" />
                                             para reordenar.
                                         </>

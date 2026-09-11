@@ -268,7 +268,15 @@ async function sembrarKitPresentadoEnMemoria(conversationId: number, packId: num
 }
 
 export type KitEnvioRapido = {
+    /**
+     * Id sintético de la fila del selector: positivo = pack suelto (su id real),
+     * negativo = combo (-idDelGrupo). Se usa para el orden guardado en
+     * localStorage; lo que viaja al enviar es `packId`.
+     */
     id: number
+    /** Pack real que representa esta fila (la 1ª variante activa, si es un combo). */
+    packId: number
+    tipo: "pack" | "grupo"
     nombre: string
     precio: string | null
     tieneFoto: boolean
@@ -283,9 +291,15 @@ export type KitEnvioRapido = {
 
 /**
  * Lista de kits para el selector "Enviar info de kit" del panel de chats en vivo.
- * Trae todos los packs y kits cargados en el catálogo (/admin/chatwoot/catalogo,
- * tabla chat_packs), activos y pausados, los activos primero, con el mensaje
- * y la foto completos para poder precargarlos en el cuadro de escritura.
+ * Trae lo que el catálogo (/admin/chatwoot/catalogo) tiene cargado, activos
+ * primero, con el mensaje y la foto completos para poder precargarlos en el
+ * cuadro de escritura.
+ *
+ * Los packs que pertenecen a un grupo NO se listan uno por uno: el grupo es lo
+ * que el cliente ve en el anuncio (el combo), y la variante (corto/largo) la
+ * define el motor según la moto, no el equipo eligiéndola a mano. Por eso cada
+ * grupo entra como una sola fila, con el mensaje/foto del grupo y, si el grupo
+ * no los tiene cargados, los de su primera variante activa.
  */
 export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
     await requireAdmin()
@@ -298,46 +312,114 @@ export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
                 foto_url: string | null
                 mensaje_bienvenida: string | null
                 activo: boolean
+                grupo_id: number | null
                 grupo_nombre: string | null
+                grupo_foto_url: string | null
+                grupo_mensaje: string | null
+                grupo_activo: boolean | null
                 criterio_variante: string | null
             }[]
         >`
             SELECT cp.id, cp.nombre, cp.precio, cp.foto_url, cp.mensaje_bienvenida, cp.activo,
-                   cp.criterio_variante, g.nombre AS grupo_nombre
+                   cp.criterio_variante, cp.grupo_id,
+                   g.nombre AS grupo_nombre, g.foto_url AS grupo_foto_url,
+                   g.mensaje_bienvenida AS grupo_mensaje, g.activo AS grupo_activo
             FROM chat_packs cp
             LEFT JOIN chat_pack_grupos g ON g.id = cp.grupo_id
-            ORDER BY cp.activo DESC, cp.nombre ASC
+            ORDER BY cp.activo DESC, cp.id ASC
         `
         const formatoPrecio = new Intl.NumberFormat("es-AR", {
             style: "currency",
             currency: "ARS",
             maximumFractionDigits: 0,
         })
+        const limpiar = (v: string | null) => (v && v.trim() ? v.trim() : null)
+        const aPrecio = (v: number | string | null) => {
+            const n = v != null ? Number(v) : null
+            return n != null && !isNaN(n) && n > 0 ? n : null
+        }
+        const textoPrecio = (precios: number[]): string | null => {
+            if (precios.length === 0) return null
+            const min = Math.min(...precios)
+            const max = Math.max(...precios)
+            return min === max ? formatoPrecio.format(min) : `${formatoPrecio.format(min)} – ${formatoPrecio.format(max)}`
+        }
 
-        return rows.map((r) => {
-            const mensaje = r.mensaje_bienvenida && r.mensaje_bienvenida.trim() ? r.mensaje_bienvenida : null
-            const fotoUrl = r.foto_url && r.foto_url.trim() ? r.foto_url.trim() : null
-            const numPrecio = r.precio != null ? Number(r.precio) : null
-            const precioTexto = numPrecio && !isNaN(numPrecio) && numPrecio > 0 ? formatoPrecio.format(numPrecio) : null
+        const sueltos: KitEnvioRapido[] = []
+        const grupos = new Map<number, typeof rows>()
 
-            let subtitulo: string | null = null
-            if (r.grupo_nombre && r.criterio_variante) {
-                subtitulo = `${r.grupo_nombre} (${r.criterio_variante})`
-            } else if (r.grupo_nombre) {
-                subtitulo = r.grupo_nombre
+        for (const r of rows) {
+            if (r.grupo_id) {
+                const previas = grupos.get(Number(r.grupo_id))
+                if (previas) previas.push(r)
+                else grupos.set(Number(r.grupo_id), [r])
+                continue
             }
-
-            return {
+            const mensaje = limpiar(r.mensaje_bienvenida)
+            const fotoUrl = limpiar(r.foto_url)
+            const precio = aPrecio(r.precio)
+            sueltos.push({
                 id: Number(r.id),
+                packId: Number(r.id),
+                tipo: "pack",
                 nombre: r.nombre,
-                precio: precioTexto,
+                precio: precio != null ? formatoPrecio.format(precio) : null,
                 tieneFoto: Boolean(fotoUrl),
                 activo: Boolean(r.activo),
                 tieneMensaje: Boolean(mensaje),
                 mensaje,
                 fotoUrl,
-                subtitulo,
-            }
+                subtitulo: null,
+            })
+        }
+
+        const combos: KitEnvioRapido[] = []
+        for (const [grupoId, variantes] of grupos) {
+            // La fila representa al combo: el pack que viaja es la 1ª variante
+            // activa (y si ninguna está activa, la primera cargada), solo para
+            // que el motor sepa de qué grupo se trata al sembrar la memoria.
+            const representativo = variantes.find((v) => v.activo) ?? variantes[0]
+            if (!representativo) continue
+
+            const nombre = limpiar(representativo.grupo_nombre) || representativo.nombre
+            const activo = representativo.grupo_activo !== false && variantes.some((v) => v.activo)
+            const fallback = variantes.find((v) => v.activo && limpiar(v.mensaje_bienvenida)) ?? representativo
+            const mensaje = limpiar(representativo.grupo_mensaje) || limpiar(fallback.mensaje_bienvenida)
+            const fotoUrl =
+                limpiar(representativo.grupo_foto_url) ||
+                limpiar(fallback.foto_url) ||
+                limpiar(variantes.find((v) => limpiar(v.foto_url))?.foto_url ?? null)
+
+            const precios = variantes
+                .filter((v) => v.activo || !variantes.some((o) => o.activo))
+                .map((v) => aPrecio(v.precio))
+                .filter((n): n is number => n != null)
+
+            const etiquetas = variantes
+                .map((v) => limpiar(v.criterio_variante))
+                .filter((t): t is string => Boolean(t))
+
+            combos.push({
+                id: -grupoId,
+                packId: Number(representativo.id),
+                tipo: "grupo",
+                nombre,
+                precio: textoPrecio(precios),
+                tieneFoto: Boolean(fotoUrl),
+                activo,
+                tieneMensaje: Boolean(mensaje),
+                mensaje,
+                fotoUrl,
+                subtitulo:
+                    etiquetas.length > 0
+                        ? `Combo · ${etiquetas.join(" / ")} (la variante la define el bot)`
+                        : "Combo con variantes",
+            })
+        }
+
+        return [...combos, ...sueltos].sort((a, b) => {
+            if (a.activo !== b.activo) return a.activo ? -1 : 1
+            return a.nombre.localeCompare(b.nombre, "es")
         })
     } catch (error) {
         console.error("Error leyendo chat_packs para envío rápido:", error)

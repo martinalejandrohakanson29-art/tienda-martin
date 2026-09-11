@@ -15,7 +15,13 @@ import { ejecutarTurnoAgente } from "@/bot-agente/motor"
 import { escalarAHumano } from "@/bot-agente/herramientas/escalar-humano"
 import { MensajeChat, RespuestaAgente } from "@/bot-agente/tipos"
 import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
-import { cerrarEscaladoPendienteSiRespondioHumano } from "@/bot-agente/nucleo/estado-persistente"
+import {
+    cargarEstadoConversacion,
+    cerrarEscaladoPendienteSiRespondioHumano,
+    fotoEntrega,
+    revertirEntregaNoEnviada,
+    type EntregaRevertible
+} from "@/bot-agente/nucleo/estado-persistente"
 
 // Puente entre el webhook real de Chatwoot y el motor bot-agente para las
 // conversaciones marcadas como piloto (tabla `bot_agente_piloto`). Corre en el
@@ -575,6 +581,17 @@ async function procesarTurno(accountId: number, conversationId: number) {
         const previoDelTurno = recortarMensajesDelTurno(transcripcion, mensajesDelTurno)
         const historialPrevio: MensajeChat[] = armarHistorialPrevio(previoDelTurno)
 
+        // Foto de la memoria de "esto el cliente YA lo vio" ANTES del turno. Si
+        // el turno termina descartado (llega otro mensaje durante la demora,
+        // contesta un humano, falla el envio), se restaura: el motor ya la
+        // escribio al redactar, y sin esto la charla sigue creyendo que le
+        // dijimos algo que nunca salio (conv 3964: la negativa de la Crypton).
+        const entregaPrevia: EntregaRevertible = fotoEntrega(
+            await cargarEstadoConversacion(String(conversationId)).catch(() => ({}))
+        )
+        const revertirEntrega = () =>
+            revertirEntregaNoEnviada(String(conversationId), entregaPrevia).catch(() => {})
+
         const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
             conversationId,
             estadoKey: String(conversationId),
@@ -589,6 +606,8 @@ async function procesarTurno(accountId: number, conversationId: number) {
         }
 
         if (esEscaladoMudo(respuesta)) {
+            // Derivo en silencio: al cliente no le llego nada de este turno.
+            await revertirEntrega()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -607,6 +626,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
         }
 
         if (!respuesta.mensajeFinal) {
+            await revertirEntrega()
             // El motor decidió no decir nada (y no escaló): es una decisión, no
             // un error — se da por atendido para no reintentarlo en loop.
             // Queda registrado igual: en el panel un turno mudo tiene que poder
@@ -639,6 +659,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
         const ultimoPostEspera = transcripcionPostEspera[transcripcionPostEspera.length - 1]
         if (ultimoPostEspera?.saliente) {
             const reencolado = ultimoPostEspera.delBot && reencolarLote()
+            await revertirEntrega()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -661,6 +682,9 @@ async function procesarTurno(accountId: number, conversationId: number) {
         }
         if (buffers.has(conversationId)) {
             devolverMensajesSiHayRafagaNueva()
+            // El turno se recalcula entero con la ráfaga completa: lo que este
+            // iba a decir no salió, así que tampoco quedó "dicho" (conv 3964).
+            await revertirEntrega()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -681,6 +705,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
         // Durante la demora el equipo pudo tocar `/bot off` (nota privada, que no
         // aparece como mensaje saliente en el chequeo de arriba). Re-chequeo.
         if (await debeCallarsePorPausaHumana(accountId, conversationId)) {
+            await revertirEntrega()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -725,6 +750,7 @@ async function procesarTurno(accountId: number, conversationId: number) {
             pendienteResuelto = true
         } catch (err: any) {
             console.error("[bot-agente-tiempo-real] fallo el envio a Chatwoot:", err)
+            await revertirEntrega()
             await registrarTurno({
                 conversationId,
                 accountId,
@@ -994,6 +1020,13 @@ export async function atenderEntrantesPendientes(
                 }
 
                 const inicio = Date.now()
+                // Misma red que en el camino en vivo: si este turno no llega al
+                // cliente, la memoria de "ya lo vio" vuelve atrás (conv 3964).
+                const entregaPrevia = fotoEntrega(
+                    await cargarEstadoConversacion(String(conversationId)).catch(() => ({}))
+                )
+                const revertirEntrega = () =>
+                    revertirEntregaNoEnviada(String(conversationId), entregaPrevia).catch(() => {})
                 const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
                     conversationId,
                     estadoKey: String(conversationId),
@@ -1015,6 +1048,7 @@ export async function atenderEntrantesPendientes(
                 // Solo el escalado MUDO se calla: con escalado parcial el mensaje
                 // que el motor sí redactó sigue hasta el envío de más abajo.
                 if (esEscaladoMudo(respuesta)) {
+                    await revertirEntrega()
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -1033,6 +1067,7 @@ export async function atenderEntrantesPendientes(
                 }
 
                 if (!respuesta.mensajeFinal) {
+                    await revertirEntrega()
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -1077,6 +1112,7 @@ export async function atenderEntrantesPendientes(
                     await quitarFila()
                 } catch (err: any) {
                     console.error(`[entrantes-pendientes] fallo el envío a Chatwoot en conv ${conversationId}:`, err)
+                    await revertirEntrega()
                     await registrarTurno({
                         conversationId,
                         accountId,
@@ -1189,6 +1225,13 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             const mensajeUsuario = transcripcion.slice(cortIdx + 1).map((m) => m.contenido).join("\n")
             const inicio = Date.now()
 
+            // Misma red que en el camino en vivo (conv 3964).
+            const entregaPrevia = fotoEntrega(
+                await cargarEstadoConversacion(String(conversationId)).catch(() => ({}))
+            )
+            const revertirEntrega = () =>
+                revertirEntregaNoEnviada(String(conversationId), entregaPrevia).catch(() => {})
+
             const respuesta = await ejecutarTurnoAgente(mensajeUsuario, historialPrevio, {
                 conversationId,
                 estadoKey: String(conversationId),
@@ -1204,6 +1247,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             // Solo el escalado MUDO descarta el pendiente sin contestar: con
             // escalado parcial se sigue al envío de más abajo.
             if (esEscaladoMudo(respuesta)) {
+                await revertirEntrega()
                 await registrarTurno({
                     conversationId,
                     accountId,
@@ -1227,6 +1271,7 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             }
 
             if (!respuesta.mensajeFinal) {
+                await revertirEntrega()
                 // Silencio deliberado del motor (cierre social, insistencia por
                 // algo ya derivado). El pendiente se cierra: dejarlo abierto lo
                 // hace volver en cada barrido sin que nunca haya nada que decir.

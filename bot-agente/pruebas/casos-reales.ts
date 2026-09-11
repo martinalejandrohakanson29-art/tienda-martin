@@ -1174,5 +1174,37 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Dijo solo la marca: debe repreguntar cual Gilera tiene (corto, sin nombrar los modelos que tenemos cargados ni pedir papeles) en vez de escalar en silencio."
         }
+    },
+    {
+        // Conv 3964 (11/09). Entro por el anuncio del Combo Tapa CDI + Cilindro
+        // 120 y contesto "Se la quiero poner a una crypton 105". El motor
+        // resolvio bien la incompatibilidad y redacto la negativa... pero el
+        // cliente escribio "Ahi q agrandar algo?" durante la demora de cadencia
+        // humana y el turno se descarto sin enviarse. `negativaEntregada` ya
+        // estaba guardada, asi que el recalculo de la rafaga leyo "esa negativa
+        // ya se la diste" y escalo en silencio: el cliente no recibio NADA y
+        // espero una hora a que le contestara una persona.
+        //
+        // El fix vive en el que envia (`lib/bot-agente-tiempo-real.ts`): la
+        // memoria de entrega se revierte cuando el turno no llega al cliente.
+        // Este caso corre con el estado YA revertido — que es el unico estado
+        // correcto a esa altura — y verifica que la rafaga completa se conteste
+        // con la negativa en vez de morir muda.
+        id: "caso-69-negativa-que-nunca-salio",
+        titulo: "La negativa se recalcula con la ráfaga completa (nunca se envió)",
+        mensajeCliente: "Se la quiero poner a una crypton 105\nAhí q agrandar algo?",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            { rol: "assistant", contenido: "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?" }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeGuardarSilencio: false,
+            patronRespuesta: /no le va|no es compatible|alesar|c[áa]rter/i,
+            descripcionEsperada:
+                "La negativa de la Crypton nunca salió: el turno se recalcula con la ráfaga entera y tiene que darla (el 'hay que agrandar algo?' lo contesta el propio motivo de la fila), no quedarse mudo."
+        }
     }
 ]

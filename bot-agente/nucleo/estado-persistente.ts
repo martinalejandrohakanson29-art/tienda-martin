@@ -197,6 +197,88 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
 }
 
 /**
+ * MEMORIA DE ENTREGA: los campos del estado que no son un dato aprendido sino
+ * una afirmacion sobre el cliente — "esto YA lo vio".
+ *
+ * El motor los escribe cuando termina de redactar el turno, pero el turno
+ * todavia puede no salir: llega otro mensaje del cliente durante la demora de
+ * cadencia humana, contesta un humano, se cae el envio a Chatwoot. Ahi la
+ * memoria queda mintiendo, y la mentira es cara: el turno siguiente lee "ya se
+ * lo dijiste" y el bot se calla para siempre sobre algo que el cliente nunca
+ * leyo.
+ *
+ * Conv 3964 (11/09, Crypton 105): el motor resolvio bien la incompatibilidad y
+ * redacto la negativa, pero el cliente escribio "Ahi q agrandar algo?" durante
+ * la demora y el turno se descarto. `negativaEntregada` ya estaba guardada, asi
+ * que el recalculo leyo "la negativa ya se la diste" y escalo en silencio: el
+ * cliente no recibio NADA y espero una hora a que contestara una persona.
+ *
+ * Por eso quien envia (`lib/bot-agente-tiempo-real.ts`) saca una foto de estos
+ * campos ANTES del turno y la restaura si el turno no llego al cliente. Los
+ * datos aprendidos (moto, grupo pineado, variante) y el escalado persistido NO
+ * se tocan: esos siguen siendo verdad aunque el mensaje no haya salido.
+ */
+export interface EntregaRevertible {
+    packPresentado: EstadoConversacion["packPresentado"]
+    negativaEntregada: EstadoConversacion["negativaEntregada"]
+    temasRespondidos: string[]
+    repreguntasMoto: number
+}
+
+/** Foto de la memoria de entrega tal como estaba antes de arrancar el turno. */
+export function fotoEntrega(estado: EstadoConversacion): EntregaRevertible {
+    return {
+        packPresentado: estado.packPresentado ?? null,
+        negativaEntregada: estado.negativaEntregada ?? null,
+        temasRespondidos: [...(estado.temasRespondidos || [])],
+        repreguntasMoto: estado.repreguntasMoto ?? 0
+    }
+}
+
+/**
+ * Devuelve la memoria de entrega al estado de `previo`. Se llama cuando el
+ * turno se descarto sin llegar al cliente.
+ *
+ * Escribe los valores EXACTOS (no es un merge): `temasRespondidos` se pisa en
+ * vez de acumularse, que es justo lo que `guardarEstadoConversacion` no puede
+ * hacer. No toca ninguna otra columna.
+ */
+export async function revertirEntregaNoEnviada(
+    clave: string | undefined,
+    previo: EntregaRevertible | null | undefined
+): Promise<void> {
+    if (!clave || !previo) return
+    try {
+        await prisma.$executeRawUnsafe(
+            `UPDATE chat_conversacion_estado SET
+                pack_presentado_id = $2,
+                pack_presentado_nombre = $3,
+                pack_presentado_precio = $4,
+                temas_respondidos = $5,
+                negativa_moto = $6,
+                negativa_kit = $7,
+                negativa_detalle = $8,
+                negativa_en = $9,
+                repreguntas_moto = $10,
+                actualizado_en = NOW()
+             WHERE clave = $1`,
+            clave,
+            previo.packPresentado?.id ?? null,
+            previo.packPresentado?.nombre ?? null,
+            previo.packPresentado?.precio ?? null,
+            previo.temasRespondidos || [],
+            previo.negativaEntregada?.moto ?? null,
+            previo.negativaEntregada?.kit ?? null,
+            previo.negativaEntregada?.detalle ?? null,
+            previo.negativaEntregada?.en ? new Date(previo.negativaEntregada.en) : null,
+            previo.repreguntasMoto ?? 0
+        )
+    } catch (err) {
+        console.warn("[estado] no se pudo revertir la memoria de entrega:", (err as any)?.message)
+    }
+}
+
+/**
  * Aplica un patch (merge) al estado. Solo pisa los campos presentes en `patch`.
  * No-op si no hay `clave` o si la tabla no existe.
  */

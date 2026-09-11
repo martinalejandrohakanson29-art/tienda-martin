@@ -687,7 +687,13 @@ export async function ejecutarTurnoAgente(
             // kit como presentado y no repite la ficha.
             const resto = restoFueraDePlantilla(
                 mensajeUsuario,
-                matchTexto ? matchTexto.plantillaNormalizada : ""
+                matchTexto ? matchTexto.plantillaNormalizada : "",
+                // Cuando el kit salió del referral no hay plantilla que descontar
+                // del texto: el aviso (y el nombre del kit) es lo único con que
+                // reconocer que el cliente solo está nombrando ESE combo.
+                [matchPlantilla.nombre, opciones.referralAnuncio?.titulo, opciones.referralAnuncio?.cuerpo]
+                    .filter(Boolean)
+                    .join(" ")
             )
 
             // La moto ya la sabemos: la plantilla no puede volver a pedirla.

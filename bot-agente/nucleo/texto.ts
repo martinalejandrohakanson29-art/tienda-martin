@@ -261,19 +261,42 @@ const RELLENO_PEDIDO_INFO = new Set([
     "producto", "combo", "kit", "publicacion", "aviso", "anuncio"
 ])
 
-function esPedidoGenericoDeInfo(normalizado: string): boolean {
+/**
+ * Números del anuncio por el que entró el cliente ("combo 110", "kit 120").
+ * Cuando el cliente los repite en su pedido de info no está agregando nada:
+ * está nombrando el mismo aviso que clickeó.
+ */
+function numerosDe(texto: string | null | undefined): Set<string> {
+    return new Set((normalizarTexto(texto).match(/\d{2,4}/g) || []))
+}
+
+function esPedidoGenericoDeInfo(normalizado: string, numerosDelAnuncio: Set<string>): boolean {
     const palabras = normalizado.split(" ").filter(Boolean)
     if (palabras.length === 0 || palabras.length > 8) return false
-    return palabras.every((p) => RELLENO_PEDIDO_INFO.has(p))
+    return palabras.every(
+        (p) => RELLENO_PEDIDO_INFO.has(p) || (/^\d{2,4}$/.test(p) && numerosDelAnuncio.has(p))
+    )
 }
 
 export function restoFueraDePlantilla(
     mensajeUsuario: string | null | undefined,
-    plantillaNormalizada: string | null | undefined
+    plantillaNormalizada: string | null | undefined,
+    // Texto del anuncio + nombre del kit que se acaba de presentar. Sirve para
+    // saber si el número que dice el cliente es el mismo del aviso.
+    contextoAnuncio?: string | null
 ): string {
     const plantillaNorm = (plantillaNormalizada || "").trim()
     // Sin plantilla en el texto (el kit se resolvió por el referral del
     // anuncio): no hay nada que descontar, pero igual se filtran saludos sueltos.
+
+    // "Quiero conocer mas sobre el combo 110" con el referral del anuncio de la
+    // 110: el "110" hacía que la línea no contara como pedido genérico, así que
+    // el sub-turno la trataba como consulta real y mandaba la ficha del kit que
+    // encontrara en el catálogo — un SEGUNDO combo, distinto del que el cliente
+    // acababa de recibir (conv 3974, 11/09). El número solo se descuenta si es
+    // el del propio anuncio: pedir "info del combo 170" habiendo entrado por el
+    // del 120 sigue siendo una consulta que hay que contestar.
+    const numerosDelAnuncio = numerosDe(contextoAnuncio)
 
     const restantes = (mensajeUsuario || "")
         .split(/\n+/)
@@ -281,7 +304,7 @@ export function restoFueraDePlantilla(
             const norm = normalizarTexto(linea)
             if (norm.length < 3) return false // "?", "ok", vacío
             if (SALUDOS_SUELTOS.has(norm)) return false
-            if (esPedidoGenericoDeInfo(norm)) return false
+            if (esPedidoGenericoDeInfo(norm, numerosDelAnuncio)) return false
             // La línea es (o está contenida en) la plantilla del anuncio.
             if (!plantillaNorm) return true
             return !(plantillaNorm.includes(norm) || norm.includes(plantillaNorm))

@@ -399,8 +399,8 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
-        id: "caso-30-cilindrada-inexistente-repregunta",
-        titulo: "Cliente da una cilindrada que no existe para esa familia (Blitz 150) — repregunta, no confirma",
+        id: "caso-30-cilindrada-inexistente-escala",
+        titulo: "Cliente da una cilindrada que no existe para esa familia (Blitz 150) — escala, no confirma ni repregunta",
         mensajeCliente: "para una blitz 150",
         historial: [
             { rol: "user", contenido: "¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
@@ -411,16 +411,18 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             }
         ],
         resultadoEsperado: {
-            debeEscalarHumano: false,
-            debeGuardarSilencio: false,
-            // No existe la Motomel Blitz 150 (es 110 china o 125 otro motor). El
-            // bot NO debe confirmar "le va" ni pasar a preguntar el recorrido: la
-            // resolución de la moto es ambigua -> debe repreguntar cuál Blitz.
-            // Prohibido cualquier "le va" / "compatible" / "perfecto" en la
-            // respuesta; debe haber un "?" (repregunta).
-            patronRespuesta: /^(?![\s\S]*(le va|compatible|perfecto|recorrido corto o))[\s\S]*\?/i,
+            // Criterio cambiado el 11/09 (antes se esperaba la repregunta "cuál
+            // Blitz tenés"). De la familia Blitz tenemos cargada SOLO la 110, así
+            // que no hay menú que ofrecerle: la única repregunta posible es
+            // recitarle el modelo que sí tenemos, que está prohibido. Es la misma
+            // situación que la conv 3958 ("rx 125", y solo tenemos la RX 150),
+            // donde el bot terminó pidiendo la cédula para repreguntar un dato que
+            // el cliente ya había dado. Si el cliente fue más específico que el
+            // catálogo, va nota al equipo.
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
             descripcionEsperada:
-                "La resolución de 'blitz 150' es ambigua (no consta una Blitz 150). El bot debe repreguntar cuál modelo de Blitz tiene (110 o 125), sin confirmar compatibilidad ni escalar."
+                "No consta ninguna Blitz 150 y el cliente ya dio modelo y cilindrada: no hay nada que repreguntar. Escala a moto_no_registrada y guarda silencio, sin confirmar compatibilidad."
         }
     },
     {
@@ -1097,6 +1099,34 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeGuardarSilencio: true,
             descripcionEsperada:
                 "La fila dice que no le entra SIN alesar; el cliente dice que ya esta alesado. No se le repite la negativa ni se le confirma: escala."
+        }
+    },
+    {
+        // Conv 3958 (11/09). Llego por el anuncio del Kit 170 y pregunto "Para
+        // una rx 125 se podra??". La unica RX cargada es la Zanella RX 150, asi
+        // que la moto quedaba "parcial" y la guia de repreguntar mandaba a pedir
+        // "el dato que falta" — pero no faltaba ninguno: el cliente ya habia
+        // dicho modelo y cilindrada. El bot improviso "pasame el modelo exacto
+        // como figura en la cedula o el manual": le pidio papeles para volver a
+        // preguntarle lo que acababa de decir.
+        //
+        // Si el cliente fue MAS especifico que el catalogo, no hay pregunta que
+        // lo destrabe: es una moto que no tenemos y la mira el equipo.
+        id: "caso-67-cilindrada-que-no-consta-no-se-repregunta",
+        titulo: "Dice modelo y cilindrada y esa cilindrada no esta cargada",
+        mensajeCliente: "Para una rx 125 se podra??",
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero mas informacion del kit170cc" },
+            { rol: "assistant", contenido: "Hola amigo!\nCuesta $99.990 envio gratis.\nel kit incluye:\ncilindro con piston, aros y perno, y tambien la junta de tapa y de base\nleva de calle de 7.80\n\nno precisa modificaciones.\nHacemos envios a todo el pais\n\nA que moto se lo queres poner?" }
+        ],
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "No tenemos la RX 125 (solo la RX 150). No se le repregunta la moto ni se le piden papeles (cedula, manual): escala a moto_no_registrada y guarda silencio."
         }
     }
 ]

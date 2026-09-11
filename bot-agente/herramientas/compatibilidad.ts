@@ -122,10 +122,12 @@ export interface ResultadoCompatibilidad {
     /**
      * Nivel de confianza de la resolucion de la moto:
      *  - undefined / "firme": match confiable, `compatible` es una respuesta real.
-     *  - "parcial": el cliente dio un dato (una cilindrada) que no cierra con
-     *    ningun modelo conocido, o nombro una familia con varios modelos. NO se
-     *    confirma nada; el motor NO escala solo por esto — la IA repregunta con
-     *    los `candidatos`.
+     *  - "parcial": el cliente nombro una familia con varios modelos y no dijo
+     *    cual. FALTA UN DATO y repreguntarlo lo consigue: NO se confirma nada y
+     *    el motor NO escala solo por esto — la IA repregunta con los
+     *    `candidatos`. Si el cliente ya dio la cilindrada y esa cilindrada no
+     *    consta, NO es "parcial": no falta ningun dato que preguntar y se
+     *    devuelve `encontrado: false` para que el motor escale (conv 3958).
      */
     confianza?: "firme" | "parcial"
     /**
@@ -637,6 +639,47 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 }
             }
 
+            // ─── Si el cliente fue MÁS específico que el catálogo, va a humano ──
+            //
+            // "Parcial" tiene UNA sola justificación: falta un dato y preguntarlo
+            // lo consigue ("blitz" pelada -> cuál Blitz). Cuando el cliente ya dio
+            // la cilindrada y esa cilindrada no consta en ningún modelo de la
+            // familia, no falta nada: fue más específico que el catálogo. La moto
+            // no la tenemos y no hay pregunta que lo destrabe — la única posible
+            // es "no será la 150?", que es justo lo que la guía prohíbe (no
+            // recitarle los modelos que tenemos cargados). Queda un callejón:
+            // orden de preguntar y nada legítimo que preguntar.
+            //
+            // Real (conv 3958, 11/09): "Para una rx 125 se podra??" (solo tenemos
+            // la RX 150) y el bot improvisó "pasame el modelo exacto como figura
+            // en la cedula o el manual" — le pidió papeles, atribución que no
+            // tiene, para repreguntarle la cilindrada que acababa de decir. El
+            // cliente repitió "Rx 125 cc" y el turno siguiente iba a ser la misma
+            // pregunta.
+            //
+            // Decisión de Martín (11/09), que REEMPLAZA el criterio del 07/09 que
+            // pedía repreguntar acá (era el caso-30, "blitz 150"): en la duda va
+            // nota al equipo, no una repregunta de la moto que el cliente ya dijo
+            // entera. Los dos casos son la misma situación — de la Blitz tenemos
+            // cargada solo la 110, igual que de la RX solo la 150 — así que no
+            // hay criterio que los separe: se resuelven los dos escalando.
+            //
+            // Ojo con el orden: esto queda DEBAJO del atajo de unanimidad, así que
+            // el "toda la familia dice que NO" se sigue contestando solo (no se
+            // escala una negativa estructural que ya sabemos).
+            if (resol.cilindradaCliente !== undefined) {
+                return {
+                    encontrado: false,
+                    kit: args.kit_nombre_o_id,
+                    candidatos: resol.candidatos.map((c) => c.nombre_completo),
+                    mensaje_para_agente: [
+                        `NO TENEMOS CARGADA la ${args.modelo_moto}. El cliente dio la cilindrada (${resol.cilindradaCliente}cc) y no consta en ningún modelo de esa familia${resol.candidatos.length ? ` (tengo ${listarCandidatos(resol.candidatos)})` : ""}.`,
+                        `NO le repreguntes la moto: ya te la dijo entera. Tampoco le pidas la cédula, el manual ni ningún papel.`,
+                        `Ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio cara al cliente. Si en el mismo mensaje preguntó otra cosa (precio, envío, demora), esa sí contestala.`,
+                    ].join("\n"),
+                }
+            }
+
             const lineas = [
                 `NO CONFIRMES COMPATIBILIDAD TODAVÍA. La moto que dijo el cliente ("${args.modelo_moto}") no resuelve a un modelo único y firme.`,
                 resol.detalle ? `Motivo: ${resol.detalle}` : "",
@@ -644,7 +687,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 estadoFilas.length ? `Estado de compatibilidad conocido para este kit:\n${estadoFilas.join("\n")}` : "",
                 `QUÉ HACER:`,
                 `- Si en el historial el cliente ya aclaró exactamente cuál de esos modelos tiene, volvé a llamar consultar_compatibilidad con ese modelo exacto (ej: "Motomel Blitz 110").`,
-                `- Si no lo aclaró, preguntale con naturalidad SOLO por el dato que falta (ej: "Tenés la 110 o la 125?"). Nunca le nombres un modelo distinto al que él dijo.`,
+                `- Si no lo aclaró, preguntale con naturalidad SOLO por el dato que falta (ej: "Tenés la 110 o la 125?"). Nunca le nombres un modelo distinto al que él dijo, nunca le pidas un dato que ya te dio, y NUNCA le pidas papeles (cédula, manual, número de motor o chasis): no somos un registro, esa pregunta no la hace un vendedor de mostrador.`,
                 `- Si el cliente insiste con un modelo/cilindrada que no está en la lista de arriba, ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio.`,
                 `- NUNCA afirmes que le va (ni que no le va) sin uno de esos modelos confirmado.`,
             ].filter(Boolean)

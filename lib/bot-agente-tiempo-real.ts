@@ -609,6 +609,22 @@ async function procesarTurno(accountId: number, conversationId: number) {
         if (!respuesta.mensajeFinal) {
             // El motor decidió no decir nada (y no escaló): es una decisión, no
             // un error — se da por atendido para no reintentarlo en loop.
+            // Queda registrado igual: en el panel un turno mudo tiene que poder
+            // explicarse (cierre social, insistencia sobre algo ya derivado...).
+            await registrarTurno({
+                conversationId,
+                accountId,
+                mensajeCliente: mensajeUsuario,
+                respuestaBot: null,
+                escaladoHumano: false,
+                herramientas: respuesta.herramientasEjecutadas,
+                latenciaMs: Date.now() - inicio,
+                tokens: respuesta.tokensUsados,
+                resultadoEnvio: "salteado",
+                detalleEnvio: respuesta.herramientasEjecutadas.some((h) => h.nombre === "cierre_social")
+                    ? "Silencio: la charla ya estaba cerrada y el cliente solo saludó"
+                    : "El motor decidió no responder este turno",
+            }).catch(() => {})
             pendienteResuelto = true
             return
         }
@@ -1211,6 +1227,14 @@ export async function reprocesarColaPendienteConBotAgente(quien = "admin"): Prom
             }
 
             if (!respuesta.mensajeFinal) {
+                // Silencio deliberado del motor (cierre social, insistencia por
+                // algo ya derivado). El pendiente se cierra: dejarlo abierto lo
+                // hace volver en cada barrido sin que nunca haya nada que decir.
+                await prisma.$executeRaw`
+                    UPDATE respuestas_pendientes
+                    SET estado = 'descartado', motivo = 'El bot-agente decidió no responder (silencio deliberado)'
+                    WHERE conversation_id = ${conversationId} AND estado = 'pendiente'
+                `
                 resumen.push({ conversationId, contacto, resultado: "salteado", detalle: "sin mensaje final ni escalado" })
                 continue
             }

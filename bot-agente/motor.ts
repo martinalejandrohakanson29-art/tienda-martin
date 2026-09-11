@@ -21,6 +21,7 @@ import {
     esInsistenciaSinContenido,
     EstadoConversacion
 } from "./nucleo/estado-persistente"
+import { debeCallarPorCierreSocial, esDespedidaDelBot, pareceNoTeEntendi } from "./nucleo/cierre-social"
 
 export interface OpcionesEjecucion {
     apiKey?: string
@@ -561,6 +562,32 @@ export async function ejecutarTurnoAgente(
                     resultado: {
                         mensaje_para_agente:
                             "El cliente insiste por una consulta que ya está en la bandeja del equipo. Silencio: la contesta un humano."
+                    }
+                }
+            ],
+            escaladoHumano: false,
+            latenciaMs: Date.now() - inicio,
+            tokensUsados: sinCostoLLM(modelo)
+        }
+    }
+
+    // 0.b El local ya se despidió y lo que llega es puro trámite social
+    //     ("dale mil gracias buen finde", "de una", "💪🏼💪🏼"). En el mostrador
+    //     eso no se contesta: se devuelve UNA cortesía y se deja ir al cliente.
+    //     El bot venía quedándose siempre con la última palabra y encadenaba
+    //     despedidas de a tres (convs 3988, 3960, 3985 — 11/09). Silencio a $0.
+    const ultimoMensajeDelBot = [...historialPrevio].reverse().find((m) => m.rol === "assistant" && m.contenido)?.contenido
+    if (debeCallarPorCierreSocial(mensajeUsuario, ultimoMensajeDelBot, historialPrevio.length > 0)) {
+        return {
+            mensajeFinal: null,
+            mensajesFinales: [],
+            herramientasEjecutadas: [
+                {
+                    nombre: "cierre_social",
+                    argumentos: { mensaje: mensajeUsuario },
+                    resultado: {
+                        mensaje_para_agente:
+                            "La charla ya se cerró y el cliente solo saluda o agradece. Silencio: no hace falta tener la última palabra."
                     }
                 }
             ],
@@ -1264,6 +1291,23 @@ export async function ejecutarTurnoAgente(
                     escaladoHumano: true,
                     motivoEscalado,
                     escaladoPersistido,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: tokensTotales
+                }
+            }
+
+            // BACKSTOP del cierre social: el local ya se había despedido y el
+            // modelo salió con un "perdón, no te entendí, me lo repetís?" por
+            // un mensaje suelto del cliente ("Metta", conv 3985). Si no hay
+            // nada abierto, repreguntar solo alarga la charla: silencio.
+            if (mensajeFinalUnificado && pareceNoTeEntendi(mensajeFinalUnificado) && esDespedidaDelBot(ultimoMensajeDelBot)) {
+                console.warn("[motor] cierre social: se descarta un 'no te entendí' sobre una charla ya despedida")
+                await persistirEstado()
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas,
+                    escaladoHumano: false,
                     latenciaMs: Date.now() - inicio,
                     tokensUsados: tokensTotales
                 }

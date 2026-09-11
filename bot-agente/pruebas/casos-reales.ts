@@ -120,6 +120,21 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        id: "caso-7b-cierre-repetido",
+        titulo: "Segundo agradecimiento, con el bot ya despedido",
+        mensajeCliente: "Dale mil gracias buen finde",
+        historial: [
+            { rol: "user", contenido: "Dale estamos en contacto" },
+            { rol: "assistant", contenido: "Dale hermano, cualquier cosa que necesites me escribis. Abrazo!" }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "El bot ya se despidió: el saludo de vuelta no se contesta (convs 3988/3960, el bot encadenaba despedidas)."
+        }
+    },
+    {
         id: "caso-8-precio-combo-variantes",
         titulo: "Precio del Kit 120 con variantes",
         mensajeCliente: "Cuánto sale el combo 120?",

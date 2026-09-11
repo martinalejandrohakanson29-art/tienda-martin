@@ -113,68 +113,151 @@ async function subirFotoItemS3(buffer: Buffer, fileName: string): Promise<string
   }
 }
 
+interface ImagenExtraida {
+  row: number
+  buffer: Buffer
+  name: string
+}
+
 /**
- * Extrae las imágenes incrustadas de un archivo Excel .xlsx mapeadas por índice de fila
+ * Resuelve la ruta del drawing XML correspondiente a una hoja específica del workbook
+ * (workbook.xml -> rId de la hoja -> worksheets/sheetN.xml -> rels de esa hoja -> drawingN.xml).
+ * Si no puede resolverlo, cae a drawing1.xml.
  */
-async function extraerImagenesExcel(buffer: Buffer): Promise<Map<number, { buffer: Buffer; name: string }>> {
-  const rowImageMap = new Map<number, { buffer: Buffer; name: string }>()
+async function resolverDrawingDeHoja(zip: JSZip, sheetName?: string): Promise<string> {
+  try {
+    const workbookXml = await zip.file("xl/workbook.xml")?.async("string")
+    const workbookRelsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string")
+    if (workbookXml && workbookRelsXml) {
+      const sheetMatches = Array.from(workbookXml.matchAll(/<sheet[^>]+name="([^"]+)"[^>]+r:id="([^"]+)"/g))
+      const relMap = new Map<string, string>()
+      for (const m of workbookRelsXml.matchAll(/Id="([^"]+)"[^>]+Target="([^"]+)"/g)) {
+        relMap.set(m[1], m[2])
+      }
+      const sheetEntry = sheetName ? sheetMatches.find((m) => m[1] === sheetName) : sheetMatches[0]
+      const target = sheetEntry ? relMap.get(sheetEntry[2]) : undefined
+      if (target) {
+        const sheetFileName = target.split("/").pop()
+        const sheetRelsXml = await zip.file(`xl/worksheets/_rels/${sheetFileName}.rels`)?.async("string")
+        const drawingMatch = sheetRelsXml?.match(/Target="(?:\.\.\/)?drawings\/(drawing\d+\.xml)"/)
+        if (drawingMatch) return `xl/drawings/${drawingMatch[1]}`
+      }
+    }
+  } catch (err) {
+    console.warn("No se pudo resolver el drawing de la hoja, se usa drawing1.xml por defecto:", err)
+  }
+  return "xl/drawings/drawing1.xml"
+}
+
+/**
+ * Extrae las imágenes incrustadas de un archivo Excel .xlsx de la hoja indicada,
+ * ordenadas de arriba hacia abajo según su fila de anclaje.
+ */
+async function extraerImagenesExcel(buffer: Buffer, sheetName?: string): Promise<ImagenExtraida[]> {
+  const imagenes: ImagenExtraida[] = []
   try {
     const zip = await JSZip.loadAsync(buffer)
+    const drawingPath = await resolverDrawingDeHoja(zip, sheetName)
+    const drawingFileName = drawingPath.split("/").pop()
 
-    // 1. Leer rels de drawing
-    const relsXml = await zip.file("xl/drawings/_rels/drawing1.xml.rels")?.async("string")
+    // 1. Leer rels del drawing
+    const relsXml = await zip.file(`xl/drawings/_rels/${drawingFileName}.rels`)?.async("string")
     const relsMap = new Map<string, string>()
     if (relsXml) {
-      const relMatches = relsXml.matchAll(/Id="([^"]+)"[^>]+Target="(?:\.\.\/media\/)?([^"]+)"/g)
-      for (const m of relMatches) {
-        const id = m[1]
-        const target = m[2].split("/").pop() || m[2]
-        relsMap.set(id, target)
+      for (const m of relsXml.matchAll(/Id="([^"]+)"[^>]+Target="(?:\.\.\/media\/)?([^"]+)"/g)) {
+        relsMap.set(m[1], m[2].split("/").pop() || m[2])
       }
     }
 
-    // 2. Leer drawing1.xml para mapear row -> rId
-    const drawingXml = await zip.file("xl/drawings/drawing1.xml")?.async("string")
+    // 2. Leer drawing.xml para mapear cada imagen a su fila de anclaje
+    const drawingXml = await zip.file(drawingPath)?.async("string")
     if (drawingXml && relsMap.size > 0) {
       const anchorRegex = /<xdr:(?:twoCellAnchor|oneCellAnchor)[^>]*>[\s\S]*?<\/xdr:(?:twoCellAnchor|oneCellAnchor)>/g
       const anchors = drawingXml.match(anchorRegex) || []
+      const filasUsadas = new Set<number>()
 
       for (const anchor of anchors) {
         const rowMatch = anchor.match(/<xdr:row>(\d+)<\/xdr:row>/)
         const blipMatch = anchor.match(/<a:blip[^>]+r:embed="([^"]+)"/)
+        if (!rowMatch || !blipMatch) continue
 
-        if (rowMatch && blipMatch) {
-          const row = parseInt(rowMatch[1], 10)
-          const rId = blipMatch[1]
-          const imageName = relsMap.get(rId)
-          if (imageName && !rowImageMap.has(row)) {
-            const imgFile = zip.file(`xl/media/${imageName}`)
-            if (imgFile) {
-              const imgBuffer = await imgFile.async("nodebuffer")
-              rowImageMap.set(row, { buffer: imgBuffer, name: imageName })
-            }
-          }
+        const row = parseInt(rowMatch[1], 10)
+        const imageName = relsMap.get(blipMatch[1])
+        if (!imageName || filasUsadas.has(row)) continue
+
+        const imgFile = zip.file(`xl/media/${imageName}`)
+        if (imgFile) {
+          imagenes.push({ row, buffer: await imgFile.async("nodebuffer"), name: imageName })
+          filasUsadas.add(row)
         }
       }
     }
   } catch (err) {
     console.warn("No se pudieron extraer imágenes embebidas del Excel:", err)
   }
-  return rowImageMap
+
+  imagenes.sort((a, b) => a.row - b.row)
+  return imagenes
+}
+
+/**
+ * Asigna las imágenes extraídas a los ítems detectados.
+ * Si la cantidad de fotos coincide con la cantidad de ítems, se asignan por orden
+ * (de arriba hacia abajo) en vez de exigir que la fila de anclaje coincida exactamente,
+ * ya que fotos pegadas/movidas a mano en Excel suelen desalinearse de a poco y ese
+ * desfasaje se acumula sobre todo en las últimas filas. Si no coinciden, se hace
+ * matching por fila exacta y, si falla, por la fila no usada más cercana.
+ */
+function asignarFotosAItems(items: DetectedItem[], itemRows: number[], imagenes: ImagenExtraida[]) {
+  if (imagenes.length === 0) return
+
+  if (imagenes.length === items.length) {
+    items.forEach((item, idx) => {
+      const img = imagenes[idx]
+      item.fotoBuffer = img.buffer
+      item.fotoName = `${item.supplierItemNo}_${img.name}`
+    })
+    return
+  }
+
+  const usadas = new Set<number>()
+  items.forEach((item, idx) => {
+    const filaItem = itemRows[idx]
+    let elegidaIdx = imagenes.findIndex((img, i) => img.row === filaItem && !usadas.has(i))
+
+    if (elegidaIdx === -1) {
+      let mejorDist = Infinity
+      imagenes.forEach((img, i) => {
+        if (usadas.has(i)) return
+        const dist = Math.abs(img.row - filaItem)
+        if (dist <= 3 && dist < mejorDist) {
+          mejorDist = dist
+          elegidaIdx = i
+        }
+      })
+    }
+
+    if (elegidaIdx !== -1) {
+      usadas.add(elegidaIdx)
+      const elegida = imagenes[elegidaIdx]
+      item.fotoBuffer = elegida.buffer
+      item.fotoName = `${item.supplierItemNo}_${elegida.name}`
+    }
+  })
 }
 
 /**
  * Parsea un archivo Excel buscando columnas de Supplier Item No, Cantidad, Detalle, etc.
  */
 async function parsearExcel(buffer: Buffer): Promise<{ items: DetectedItem[]; metadata: PreformaMetadata }> {
-  const imageMap = await extraerImagenesExcel(buffer)
-
   const workbook = XLSX.read(buffer, { type: "buffer" })
   // Buscar primero la hoja ORDER o la primera hoja activa
   const sheetName =
     workbook.SheetNames.find((n) => /order|pedido|preforma|proforma|invoice/i.test(n)) ||
     workbook.SheetNames[0]
   if (!sheetName) return { items: [], metadata: {} }
+
+  const imagenesHoja = await extraerImagenesExcel(buffer, sheetName)
 
   const sheet = workbook.Sheets[sheetName]
   const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" })
@@ -314,6 +397,7 @@ async function parsearExcel(buffer: Buffer): Promise<{ items: DetectedItem[]; me
   if (headerRowIndex === -1) headerRowIndex = 4
 
   const items: DetectedItem[] = []
+  const itemRows: number[] = []
   const startRow = headerRowIndex + 1
 
   for (let r = startRow; r < rows.length; r++) {
@@ -371,9 +455,6 @@ async function parsearExcel(buffer: Buffer): Promise<{ items: DetectedItem[]; me
       totalPriceUsd = priceUsd * qty
     }
 
-    // Extraer foto mapeada a esta fila
-    const imgInfo = imageMap.get(r)
-
     items.push({
       supplierItemNo: rawCode,
       descripcionOriginal: desc || undefined,
@@ -382,10 +463,11 @@ async function parsearExcel(buffer: Buffer): Promise<{ items: DetectedItem[]; me
       cantidad: qty,
       precioUnitarioUsd: priceUsd,
       precioTotalUsd: totalPriceUsd,
-      fotoBuffer: imgInfo?.buffer,
-      fotoName: imgInfo?.name ? `${rawCode}_${imgInfo.name}` : undefined,
     })
+    itemRows.push(r)
   }
+
+  asignarFotosAItems(items, itemRows, imagenesHoja)
 
   return {
     items,

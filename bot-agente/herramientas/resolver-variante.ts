@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { resolverMoto } from "../nucleo/motos"
+import { resolverMoto, TOPE_REPREGUNTAS_MOTO } from "../nucleo/motos"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
@@ -63,6 +63,11 @@ export interface ResultadoResolverVariante {
      * redactar, el motor manda ESTA en lugar de quedarse mudo.
      */
     pregunta_directa?: string
+    /**
+     * En este paso se le repreguntó la moto al cliente. El motor lo cuenta en el
+     * estado para no pasar de `TOPE_REPREGUNTAS_MOTO` (conv 3947).
+     */
+    repregunta_moto?: boolean
     mensaje_para_agente: string
 }
 
@@ -480,7 +485,10 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
 
         if (motoTexto) {
             const [compat, reconocida] = await Promise.all([
-                consultarCompatibilidad({ modelo_moto: motoTexto, kit_nombre_o_id: grupo.nombre }),
+                // El embudo viaja: la cuenta de repreguntas de moto vive ahi, y sin
+                // ella `consultar_compatibilidad` pediria repreguntar la marca
+                // para siempre.
+                consultarCompatibilidad({ modelo_moto: motoTexto, kit_nombre_o_id: grupo.nombre, __embudo: args.__embudo }),
                 motoReconocida(motoTexto)
             ])
 
@@ -503,6 +511,29 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                         `Si no, preguntale con naturalidad SOLO por el dato que falta (ej: "es la 110 o la 125?"). Nunca le nombres un modelo distinto al que él dijo.`,
                         `Si insiste con uno que no está en esa lista, ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio.`,
                     ].filter(Boolean).join("\n"),
+                }
+            }
+
+            // El cliente dijo SOLO la marca ("para una Gilera"): falta el modelo
+            // y preguntarlo lo consigue. Es el mismo criterio que "parcial" de
+            // acá arriba — no confirmamos nada, pero tampoco escalamos mudos.
+            //
+            // Real (conv 3947, 11/09): el bot preguntó "para qué moto estás
+            // buscando?", el cliente contestó "Para una Gilera" y el turno cayó
+            // en el catch-all de abajo (`!confirmadaCompatible`) -> escalado en
+            // silencio. Horas después un compañero tuvo que escribir "cual
+            // gilera bro?", que es justo la repregunta que el bot podía hacer.
+            //
+            // El tope lo lleva el motor: después de `TOPE_REPREGUNTAS_MOTO`
+            // intentos, `consultar_compatibilidad` ya no pide repreguntar y esto
+            // no se activa — cae al catch-all y deriva, como corresponde.
+            if (motoDelMensaje && compat.confianza === "marca_sin_modelo" && compat.repregunta_moto) {
+                return {
+                    encontrado: true,
+                    resuelta: false,
+                    grupo_id: grupo.id,
+                    repregunta_moto: true,
+                    mensaje_para_agente: compat.mensaje_para_agente,
                 }
             }
 

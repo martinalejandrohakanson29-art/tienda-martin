@@ -57,6 +57,12 @@ export interface EstadoEmbudo {
      * compatibilidad no corre y la variante se resuelve a ciegas.
      */
     motoConfirmada?: string | null
+    /**
+     * Cuántas veces ya se le repreguntó la moto al cliente en esta charla.
+     * Lo lleva el motor (estado persistente): las tools lo usan para no
+     * insistir más allá de `TOPE_REPREGUNTAS_MOTO` y derivar al equipo.
+     */
+    repreguntasMoto?: number
 }
 
 /**

@@ -2,7 +2,17 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
-import { resolverMoto, listarCandidatos, esTypoDe, cilindradasEn } from "../nucleo/motos"
+import {
+    resolverMoto,
+    listarCandidatos,
+    esTypoDe,
+    cilindradasEn,
+    marcaSinModelo,
+    guiaMarcaSinModelo,
+    guiaMarcaSinModeloAgotada,
+    MARCAS_MOTO,
+    TOPE_REPREGUNTAS_MOTO,
+} from "../nucleo/motos"
 import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { EstadoEmbudo } from "./index"
 
@@ -114,6 +124,39 @@ async function composicionDelKitPedido(
     return { resuelto: true, articuloIds: new Set(filas.map((f) => Number(f.articulo_id))), packIds }
 }
 
+/**
+ * El cliente dijo solo la marca: se repregunta el modelo en vez de escalar,
+ * salvo que ya se le haya preguntado hasta el tope (conv 3947, 11/09).
+ *
+ * `encontrado: false` a propósito: no hay veredicto de compatibilidad ninguno
+ * acá. Lo que cambia respecto de antes es la GUÍA — antes caía en el catch-all
+ * de `resolver-variante` y terminaba en escalado mudo.
+ */
+function resultadoMarcaSinModelo(
+    marca: string,
+    embudo: EstadoEmbudo | undefined,
+    kit?: string
+): ResultadoCompatibilidad {
+    const yaPreguntadas = embudo?.repreguntasMoto ?? 0
+    if (yaPreguntadas >= TOPE_REPREGUNTAS_MOTO) {
+        return {
+            encontrado: false,
+            kit,
+            confianza: "marca_sin_modelo",
+            marca,
+            mensaje_para_agente: guiaMarcaSinModeloAgotada(marca)
+        }
+    }
+    return {
+        encontrado: false,
+        kit,
+        confianza: "marca_sin_modelo",
+        marca,
+        repregunta_moto: true,
+        mensaje_para_agente: guiaMarcaSinModelo(marca)
+    }
+}
+
 export interface ResultadoCompatibilidad {
     encontrado: boolean
     modelo_moto_detectado?: string
@@ -128,8 +171,18 @@ export interface ResultadoCompatibilidad {
      *    `candidatos`. Si el cliente ya dio la cilindrada y esa cilindrada no
      *    consta, NO es "parcial": no falta ningun dato que preguntar y se
      *    devuelve `encontrado: false` para que el motor escale (conv 3958).
+     *  - "marca_sin_modelo": el cliente dijo SOLO la marca ("para una Gilera"),
+     *    sin modelo ni cilindrada. Como "parcial", falta UN dato y preguntarlo
+     *    lo consigue: se repregunta, NO se escala (conv 3947).
      */
-    confianza?: "firme" | "parcial"
+    confianza?: "firme" | "parcial" | "marca_sin_modelo"
+    /** Marca que dijo el cliente, cuando `confianza` es "marca_sin_modelo". */
+    marca?: string
+    /**
+     * La herramienta pidió repreguntar la moto en este turno. Lo consume el
+     * motor para llevar la cuenta y no dejar al cliente en un interrogatorio.
+     */
+    repregunta_moto?: boolean
     /**
      * Qué tan literal fue el match de la moto contra la fila ganadora:
      *  - "exacta": el modelo distintivo que dijo el cliente ("biz", "nf")
@@ -173,11 +226,12 @@ export const definicionCompatibilidad: DefinicionHerramienta = {
 
 const palabrasDistintivasKit = ["tapa", "cdi", "escape", "pwr", "dakar", "varillero"]
 
-/** Marcas: nombran una fábrica, no un modelo. Nunca definen familia por sí solas. */
-const MARCAS_COMPAT = new Set([
-    "honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller",
-    "brava", "mondial", "guerrero", "bajaj", "suzuki",
-])
+/**
+ * Marcas: nombran una fábrica, no un modelo. Nunca definen familia por sí solas.
+ * Sale de `nucleo/motos` — estaba duplicada acá y en `motos.ts` con contenidos
+ * distintos, que es exactamente el bug de la Rouser NS 200 documentado abajo.
+ */
+const MARCAS_COMPAT = MARCAS_MOTO
 
 /** De qué tabla salió una fila: cada una tiene su propio espacio de ids. */
 type OrigenCompat = "pack" | "grupo" | "articulo" | "legacy"
@@ -720,6 +774,12 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
 
         // Si no hay palabras distintivas ni modelo real (solo palabras ignoradas como "recorrido corto"), no buscar
         if (distintivasBuscadas.length === 0 && !tokensBuscados.some((t) => !isNaN(Number(t)))) {
+            // Caso aparte: lo único que dijo es una MARCA que sí manejamos
+            // ("para una Gilera"). Ahí no es que no se entienda la moto — falta
+            // el modelo, y preguntarlo lo consigue. Ver `marcaSinModelo`.
+            const marca = marcaSinModelo(args.modelo_moto || "")
+            if (marca) return resultadoMarcaSinModelo(marca, args.__embudo, args.kit_nombre_o_id)
+
             return {
                 encontrado: false,
                 mensaje_para_agente: `"${args.modelo_moto}" no contiene un modelo de moto identificable. Preguntale al cliente qué marca y modelo de moto tiene.`

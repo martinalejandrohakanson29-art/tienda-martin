@@ -1128,5 +1128,36 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "No tenemos la RX 125 (solo la RX 150). No se le repregunta la moto ni se le piden papeles (cedula, manual): escala a moto_no_registrada y guarda silencio."
         }
+    },
+    {
+        // Conv 3947 (11/09). Entro por el anuncio del Combo Escape PWR + Leva
+        // 6.40, el bot le mando la ficha y cerro con "para que moto estas
+        // buscando?". El cliente contesto "Para una Gilera" y el turno escalo en
+        // SILENCIO por moto_no_registrada: la marca sola no resuelve a ningun
+        // modelo y caia en el catch-all de `resolver_variante`. Horas despues un
+        // compañero tuvo que escribir "cual gilera bro?".
+        //
+        // Falta UN dato y preguntarlo lo consigue: es el mismo criterio que el
+        // caso "parcial", no el del caso-67 (ahi el cliente ya habia dicho
+        // modelo Y cilindrada, no faltaba nada que preguntar).
+        id: "caso-68-marca-sola-se-repregunta",
+        titulo: "Dice solo la marca ('para una Gilera')",
+        mensajeCliente: "Para una Gilera",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información sobre el escape de 110 + leva de calle de 6.40?" },
+            { rol: "assistant", contenido: "Buenas! El Combo Escape PWR + Leva 6.40 incluye:\n- leva 6.40, resortes de válvulas\n- balancines y\n- escape PWR Paolucci.\n\nEs Compatible con todas las 110 chinas con leva larga (74mm) o leva corta (69mm)\n\nCuesta $125.000 con envío gratis a todo el pais\n\nPara que moto estas buscando?" }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 2, nombre: "Combo Escape pwr + Leva 6.40" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /gilera/i,
+            // Ni recitar el catalogo interno ni pedir papeles.
+            patronProhibido: /smash|c[ée]dula|manual|chasis/i,
+            descripcionEsperada:
+                "Dijo solo la marca: debe repreguntar cual Gilera tiene (corto, sin nombrar los modelos que tenemos cargados ni pedir papeles) en vez de escalar en silencio."
+        }
     }
 ]

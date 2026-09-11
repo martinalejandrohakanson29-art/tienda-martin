@@ -59,11 +59,72 @@ export function cilindradasEn(texto: string): number[] {
     return nums.filter((n) => n >= 50 && n <= 2000)
 }
 
-/** Palabras "de identidad" del modelo: no numeros, no marcas, 3+ letras. */
-const MARCAS = new Set([
+/**
+ * Marcas de fabrica. Nombran una fabrica, no un modelo: por si solas nunca
+ * definen familia ni confirman nada. `compatibilidad.ts` tenia su propia copia
+ * de esta lista y se desincronizaron (le faltaban "bajaj" y "suzuki"), asi que
+ * de aca sale la unica.
+ */
+export const MARCAS_MOTO = new Set([
     "honda", "yamaha", "motomel", "zanella", "gilera", "corven", "keller",
-    "brava", "mondial", "guerrero", "bajaj", "moto", "para", "una", "mi",
+    "brava", "mondial", "guerrero", "bajaj", "suzuki",
 ])
+
+/** Palabras "de identidad" del modelo: no numeros, no marcas, 3+ letras. */
+const MARCAS = new Set([...MARCAS_MOTO, "moto", "para", "una", "mi"])
+
+/**
+ * Relleno de la frase: no nombra ni marca ni modelo. Si sacando marcas y
+ * relleno no queda NADA, el cliente dijo solo la marca.
+ *
+ * La lista es corta a proposito: lo que no este aca cuenta como palabra de
+ * contenido y el caso NO se toma como "marca sola" — o sea que el error por
+ * omision cae del lado de escalar, que es el comportamiento de siempre.
+ */
+const RELLENO = new Set([
+    "para", "una", "un", "uno", "mi", "mis", "la", "el", "los", "las",
+    "de", "del", "con", "que", "es", "tengo", "ando", "tiene", "seria",
+    "sobre", "en", "por", "moto", "motito", "marca", "modelo", "chino",
+    "china", "chinita", "cc", "cilindrada", "yo", "ser",
+])
+
+/**
+ * ¿El cliente dijo SOLO la marca, sin modelo ni cilindrada? ("para una Gilera")
+ *
+ * No es lo mismo que "no se que moto es" (conv 3947, 11/09): ahi falta UN dato y
+ * preguntarlo lo consigue, igual que en el caso "parcial". El bot escalaba en
+ * silencio y un compañero tenia que escribir "cual gilera bro?" — justo la
+ * pregunta que el bot podia hacer solo, y encima despues de haber sido EL quien
+ * pregunto "para que moto estas buscando?".
+ *
+ * Si el cliente dio cilindrada ("gilera 110") o nombro algo que no es la marca
+ * ("gilera altino"), esto devuelve null: ahi ya dio el dato y repreguntarselo
+ * seria pedirle algo que ya dijo — ese caso sigue su camino de siempre
+ * (compatibilidad por fila generica, o escalado si no consta).
+ */
+export function marcaSinModelo(texto: string): string | null {
+    const norm = normalizarTexto(texto || "")
+    if (!norm) return null
+    if (cilindradasEn(norm).length > 0) return null
+
+    const tokens = norm.split(" ").filter(Boolean)
+    const marca = tokens.find((t) => MARCAS_MOTO.has(t))
+    if (!marca) return null
+
+    const contenido = tokens.filter((t) => !MARCAS_MOTO.has(t) && !RELLENO.has(t) && isNaN(Number(t)))
+    if (contenido.length > 0) return null
+
+    return marca
+}
+
+/**
+ * Cuantas veces se le puede repreguntar la moto a un cliente antes de derivar.
+ * Dos: la primera es la pregunta legitima, la segunda una reformulacion. A la
+ * tercera el cliente ya contesto dos veces sin precisar y seguir preguntando es
+ * hacerlo sentir en un interrogatorio — va al equipo.
+ */
+export const TOPE_REPREGUNTAS_MOTO = 2
+
 function palabrasModelo(texto: string): string[] {
     return normalizarTexto(texto)
         .split(" ")
@@ -288,4 +349,36 @@ export async function resolverMoto(textoCliente: string): Promise<ResolucionMoto
 /** Texto corto para el `mensaje_para_agente`: lista de candidatos. */
 export function listarCandidatos(cands: MotoCanonica[]): string {
     return cands.map((c) => c.nombre_completo).join(" / ")
+}
+
+/** Marca con mayúscula inicial, para que el texto al cliente no diga "gilera". */
+export function marcaLegible(marca: string): string {
+    return marca.charAt(0).toUpperCase() + marca.slice(1)
+}
+
+/**
+ * Guia para la IA cuando el cliente dijo solo la marca. La pregunta es corta y
+ * de mostrador ("cual Gilera tenes?"): sin recitar el catalogo interno (mismo
+ * criterio que la repregunta por candidatos) y sin pedirle papeles.
+ */
+export function guiaMarcaSinModelo(marca: string): string {
+    const Marca = marcaLegible(marca)
+    return [
+        `FALTA UN DATO, no escales: el cliente dijo la marca ("${Marca}") pero no el modelo ni la cilindrada.`,
+        `Preguntale con naturalidad cual ${Marca} tiene (ej: "cual ${Marca} tenes?" o "que modelo de ${Marca} es?"). Una sola pregunta, corta.`,
+        `NO le recites los modelos que tenemos cargados, NO le pidas la cedula, el manual ni ningun papel, y NO le preguntes nada que ya te haya dicho.`,
+        `NO confirmes ni niegues compatibilidad todavia. Cuando te diga el modelo o la cilindrada, volve a consultar con ese dato.`,
+    ].join("\n")
+}
+
+/**
+ * La misma situacion pero ya agotado el tope de repreguntas: el cliente contesto
+ * dos veces sin precisar. Insistir una tercera es un interrogatorio; va al equipo.
+ */
+export function guiaMarcaSinModeloAgotada(marca: string): string {
+    return [
+        `Ya le preguntaste ${TOPE_REPREGUNTAS_MOTO} veces cual ${marcaLegible(marca)} tiene y sigue sin precisar el modelo.`,
+        `NO se lo vuelvas a preguntar. Ejecuta escalar_a_humano(motivo: 'moto_no_registrada') y guarda silencio sobre ese punto.`,
+        `Si en el mismo mensaje pregunto otra cosa (precio, envio, demora), esa si contestala.`,
+    ].join("\n")
 }

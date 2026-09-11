@@ -59,6 +59,15 @@ export interface EstadoConversacion {
      * MISMA negativa palabra por palabra (conv 3874, Wave NF).
      */
     negativaEntregada?: { moto: string; kit: string; detalle: string; en: string } | null
+    /**
+     * Cuántas veces ya se le repreguntó la moto al cliente en esta charla.
+     *
+     * El bot puede preguntar "cuál Gilera tenés?" cuando el cliente dio solo la
+     * marca, pero no puede vivir preguntando: pasado `TOPE_REPREGUNTAS_MOTO` la
+     * consulta se deriva al equipo. Sin este contador la repregunta no tendría
+     * freno, que es el riesgo que trae permitirla (conv 3947).
+     */
+    repreguntasMoto?: number
 }
 
 const VACIO: EstadoConversacion = {}
@@ -126,6 +135,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 negativa_kit: string | null
                 negativa_detalle: string | null
                 negativa_en: Date | null
+                repreguntas_moto: number | null
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
@@ -133,7 +143,8 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                    pack_presentado_id, pack_presentado_nombre, pack_presentado_precio,
                    COALESCE(temas_respondidos, '{}') AS temas_respondidos,
                    escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en,
-                   negativa_moto, negativa_kit, negativa_detalle, negativa_en
+                   negativa_moto, negativa_kit, negativa_detalle, negativa_en,
+                   COALESCE(repreguntas_moto, 0) AS repreguntas_moto
             FROM chat_conversacion_estado
             WHERE clave = ${clave}
             LIMIT 1
@@ -168,6 +179,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                       en: (f.escalado_pendiente_en || new Date()).toISOString()
                   }
                 : null,
+            repreguntasMoto: Number(f.repreguntas_moto) || 0,
             negativaEntregada:
                 f.negativa_moto && vigente(f.negativa_en, NEGATIVA_VIGENCIA_MS)
                     ? {
@@ -200,7 +212,8 @@ export async function guardarEstadoConversacion(
         patch.packPresentado === undefined &&
         patch.temasRespondidos === undefined &&
         patch.escaladoPendiente === undefined &&
-        patch.negativaEntregada === undefined
+        patch.negativaEntregada === undefined &&
+        patch.repreguntasMoto === undefined
     ) {
         return
     }
@@ -221,13 +234,15 @@ export async function guardarEstadoConversacion(
             escaladoPendiente:
                 patch.escaladoPendiente !== undefined ? patch.escaladoPendiente : actual.escaladoPendiente,
             negativaEntregada:
-                patch.negativaEntregada !== undefined ? patch.negativaEntregada : actual.negativaEntregada
+                patch.negativaEntregada !== undefined ? patch.negativaEntregada : actual.negativaEntregada,
+            repreguntasMoto:
+                patch.repreguntasMoto !== undefined ? patch.repreguntasMoto : actual.repreguntasMoto
         }
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, repreguntas_moto, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -246,6 +261,7 @@ export async function guardarEstadoConversacion(
                 negativa_kit = EXCLUDED.negativa_kit,
                 negativa_detalle = EXCLUDED.negativa_detalle,
                 negativa_en = EXCLUDED.negativa_en,
+                repreguntas_moto = EXCLUDED.repreguntas_moto,
                 actualizado_en = NOW()`,
             clave,
             merged.grupoPineado?.id ?? null,
@@ -264,7 +280,8 @@ export async function guardarEstadoConversacion(
             merged.negativaEntregada?.moto ?? null,
             merged.negativaEntregada?.kit ?? null,
             merged.negativaEntregada?.detalle ?? null,
-            merged.negativaEntregada?.en ? new Date(merged.negativaEntregada.en) : null
+            merged.negativaEntregada?.en ? new Date(merged.negativaEntregada.en) : null,
+            merged.repreguntasMoto ?? 0
         )
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)

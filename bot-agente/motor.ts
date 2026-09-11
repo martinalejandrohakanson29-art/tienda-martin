@@ -1350,7 +1350,12 @@ export async function ejecutarTurnoAgente(
                         grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
                         packPresentadoId: estadoConv.packPresentado?.id ?? null,
                         varianteResuelta: estadoConv.varianteResuelta ?? null,
-                        motoConfirmada: estadoConv.motoConfirmada ?? null
+                        motoConfirmada: estadoConv.motoConfirmada ?? null,
+                        // Cuántas veces ya se le repreguntó la moto. Excepción
+                        // al "solo turnos anteriores" de arriba: acá el dato es
+                        // un cupo, y si una ráfaga repregunta dos veces en el
+                        // mismo turno tiene que verse ya en el segundo paso.
+                        repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0
                     }
                 })
                 herramientasEjecutadas.push(ejecucion)
@@ -1577,6 +1582,12 @@ export async function ejecutarTurnoAgente(
             }
             if (ej.nombre === "consultar_compatibilidad" && r.compatible === true && r.modelo_moto_detectado) {
                 patchEstado.motoConfirmada = r.modelo_moto_detectado
+            }
+            // La herramienta pidió repreguntarle la moto al cliente (dijo solo
+            // la marca). Se cuenta para que la repregunta tenga freno: al llegar
+            // a `TOPE_REPREGUNTAS_MOTO` las tools dejan de pedirla y derivan.
+            if (r.repregunta_moto === true) {
+                patchEstado.repreguntasMoto = (patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0) + 1
             }
             // Tema de negocio efectivamente entregado: queda anotado para que el
             // turno siguiente no vuelva a volcar el mismo bloque (conv 3561).

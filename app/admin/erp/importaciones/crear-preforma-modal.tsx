@@ -32,7 +32,6 @@ import {
   CrearPreformaManualInput,
   CrearPreformaManualItemInput,
 } from "@/app/actions/preformas"
-import { exportarPreformaAExcel } from "@/lib/exportar-preforma-excel"
 import {
   PROVEEDORES_IMPORTACION_PRECARGADOS,
   buscarProveedorPorNombre,
@@ -254,7 +253,7 @@ export function CrearPreformaModal({
       if (res.data) {
         onPreformaCreada(res.data)
         if (descargarExcelDespues) {
-          exportarPreformaAExcel(res.data)
+          window.open(`/api/importaciones/preformas/${res.data.id}/excel`, "_blank")
           toast.success("Archivo Excel generado y descargado.")
         }
       }

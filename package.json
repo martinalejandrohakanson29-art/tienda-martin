@@ -36,6 +36,7 @@
     "dotenv": "^17.4.2",
     "embla-carousel-autoplay": "^8.5.1",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "firebase-admin": "^14.1.0",
     "googleapis": "^126.0.1",

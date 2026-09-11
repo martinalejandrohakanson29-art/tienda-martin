@@ -54,7 +54,6 @@ import {
 import { EditarPreformaModal } from "./editar-preforma-modal"
 import { EditarItemModal } from "./editar-item-modal"
 import { CrearPreformaModal } from "./crear-preforma-modal"
-import { exportarPreformaAExcel } from "@/lib/exportar-preforma-excel"
 import { buscarProveedorPorNombre } from "@/lib/proveedores-importacion"
 
 export interface PreformaItemView {
@@ -864,14 +863,14 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => exportarPreformaAExcel(preforma)}
+                    <a
+                      href={`/api/importaciones/preformas/${preforma.id}/excel`}
                       className="p-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-semibold flex items-center gap-1.5"
-                      title="Descargar esta preforma en Excel (.xlsx)"
+                      title="Descargar esta preforma en Excel (.xlsx) con el formato del proveedor"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Excel</span>
-                    </button>
+                    </a>
 
                     <button
                       onClick={() => handleAbrirEditarPreforma(preforma)}
@@ -1121,14 +1120,14 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
                     <span>Ver Archivo</span>
                   </a>
                 )}
-                <button
-                  onClick={() => exportarPreformaAExcel(preformaSeleccionada)}
+                <a
+                  href={`/api/importaciones/preformas/${preformaSeleccionada.id}/excel`}
                   className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-colors"
-                  title="Descargar preforma en formato Excel (.xlsx)"
+                  title="Descargar preforma en formato Excel (.xlsx) con el formato del proveedor"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Descargar Excel</span>
-                </button>
+                </a>
                 <button
                   onClick={() => handleAbrirEditarPreforma(preformaSeleccionada)}
                   className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-xl text-xs font-bold transition-colors"

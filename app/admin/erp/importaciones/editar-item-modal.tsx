@@ -1,11 +1,11 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Edit2, Loader2, Trash2 } from "lucide-react"
+import { Edit2, ImageIcon, Loader2, Trash2, Upload } from "lucide-react"
 import { PreformaItemView } from "./importaciones-client"
 import { ActualizarItemPreformaInput } from "@/app/actions/preformas"
 
@@ -15,6 +15,7 @@ interface Props {
   item: PreformaItemView | null
   onGuardar: (data: ActualizarItemPreformaInput) => Promise<void>
   onEliminar?: () => Promise<void>
+  onSubirFoto?: (file: File) => Promise<void>
 }
 
 export function EditarItemModal({
@@ -23,6 +24,7 @@ export function EditarItemModal({
   item,
   onGuardar,
   onEliminar,
+  onSubirFoto,
 }: Props) {
   const [supplierItemNo, setSupplierItemNo] = useState("")
   const [descripcionOriginal, setDescripcionOriginal] = useState("")
@@ -32,6 +34,9 @@ export function EditarItemModal({
   const [size, setSize] = useState("")
   const [guardando, setGuardando] = useState(false)
   const [eliminando, setEliminando] = useState(false)
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
+  const [previewFoto, setPreviewFoto] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open && item) {
@@ -41,8 +46,25 @@ export function EditarItemModal({
       setPrecioUnitarioUsd(item.precioUnitarioUsd ? String(item.precioUnitarioUsd) : "")
       setLogo(item.logo || "")
       setSize(item.size || "")
+      setPreviewFoto(item.fotoUrl || null)
     }
   }, [open, item])
+
+  const handleSeleccionarFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file || !onSubirFoto) return
+
+    const previewLocal = URL.createObjectURL(file)
+    setPreviewFoto(previewLocal)
+    setSubiendoFoto(true)
+    try {
+      await onSubirFoto(file)
+    } finally {
+      URL.revokeObjectURL(previewLocal)
+      setSubiendoFoto(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,6 +137,55 @@ export function EditarItemModal({
           </div>
 
           <div className="p-6 space-y-4">
+            {onSubirFoto && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  Foto del artículo
+                </Label>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                    {previewFoto ? (
+                      <img src={previewFoto} alt="Foto del artículo" className="w-full h-full object-contain" />
+                    ) : (
+                      <ImageIcon className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleSeleccionarFoto}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={subiendoFoto}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs font-bold rounded-xl w-full"
+                    >
+                      {subiendoFoto ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                          Subiendo...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5 mr-1.5" />
+                          {previewFoto ? "Reemplazar foto" : "Subir foto"}
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-[10px] text-slate-400">
+                      Corrige la foto si quedó mal vinculada al importar el Excel
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
                 Supplier Item No. (Código Proveedor)

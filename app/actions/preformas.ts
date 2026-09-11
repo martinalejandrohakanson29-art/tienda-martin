@@ -1252,6 +1252,52 @@ export async function actualizarItemPreformaAction(itemId: string, data: Actuali
 }
 
 /**
+ * Reemplaza la foto de un ítem de preforma (para corregir fotos mal vinculadas
+ * en el Excel de origen, ej. anclaje desfasado del proveedor)
+ */
+export async function actualizarFotoItemPreformaAction(itemId: string, formData: FormData) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+
+  try {
+    const file = formData.get("foto") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No se seleccionó ninguna imagen" }
+    }
+    if (!file.type.startsWith("image/")) {
+      return { success: false, error: "El archivo debe ser una imagen" }
+    }
+
+    const item = await prisma.preformaItem.findUnique({ where: { id: itemId } })
+    if (!item) {
+      return { success: false, error: "Ítem no encontrado" }
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const nuevaKey = await subirFotoItemS3(buffer, `${item.supplierItemNo}_${file.name || "foto.png"}`)
+    if (!nuevaKey) {
+      return { success: false, error: "No se pudo subir la imagen" }
+    }
+
+    await prisma.preformaItem.update({
+      where: { id: itemId },
+      data: { fotoUrl: nuevaKey },
+    })
+
+    revalidatePath("/admin/erp/importaciones")
+    return {
+      success: true,
+      data: { id: itemId, fotoUrl: await generarUrlFirmadaFoto(nuevaKey) },
+    }
+  } catch (error: any) {
+    console.error("Error al reemplazar foto de ítem:", error)
+    return { success: false, error: error.message || "Error al reemplazar la foto" }
+  }
+}
+
+/**
  * Elimina un ítem de la preforma y actualiza los totales
  */
 export async function eliminarItemPreformaAction(itemId: string) {

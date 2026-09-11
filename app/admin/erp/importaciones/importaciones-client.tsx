@@ -42,6 +42,7 @@ import {
   obtenerArticulosParaBuscadorAction,
   actualizarPreformaAction,
   actualizarItemPreformaAction,
+  actualizarFotoItemPreformaAction,
   eliminarItemPreformaAction,
   crearPreformaManualAction,
   ActualizarPreformaInput,
@@ -493,6 +494,22 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
       actualizarItemEnEstado(itemParaEditar.id, res.data, res.data.preformaTotales)
     } else {
       toast.error(res.error || "No se pudo actualizar el ítem")
+    }
+  }
+
+  const handleSubirFotoItem = async (file: File) => {
+    if (!itemParaEditar) return
+
+    const formData = new FormData()
+    formData.append("foto", file)
+
+    const res = await actualizarFotoItemPreformaAction(itemParaEditar.id, formData)
+    if (res.success && res.data) {
+      toast.success("Foto actualizada")
+      actualizarItemEnEstado(itemParaEditar.id, { fotoUrl: res.data.fotoUrl })
+      setItemParaEditar((prev) => (prev ? { ...prev, fotoUrl: res.data!.fotoUrl } : prev))
+    } else {
+      toast.error(res.error || "No se pudo actualizar la foto")
     }
   }
 
@@ -1446,6 +1463,7 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
         item={itemParaEditar}
         onGuardar={handleGuardarItem}
         onEliminar={handleEliminarItem}
+        onSubirFoto={handleSubirFotoItem}
       />
 
       {/* MODAL CREAR PREFORMA MANUAL (FLUJO INVERSO) */}

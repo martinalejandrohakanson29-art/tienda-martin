@@ -57,6 +57,13 @@ export function ErpDashboard() {
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Métricas</h3>
               </Link>
 
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-sky-300/40" href="/admin/erp/importaciones">
+                <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-900/20 flex items-center justify-center mb-4 group-hover:bg-sky-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-sky-600 dark:text-sky-400 group-hover:text-white">local_shipping</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Importaciones</h3>
+              </Link>
+
             </div>
           </div>
 

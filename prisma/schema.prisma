@@ -791,6 +791,7 @@ model ArticuloMostrador {
   controlStockEntradas ControlStockEntrada[]
   mayoristas   ArticuloMayorista[]
   campaignItems MarketingCampaignItem[]
+  preformaItems PreformaItem[]
 
   @@index([nombre])
   @@index([proveedorId])
@@ -1314,6 +1315,50 @@ model MlMensajePostVentaLog {
   @@index([estado])
   @@index([createdAt])
   @@map("ml_mensajes_post_venta_logs")
+}
+
+model PreformaImportacion {
+  id             String         @id @default(cuid())
+  numero         Int            @default(autoincrement())
+  nombreArchivo  String         @map("nombre_archivo")
+  archivoUrl     String?        @map("archivo_url")
+  tipoArchivo    String?        @map("tipo_archivo") // "EXCEL" | "PDF" | "IMAGEN"
+  estado         String         @default("EN_CURSO") // "EN_CURSO" | "FINALIZADO"
+  numeroFactura  String?        @map("numero_factura")
+  fechaEmision   DateTime?      @map("fecha_emision")
+  proveedor      String?
+  totalFob       Decimal?       @map("total_fob") @db.Decimal(20, 2)
+  observaciones  String?
+  totalArticulos Int            @default(0) @map("total_articulos")
+  totalUnidades  Int            @default(0) @map("total_unidades")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  items          PreformaItem[]
+
+  @@index([estado])
+  @@index([createdAt])
+  @@map("preformas_importacion")
+}
+
+model PreformaItem {
+  id                  String              @id @default(cuid())
+  preformaId          String              @map("preforma_id")
+  supplierItemNo      String              @map("supplier_item_no")
+  descripcionOriginal String?             @map("descripcion_original")
+  fotoUrl             String?             @map("foto_url")
+  logo                String?
+  size                String?
+  cantidad            Int                 @default(0)
+  precioUnitarioUsd   Decimal?            @map("precio_unitario_usd") @db.Decimal(20, 2)
+  precioTotalUsd      Decimal?            @map("precio_total_usd") @db.Decimal(20, 2)
+  articuloId          String?             @map("articulo_id")
+  articulo            ArticuloMostrador?  @relation(fields: [articuloId], references: [id], onDelete: SetNull)
+  preforma            PreformaImportacion @relation(fields: [preformaId], references: [id], onDelete: Cascade)
+
+  @@index([preformaId])
+  @@index([supplierItemNo])
+  @@index([articuloId])
+  @@map("preforma_items")
 }
 
 enum Role {

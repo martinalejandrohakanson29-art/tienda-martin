@@ -7,7 +7,16 @@ import { requireAdmin } from "@/lib/auth-guard"
 import { z } from "zod"
 
 export const getConfig = unstable_cache(
-    async () => prisma.config.findFirst(),
+    async () => {
+      const cfg = await prisma.config.findFirst();
+      if (!cfg) return null;
+      return {
+        ...cfg,
+        dolarCotizacion: cfg.dolarCotizacion ? Number(cfg.dolarCotizacion) : null,
+        factorFob: cfg.factorFob ? Number(cfg.factorFob) : null,
+        recargoFinanciacion: cfg.recargoFinanciacion ? Number(cfg.recargoFinanciacion) : null,
+      } as any;
+    },
     ["config"],
     { revalidate: 300, tags: ["config"] }
 )

@@ -911,3 +911,293 @@ export async function buscarArticulosParaVinculacionAction(query: string) {
     return { success: false, data: [] }
   }
 }
+
+/**
+ * Desvincula un ítem de preforma (remueve articuloId)
+ */
+export async function desvincularItemAction(itemId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+
+  try {
+    const updated = await prisma.preformaItem.update({
+      where: { id: itemId },
+      data: { articuloId: null },
+    })
+
+    revalidatePath("/admin/erp/importaciones")
+    return { success: true, data: updated }
+  } catch (error: any) {
+    console.error("Error al desvincular ítem:", error)
+    return { success: false, error: error.message || "Error al desvincular el artículo" }
+  }
+}
+
+/**
+ * Obtiene el catálogo de artículos optimizado para el buscador instantáneo
+ */
+export async function obtenerArticulosParaBuscadorAction() {
+  try {
+    const articulos = await prisma.articuloMostrador.findMany({
+      select: {
+        id: true,
+        nombre: true,
+        stock: true,
+        precio: true,
+        costo: true,
+        codigoProveedor: true,
+        oculto: true,
+        esPack: true,
+        updatedAt: true,
+      },
+      orderBy: { nombre: "asc" },
+    })
+
+    return {
+      success: true,
+      data: articulos.map((art) => ({
+        id: art.id,
+        nombre: art.nombre,
+        stock: art.stock,
+        precio: Number(art.precio),
+        costo: art.costo ? Number(art.costo) : 0,
+        codigoProveedor: art.codigoProveedor || null,
+        oculto: art.oculto || false,
+        esPack: art.esPack || false,
+        ultimaModificacion: art.updatedAt.toISOString(),
+      })),
+    }
+  } catch (error: any) {
+    console.error("Error al obtener artículos para buscador:", error)
+    return { success: false, error: error.message || "Error al cargar artículos", data: [] }
+  }
+}
+
+export interface ActualizarPreformaInput {
+  numeroFactura?: string | null
+  fechaEmision?: string | Date | null
+  proveedor?: string | null
+  totalFob?: number | null
+  observaciones?: string | null
+  estado?: string
+}
+
+/**
+ * Actualiza los datos de cabecera de una preforma
+ */
+export async function actualizarPreformaAction(id: string, data: ActualizarPreformaInput) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+
+  try {
+    let fecha: Date | null | undefined = undefined
+    if (data.fechaEmision !== undefined) {
+      if (data.fechaEmision === null || data.fechaEmision === "") {
+        fecha = null
+      } else {
+        const d = new Date(data.fechaEmision)
+        fecha = isNaN(d.getTime()) ? null : d
+      }
+    }
+
+    const preformaActualizada = await prisma.preformaImportacion.update({
+      where: { id },
+      data: {
+        ...(data.numeroFactura !== undefined && { numeroFactura: data.numeroFactura || null }),
+        ...(fecha !== undefined && { fechaEmision: fecha }),
+        ...(data.proveedor !== undefined && { proveedor: data.proveedor || null }),
+        ...(data.totalFob !== undefined && {
+          totalFob: data.totalFob !== null && data.totalFob > 0 ? data.totalFob : null,
+        }),
+        ...(data.observaciones !== undefined && { observaciones: data.observaciones || null }),
+        ...(data.estado !== undefined && { estado: data.estado }),
+      },
+    })
+
+    revalidatePath("/admin/erp/importaciones")
+    return {
+      success: true,
+      data: {
+        ...preformaActualizada,
+        totalFob: preformaActualizada.totalFob ? Number(preformaActualizada.totalFob) : null,
+        fechaEmision: preformaActualizada.fechaEmision ? preformaActualizada.fechaEmision.toISOString() : null,
+      },
+    }
+  } catch (error: any) {
+    console.error("Error al actualizar preforma:", error)
+    return { success: false, error: error.message || "Error al actualizar preforma" }
+  }
+}
+
+export interface ActualizarItemPreformaInput {
+  supplierItemNo?: string
+  descripcionOriginal?: string | null
+  cantidad?: number
+  precioUnitarioUsd?: number | null
+  logo?: string | null
+  size?: string | null
+}
+
+/**
+ * Actualiza los datos de un ítem de preforma y recalcula los totales de la preforma
+ */
+export async function actualizarItemPreformaAction(itemId: string, data: ActualizarItemPreformaInput) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+
+  try {
+    const itemActual = await prisma.preformaItem.findUnique({
+      where: { id: itemId },
+    })
+
+    if (!itemActual) {
+      return { success: false, error: "Ítem no encontrado" }
+    }
+
+    const nuevaCantidad = data.cantidad !== undefined ? data.cantidad : itemActual.cantidad
+    const nuevoPrecioUnit =
+      data.precioUnitarioUsd !== undefined
+        ? data.precioUnitarioUsd
+        : itemActual.precioUnitarioUsd
+        ? Number(itemActual.precioUnitarioUsd)
+        : null
+    const nuevoTotal =
+      nuevoPrecioUnit !== null && nuevoPrecioUnit > 0 && nuevaCantidad > 0
+        ? nuevaCantidad * nuevoPrecioUnit
+        : null
+
+    const itemActualizado = await prisma.preformaItem.update({
+      where: { id: itemId },
+      data: {
+        ...(data.supplierItemNo !== undefined && { supplierItemNo: data.supplierItemNo }),
+        ...(data.descripcionOriginal !== undefined && { descripcionOriginal: data.descripcionOriginal || null }),
+        ...(data.cantidad !== undefined && { cantidad: nuevaCantidad }),
+        ...(data.precioUnitarioUsd !== undefined && { precioUnitarioUsd: nuevoPrecioUnit }),
+        ...(data.logo !== undefined && { logo: data.logo || null }),
+        ...(data.size !== undefined && { size: data.size || null }),
+        precioTotalUsd: nuevoTotal,
+      },
+      include: {
+        articulo: {
+          select: {
+            id: true,
+            nombre: true,
+            stock: true,
+            codigoProveedor: true,
+          },
+        },
+      },
+    })
+
+    // Recalcular totales de la preforma
+    const todosItems = await prisma.preformaItem.findMany({
+      where: { preformaId: itemActual.preformaId },
+    })
+
+    const totalArticulos = todosItems.length
+    const totalUnidades = todosItems.reduce((acc, it) => acc + it.cantidad, 0)
+    const sumaFob = todosItems.reduce(
+      (acc, it) => acc + (it.precioTotalUsd ? Number(it.precioTotalUsd) : 0),
+      0
+    )
+
+    await prisma.preformaImportacion.update({
+      where: { id: itemActual.preformaId },
+      data: {
+        totalArticulos,
+        totalUnidades,
+        ...(sumaFob > 0 ? { totalFob: sumaFob } : {}),
+      },
+    })
+
+    revalidatePath("/admin/erp/importaciones")
+    return {
+      success: true,
+      data: {
+        id: itemActualizado.id,
+        supplierItemNo: itemActualizado.supplierItemNo,
+        descripcionOriginal: itemActualizado.descripcionOriginal,
+        logo: itemActualizado.logo,
+        size: itemActualizado.size,
+        cantidad: itemActualizado.cantidad,
+        precioUnitarioUsd: itemActualizado.precioUnitarioUsd ? Number(itemActualizado.precioUnitarioUsd) : null,
+        precioTotalUsd: itemActualizado.precioTotalUsd ? Number(itemActualizado.precioTotalUsd) : null,
+        articuloId: itemActualizado.articuloId,
+        articuloNombre: itemActualizado.articulo?.nombre || null,
+        articuloStock: itemActualizado.articulo?.stock ?? null,
+        articuloCodigoProveedor: itemActualizado.articulo?.codigoProveedor || null,
+        preformaTotales: {
+          totalArticulos,
+          totalUnidades,
+          totalFob: sumaFob,
+        },
+      },
+    }
+  } catch (error: any) {
+    console.error("Error al actualizar ítem de preforma:", error)
+    return { success: false, error: error.message || "Error al actualizar ítem" }
+  }
+}
+
+/**
+ * Elimina un ítem de la preforma y actualiza los totales
+ */
+export async function eliminarItemPreformaAction(itemId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+
+  try {
+    const item = await prisma.preformaItem.findUnique({
+      where: { id: itemId },
+    })
+
+    if (!item) {
+      return { success: false, error: "Ítem no encontrado" }
+    }
+
+    const preformaId = item.preformaId
+
+    await prisma.preformaItem.delete({
+      where: { id: itemId },
+    })
+
+    // Recalcular totales
+    const todosItems = await prisma.preformaItem.findMany({
+      where: { preformaId },
+    })
+
+    const totalArticulos = todosItems.length
+    const totalUnidades = todosItems.reduce((acc, it) => acc + it.cantidad, 0)
+    const sumaFob = todosItems.reduce(
+      (acc, it) => acc + (it.precioTotalUsd ? Number(it.precioTotalUsd) : 0),
+      0
+    )
+
+    await prisma.preformaImportacion.update({
+      where: { id: preformaId },
+      data: {
+        totalArticulos,
+        totalUnidades,
+        totalFob: sumaFob > 0 ? sumaFob : null,
+      },
+    })
+
+    revalidatePath("/admin/erp/importaciones")
+    return {
+      success: true,
+      data: { preformaId, totalArticulos, totalUnidades, totalFob: sumaFob },
+    }
+  } catch (error: any) {
+    console.error("Error al eliminar ítem de preforma:", error)
+    return { success: false, error: error.message || "Error al eliminar ítem" }
+  }
+}
+

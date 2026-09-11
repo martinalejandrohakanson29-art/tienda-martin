@@ -26,6 +26,9 @@ import {
   DollarSign,
   Building2,
   FileDigit,
+  Edit3,
+  Edit2,
+  Unlink,
 } from "lucide-react"
 import {
   cargarPreformasAction,
@@ -33,8 +36,20 @@ import {
   cambiarEstadoPreformaAction,
   eliminarPreformaAction,
   vincularItemManualAction,
-  buscarArticulosParaVinculacionAction,
+  desvincularItemAction,
+  obtenerArticulosParaBuscadorAction,
+  actualizarPreformaAction,
+  actualizarItemPreformaAction,
+  eliminarItemPreformaAction,
+  ActualizarPreformaInput,
+  ActualizarItemPreformaInput,
 } from "@/app/actions/preformas"
+import {
+  BuscadorArticulosImportacionModal,
+  ArticuloCatalogo,
+} from "./buscador-articulos-importacion-modal"
+import { EditarPreformaModal } from "./editar-preforma-modal"
+import { EditarItemModal } from "./editar-item-modal"
 
 export interface PreformaItemView {
   id: string
@@ -108,11 +123,39 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
   // Zoom de Foto
   const [fotoEnZoom, setFotoEnZoom] = useState<{ url: string; titulo: string } | null>(null)
 
-  // Vinculación manual
+  // Catálogo de artículos para buscador instantáneo
+  const [articulosCatalogo, setArticulosCatalogo] = useState<ArticuloCatalogo[]>([])
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(false)
+
+  // Modales
+  const [modalBuscadorAbierto, setModalBuscadorAbierto] = useState(false)
   const [itemParaVincular, setItemParaVincular] = useState<PreformaItemView | null>(null)
-  const [busquedaArticuloManual, setBusquedaArticuloManual] = useState("")
-  const [resultadosBusquedaArticulo, setResultadosBusquedaArticulo] = useState<any[]>([])
-  const [buscandoArticulos, setBuscandoArticulos] = useState(false)
+
+  const [preformaParaEditar, setPreformaParaEditar] = useState<PreformaView | null>(null)
+  const [modalEditarPreformaAbierto, setModalEditarPreformaAbierto] = useState(false)
+
+  const [itemParaEditar, setItemParaEditar] = useState<PreformaItemView | null>(null)
+  const [modalEditarItemAbierto, setModalEditarItemAbierto] = useState(false)
+
+  // Cargar catálogo de artículos al montar
+  const cargarCatalogo = async () => {
+    if (articulosCatalogo.length > 0 || cargandoCatalogo) return
+    setCargandoCatalogo(true)
+    try {
+      const res = await obtenerArticulosParaBuscadorAction()
+      if (res.success && res.data) {
+        setArticulosCatalogo(res.data)
+      }
+    } catch (err) {
+      console.error("Error al cargar artículos para buscador:", err)
+    } finally {
+      setCargandoCatalogo(false)
+    }
+  }
+
+  React.useEffect(() => {
+    cargarCatalogo()
+  }, [])
 
   // Métricas
   const totalPreformas = preformas.length
@@ -251,63 +294,213 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
     }
   }
 
-  // Búsqueda para vinculación manual
-  const handleBuscarArticulosParaVincular = async (query: string) => {
-    setBusquedaArticuloManual(query)
-    if (query.trim().length < 2) {
-      setResultadosBusquedaArticulo([])
-      return
-    }
+  // Actualizar un ítem en el estado local (reactivo e instantáneo)
+  const actualizarItemEnEstado = (
+    itemId: string,
+    cambiosItem: Partial<PreformaItemView>,
+    nuevosTotalesPreforma?: { totalArticulos: number; totalUnidades: number; totalFob?: number | null }
+  ) => {
+    if (preformaSeleccionada) {
+      const itemsActualizados = preformaSeleccionada.items.map((it) =>
+        it.id === itemId ? { ...it, ...cambiosItem } : it
+      )
+      const vinculados = itemsActualizados.filter((i) => i.articuloId !== null).length
+      const totalUnidades =
+        nuevosTotalesPreforma?.totalUnidades ?? itemsActualizados.reduce((acc, it) => acc + it.cantidad, 0)
+      const totalArticulos = nuevosTotalesPreforma?.totalArticulos ?? itemsActualizados.length
+      const totalFob =
+        nuevosTotalesPreforma?.totalFob !== undefined
+          ? nuevosTotalesPreforma.totalFob
+          : preformaSeleccionada.totalFob
 
-    setBuscandoArticulos(true)
-    try {
-      const res = await buscarArticulosParaVinculacionAction(query)
-      if (res.success && res.data) {
-        setResultadosBusquedaArticulo(res.data)
+      const updatedPreforma: PreformaView = {
+        ...preformaSeleccionada,
+        items: itemsActualizados,
+        totalArticulos,
+        totalUnidades,
+        totalFob,
+        vinculados,
+        noVinculados: totalArticulos - vinculados,
       }
-    } finally {
-      setBuscandoArticulos(false)
+      setPreformaSeleccionada(updatedPreforma)
+      setPreformas((prev) =>
+        prev.map((p) => (p.id === updatedPreforma.id ? updatedPreforma : p))
+      )
+    } else {
+      setPreformas((prev) =>
+        prev.map((p) => {
+          const itemIndex = p.items.findIndex((it) => it.id === itemId)
+          if (itemIndex === -1) return p
+          const itemsActualizados = p.items.map((it) =>
+            it.id === itemId ? { ...it, ...cambiosItem } : it
+          )
+          const vinculados = itemsActualizados.filter((i) => i.articuloId !== null).length
+          return {
+            ...p,
+            items: itemsActualizados,
+            vinculados,
+            noVinculados: itemsActualizados.length - vinculados,
+          }
+        })
+      )
     }
   }
 
-  // Confirmar vinculación manual
-  const handleConfirmarVinculacion = async (articulo: any) => {
+  // Remover un ítem del estado local
+  const removerItemDeEstado = (
+    itemId: string,
+    totalArticulos?: number,
+    totalUnidades?: number,
+    totalFob?: number | null
+  ) => {
+    if (preformaSeleccionada) {
+      const itemsActualizados = preformaSeleccionada.items.filter((it) => it.id !== itemId)
+      const vinculados = itemsActualizados.filter((i) => i.articuloId !== null).length
+      const totArt = totalArticulos ?? itemsActualizados.length
+      const totUni = totalUnidades ?? itemsActualizados.reduce((acc, it) => acc + it.cantidad, 0)
+      const totFob = totalFob !== undefined ? totalFob : preformaSeleccionada.totalFob
+
+      const updatedPreforma: PreformaView = {
+        ...preformaSeleccionada,
+        items: itemsActualizados,
+        totalArticulos: totArt,
+        totalUnidades: totUni,
+        totalFob: totFob,
+        vinculados,
+        noVinculados: totArt - vinculados,
+      }
+      setPreformaSeleccionada(updatedPreforma)
+      setPreformas((prev) =>
+        prev.map((p) => (p.id === updatedPreforma.id ? updatedPreforma : p))
+      )
+    }
+  }
+
+  // Abrir buscador modal para vincular
+  const handleAbrirBuscadorParaItem = (item: PreformaItemView) => {
+    setItemParaVincular(item)
+    setModalBuscadorAbierto(true)
+    if (articulosCatalogo.length === 0) {
+      cargarCatalogo()
+    }
+  }
+
+  // Vincular artículo seleccionado (instantáneo en BD y estado)
+  const handleVincularArticulo = async (articulo: ArticuloCatalogo) => {
     if (!itemParaVincular) return
 
     const res = await vincularItemManualAction(itemParaVincular.id, articulo.id)
     if (res.success) {
-      toast.success(`Artículo ${articulo.nombre} vinculado con éxito`)
-
-      if (preformaSeleccionada) {
-        const updatedItems = preformaSeleccionada.items.map((it) =>
-          it.id === itemParaVincular.id
-            ? {
-                ...it,
-                articuloId: articulo.id,
-                articuloNombre: articulo.nombre,
-                articuloStock: articulo.stock,
-                articuloCodigoProveedor: articulo.codigoProveedor,
-              }
-            : it
-        )
-        const vinculados = updatedItems.filter((i) => i.articuloId !== null).length
-        const updatedPreforma = {
-          ...preformaSeleccionada,
-          items: updatedItems,
-          vinculados,
-          noVinculados: updatedItems.length - vinculados,
-        }
-        setPreformaSeleccionada(updatedPreforma)
-        setPreformas((prev) =>
-          prev.map((p) => (p.id === updatedPreforma.id ? updatedPreforma : p))
-        )
-      }
-
+      toast.success(`Artículo "${articulo.nombre}" vinculado con éxito`)
+      actualizarItemEnEstado(itemParaVincular.id, {
+        articuloId: articulo.id,
+        articuloNombre: articulo.nombre,
+        articuloStock: articulo.stock,
+        articuloCodigoProveedor: articulo.codigoProveedor,
+      })
+      setModalBuscadorAbierto(false)
       setItemParaVincular(null)
-      setResultadosBusquedaArticulo([])
-      setBusquedaArticuloManual("")
     } else {
       toast.error(res.error || "No se pudo vincular el artículo")
+    }
+  }
+
+  // Desvincular artículo
+  const handleDesvincularArticulo = async (itemId?: string) => {
+    const idADesvincular = itemId || itemParaVincular?.id
+    if (!idADesvincular) return
+
+    const res = await desvincularItemAction(idADesvincular)
+    if (res.success) {
+      toast.success("Artículo desvinculado con éxito")
+      actualizarItemEnEstado(idADesvincular, {
+        articuloId: null,
+        articuloNombre: null,
+        articuloStock: null,
+        articuloCodigoProveedor: null,
+      })
+      if (itemParaVincular && itemParaVincular.id === idADesvincular) {
+        setItemParaVincular((prev) =>
+          prev
+            ? {
+                ...prev,
+                articuloId: null,
+                articuloNombre: null,
+                articuloStock: null,
+                articuloCodigoProveedor: null,
+              }
+            : null
+        )
+      }
+    } else {
+      toast.error(res.error || "No se pudo desvincular el artículo")
+    }
+  }
+
+  // Editar Preforma (Cabecera)
+  const handleAbrirEditarPreforma = (preforma: PreformaView) => {
+    setPreformaParaEditar(preforma)
+    setModalEditarPreformaAbierto(true)
+  }
+
+  const handleGuardarPreforma = async (data: ActualizarPreformaInput) => {
+    if (!preformaParaEditar) return
+
+    const res = await actualizarPreformaAction(preformaParaEditar.id, data)
+    if (res.success && res.data) {
+      toast.success("Preforma actualizada exitosamente")
+      const updatedPreforma: PreformaView = {
+        ...preformaParaEditar,
+        numeroFactura: res.data.numeroFactura,
+        proveedor: res.data.proveedor,
+        fechaEmision: res.data.fechaEmision,
+        totalFob: res.data.totalFob,
+        estado: res.data.estado,
+        ...(res.data.observaciones ? { observaciones: res.data.observaciones } : {}),
+      }
+      setPreformas((prev) =>
+        prev.map((p) => (p.id === updatedPreforma.id ? updatedPreforma : p))
+      )
+      if (preformaSeleccionada && preformaSeleccionada.id === updatedPreforma.id) {
+        setPreformaSeleccionada(updatedPreforma)
+      }
+    } else {
+      toast.error(res.error || "No se pudo actualizar la preforma")
+    }
+  }
+
+  // Editar Ítem
+  const handleAbrirEditarItem = (item: PreformaItemView) => {
+    setItemParaEditar(item)
+    setModalEditarItemAbierto(true)
+  }
+
+  const handleGuardarItem = async (data: ActualizarItemPreformaInput) => {
+    if (!itemParaEditar) return
+
+    const res = await actualizarItemPreformaAction(itemParaEditar.id, data)
+    if (res.success && res.data) {
+      toast.success("Ítem actualizado exitosamente")
+      actualizarItemEnEstado(itemParaEditar.id, res.data, res.data.preformaTotales)
+    } else {
+      toast.error(res.error || "No se pudo actualizar el ítem")
+    }
+  }
+
+  const handleEliminarItem = async () => {
+    if (!itemParaEditar) return
+
+    const res = await eliminarItemPreformaAction(itemParaEditar.id)
+    if (res.success) {
+      toast.success("Ítem eliminado de la preforma")
+      removerItemDeEstado(
+        itemParaEditar.id,
+        res.data?.totalArticulos,
+        res.data?.totalUnidades,
+        res.data?.totalFob
+      )
+    } else {
+      toast.error(res.error || "No se pudo eliminar el ítem")
     }
   }
 
@@ -654,6 +847,15 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => handleAbrirEditarPreforma(preforma)}
+                      className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-1.5"
+                      title="Editar datos de la preforma"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                      <span>Editar</span>
+                    </button>
+
+                    <button
                       onClick={() => setPreformaSeleccionada(preforma)}
                       className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
                     >
@@ -893,6 +1095,14 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
                   </a>
                 )}
                 <button
+                  onClick={() => handleAbrirEditarPreforma(preformaSeleccionada)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-xl text-xs font-bold transition-colors"
+                  title="Editar datos de la factura, proveedor, fecha o FOB"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Editar Preforma</span>
+                </button>
+                <button
                   onClick={() => setPreformaSeleccionada(null)}
                   className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
                 >
@@ -1014,16 +1224,30 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
                           {/* ARTICULO LOCAL VINCULADO */}
                           <td className="py-3 px-2 max-w-xs">
                             {estaVinculado ? (
-                              <div className="space-y-0.5">
-                                <span className="font-bold text-slate-800 dark:text-slate-100 truncate block">
+                              <div
+                                onClick={() => handleAbrirBuscadorParaItem(item)}
+                                className="space-y-0.5 cursor-pointer group"
+                                title="Clic para cambiar artículo vinculado"
+                              >
+                                <span className="font-bold text-slate-800 dark:text-slate-100 truncate block group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
                                   {item.articuloNombre}
                                 </span>
-                                <p className="text-[11px] text-slate-400 font-mono">ID: {item.articuloId}</p>
+                                <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                                  <span>ID: {item.articuloId}</span>
+                                  {item.articuloCodigoProveedor && (
+                                    <span>| Cód: {item.articuloCodigoProveedor}</span>
+                                  )}
+                                </div>
                               </div>
                             ) : (
-                              <span className="text-amber-600 dark:text-amber-400 italic">
-                                Sin vincular con artículo
-                              </span>
+                              <button
+                                onClick={() => handleAbrirBuscadorParaItem(item)}
+                                className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-left group shadow-xs"
+                                title="Abrir buscador para vincular con artículo del sistema"
+                              >
+                                <Link2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform shrink-0" />
+                                <span>Vincular artículo...</span>
+                              </button>
                             )}
                           </td>
 
@@ -1076,16 +1300,33 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
 
                           {/* ACCIÓN */}
                           <td className="py-3 px-2 text-center">
-                            <button
-                              onClick={() => {
-                                setItemParaVincular(item)
-                                handleBuscarArticulosParaVincular(item.supplierItemNo)
-                              }}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sky-600 dark:text-sky-400 transition-colors"
-                              title="Cambiar o vincular artículo manualmente"
-                            >
-                              <Link2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleAbrirBuscadorParaItem(item)}
+                                className="p-1.5 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/30 text-sky-600 dark:text-sky-400 transition-colors"
+                                title={estaVinculado ? "Cambiar artículo vinculado" : "Vincular con artículo"}
+                              >
+                                <Link2 className="w-4 h-4" />
+                              </button>
+
+                              {estaVinculado && (
+                                <button
+                                  onClick={() => handleDesvincularArticulo(item.id)}
+                                  className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-600 transition-colors"
+                                  title="Desvincular artículo"
+                                >
+                                  <Unlink className="w-4 h-4" />
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => handleAbrirEditarItem(item)}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                                title="Editar datos del ítem (cantidad, precio, etc.)"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -1132,92 +1373,33 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
         </div>
       )}
 
-      {/* MODAL DE VINCULACIÓN MANUAL */}
-      {itemParaVincular && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                  Vincular con Artículo del Catálogo
-                </h4>
-                <p className="text-xs text-slate-400">
-                  Código Supplier Item No:{" "}
-                  <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
-                    {itemParaVincular.supplierItemNo}
-                  </span>
-                </p>
-                {itemParaVincular.descripcionOriginal && (
-                  <p className="text-xs text-slate-500 italic mt-0.5 truncate">
-                    {itemParaVincular.descripcionOriginal}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setItemParaVincular(null)}
-                className="p-1 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* MODAL BUSCADOR DE ARTÍCULOS IDÉNTICO A VENTAS MOSTRADOR */}
+      <BuscadorArticulosImportacionModal
+        open={modalBuscadorAbierto}
+        onOpenChange={setModalBuscadorAbierto}
+        itemParaVincular={itemParaVincular}
+        articulos={articulosCatalogo}
+        cargandoArticulos={cargandoCatalogo}
+        onSelectArticulo={handleVincularArticulo}
+        onDesvincularArticulo={() => handleDesvincularArticulo()}
+      />
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500">Buscar por nombre, ID o código:</label>
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={busquedaArticuloManual}
-                  onChange={(e) => handleBuscarArticulosParaVincular(e.target.value)}
-                  placeholder="Ej: Varilla, B0246, 479881..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100"
-                />
-              </div>
-            </div>
+      {/* MODAL EDITAR PREFORMA (CABECERA) */}
+      <EditarPreformaModal
+        open={modalEditarPreformaAbierto}
+        onOpenChange={setModalEditarPreformaAbierto}
+        preforma={preformaParaEditar}
+        onGuardar={handleGuardarPreforma}
+      />
 
-            <div className="max-h-60 overflow-y-auto space-y-1 divide-y divide-slate-100 dark:divide-slate-800">
-              {buscandoArticulos ? (
-                <div className="p-4 text-center text-xs text-slate-400">Buscando artículos...</div>
-              ) : resultadosBusquedaArticulo.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-400">
-                  No se encontraron artículos con ese criterio.
-                </div>
-              ) : (
-                resultadosBusquedaArticulo.map((art) => (
-                  <div
-                    key={art.id}
-                    onClick={() => handleConfirmarVinculacion(art)}
-                    className="p-2.5 rounded-xl hover:bg-sky-50 dark:hover:bg-sky-900/20 cursor-pointer transition-colors flex items-center justify-between text-xs group"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-sky-600">
-                        {art.nombre}
-                      </p>
-                      <p className="text-[11px] text-slate-400 font-mono">
-                        ID: {art.id} {art.codigoProveedor ? `| Cód: ${art.codigoProveedor}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        Stock: {art.stock}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setItemParaVincular(null)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL EDITAR ÍTEM */}
+      <EditarItemModal
+        open={modalEditarItemAbierto}
+        onOpenChange={setModalEditarItemAbierto}
+        item={itemParaEditar}
+        onGuardar={handleGuardarItem}
+        onEliminar={handleEliminarItem}
+      />
     </div>
   )
 }

@@ -14,6 +14,10 @@ export interface ArticuloCatalogo {
   precio: number
   costo?: number | null
   codigoProveedor?: string | null
+  proveedorId?: string | null
+  proveedorNombre?: string | null
+  fobUsdSugerido?: number | null
+  supplierItemNoSugerido?: string | null
   oculto?: boolean
   esPack?: boolean
   ultimaModificacion?: string | null
@@ -25,6 +29,8 @@ interface Props {
   itemParaVincular: PreformaItemView | null
   articulos: ArticuloCatalogo[]
   cargandoArticulos?: boolean
+  filtroProveedorId?: string | null
+  filtroProveedorNombre?: string | null
   onSelectArticulo: (articulo: ArticuloCatalogo) => Promise<void> | void
   onDesvincularArticulo?: () => Promise<void> | void
 }
@@ -45,11 +51,14 @@ export function BuscadorArticulosImportacionModal({
   itemParaVincular,
   articulos,
   cargandoArticulos = false,
+  filtroProveedorId,
+  filtroProveedorNombre,
   onSelectArticulo,
   onDesvincularArticulo,
 }: Props) {
   const [searchTerm, setSearchTerm] = useState("")
   const [incluirOcultos, setIncluirOcultos] = useState(false)
+  const [soloProveedor, setSoloProveedor] = useState(true)
   const [guardandoId, setGuardandoId] = useState<string | null>(null)
   const [desvinculando, setDesvinculando] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -61,6 +70,9 @@ export function BuscadorArticulosImportacionModal({
     if (open && itemParaVincular) {
       setSearchTerm(itemParaVincular.supplierItemNo || "")
       setSelectedIndex(0)
+      if (filtroProveedorId) {
+        setSoloProveedor(true)
+      }
       setTimeout(() => {
         inputRef.current?.focus()
         inputRef.current?.select()
@@ -71,11 +83,32 @@ export function BuscadorArticulosImportacionModal({
       setGuardandoId(null)
       setDesvinculando(false)
     }
-  }, [open, itemParaVincular])
+  }, [open, itemParaVincular, filtroProveedorId])
+
+  // Artículos que corresponden a este proveedor (por ID o por Nombre)
+  const matchProveedor = (a: ArticuloCatalogo) => {
+    if (filtroProveedorId && a.proveedorId === filtroProveedorId) return true
+    if (
+      filtroProveedorNombre &&
+      a.proveedorNombre &&
+      normalizeText(a.proveedorNombre) === normalizeText(filtroProveedorNombre)
+    )
+      return true
+    return false
+  }
+
+  const articulosDelProveedor = useMemo(() => {
+    if (!filtroProveedorId && !filtroProveedorNombre) return []
+    return articulos.filter(matchProveedor)
+  }, [articulos, filtroProveedorId, filtroProveedorNombre])
 
   const poolArticulos = useMemo(() => {
-    return incluirOcultos ? articulos : articulos.filter((a) => !a.oculto)
-  }, [articulos, incluirOcultos])
+    let pool = incluirOcultos ? articulos : articulos.filter((a) => !a.oculto)
+    if ((filtroProveedorId || filtroProveedorNombre) && soloProveedor) {
+      pool = pool.filter(matchProveedor)
+    }
+    return pool
+  }, [articulos, incluirOcultos, filtroProveedorId, filtroProveedorNombre, soloProveedor])
 
   const searchResults = useMemo(() => {
     const term = normalizeText(searchTerm).trim()
@@ -84,7 +117,9 @@ export function BuscadorArticulosImportacionModal({
     const words = term.split(/\s+/)
     return poolArticulos
       .filter((p) => {
-        const fullText = normalizeText(`${p.nombre} ${p.id} ${p.codigoProveedor || ""}`)
+        const fullText = normalizeText(
+          `${p.nombre} ${p.id} ${p.codigoProveedor || ""} ${p.supplierItemNoSugerido || ""}`
+        )
         return words.every((w) => fullText.includes(w))
       })
       .slice(0, 50)
@@ -92,7 +127,7 @@ export function BuscadorArticulosImportacionModal({
 
   useEffect(() => {
     setSelectedIndex(0)
-  }, [searchTerm])
+  }, [searchTerm, soloProveedor])
 
   const scrollToIndex = (idx: number) => {
     if (!listRef.current) return
@@ -146,24 +181,35 @@ export function BuscadorArticulosImportacionModal({
 
   if (!itemParaVincular) return null
 
+  const esModoCrearBorrador = itemParaVincular.id === "nuevo-borrador"
   const estaVinculado = !!itemParaVincular.articuloId
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[950px] p-0 overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900">
-        {/* ENCABEZADO CON EL ÍTEM A VINCULAR */}
+        {/* ENCABEZADO */}
         <div className="p-5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-start justify-between gap-4 mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
-                <Link2 className="w-5 h-5" />
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                  esModoCrearBorrador
+                    ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                    : "bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400"
+                }`}
+              >
+                {esModoCrearBorrador ? <Package className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
               </div>
               <div>
                 <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  Vincular con Artículo del Catálogo
+                  {esModoCrearBorrador
+                    ? `Agregar Artículos al Pedido (${filtroProveedorNombre || "Proveedor"})`
+                    : "Vincular con Artículo del Catálogo"}
                 </DialogTitle>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Selecciona el producto del sistema que corresponde a este renglón de la preforma
+                  {esModoCrearBorrador
+                    ? `Listando por defecto los artículos vinculados a ${filtroProveedorNombre || "este proveedor"}. Puedes alternar para ver todo el catálogo.`
+                    : "Selecciona el producto del sistema que corresponde a este renglón de la preforma"}
                 </p>
               </div>
             </div>
@@ -182,82 +228,84 @@ export function BuscadorArticulosImportacionModal({
             </div>
           </div>
 
-          {/* FICHA RESUMEN DEL ÍTEM DE PREFORMA */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              {itemParaVincular.fotoUrl ? (
-                <img
-                  src={itemParaVincular.fotoUrl}
-                  alt={itemParaVincular.supplierItemNo}
-                  className="w-12 h-12 object-contain rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-mono font-bold shrink-0">
-                  SIN FOTO
-                </div>
-              )}
+          {/* FICHA RESUMEN DEL ÍTEM DE PREFORMA (Solo si no es nuevo borrador) */}
+          {!esModoCrearBorrador && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {itemParaVincular.fotoUrl ? (
+                  <img
+                    src={itemParaVincular.fotoUrl}
+                    alt={itemParaVincular.supplierItemNo}
+                    className="w-12 h-12 object-contain rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-mono font-bold shrink-0">
+                    SIN FOTO
+                  </div>
+                )}
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
-                    {itemParaVincular.supplierItemNo}
-                  </span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Cant: {itemParaVincular.cantidad.toLocaleString("es-AR")} u.
-                  </span>
-                  {itemParaVincular.precioUnitarioUsd && (
-                    <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                      ${itemParaVincular.precioUnitarioUsd.toFixed(2)} USD
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                      {itemParaVincular.supplierItemNo}
                     </span>
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Cant: {itemParaVincular.cantidad.toLocaleString("es-AR")} u.
+                    </span>
+                    {itemParaVincular.precioUnitarioUsd && (
+                      <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                        ${itemParaVincular.precioUnitarioUsd.toFixed(2)} USD
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-200 font-semibold truncate mt-0.5">
+                    {itemParaVincular.descripcionOriginal || "Sin descripción"}
+                  </p>
+                  {(itemParaVincular.logo || itemParaVincular.size) && (
+                    <p className="text-[11px] text-slate-400">
+                      {itemParaVincular.logo ? `Marca: ${itemParaVincular.logo} ` : ""}
+                      {itemParaVincular.size ? `| Medida: ${itemParaVincular.size}` : ""}
+                    </p>
                   )}
                 </div>
-                <p className="text-xs text-slate-700 dark:text-slate-200 font-semibold truncate mt-0.5">
-                  {itemParaVincular.descripcionOriginal || "Sin descripción"}
-                </p>
-                {(itemParaVincular.logo || itemParaVincular.size) && (
-                  <p className="text-[11px] text-slate-400">
-                    {itemParaVincular.logo ? `Marca: ${itemParaVincular.logo} ` : ""}
-                    {itemParaVincular.size ? `| Medida: ${itemParaVincular.size}` : ""}
-                  </p>
-                )}
               </div>
-            </div>
 
-            {/* VINCULACIÓN ACTUAL */}
-            {estaVinculado && (
-              <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-2 sm:pt-0 sm:pl-4 shrink-0">
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block">
-                    Vinculado con
-                  </span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[180px] truncate block">
-                    {itemParaVincular.articuloNombre}
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    ID: {itemParaVincular.articuloId}
-                  </span>
+              {/* VINCULACIÓN ACTUAL */}
+              {estaVinculado && (
+                <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-2 sm:pt-0 sm:pl-4 shrink-0">
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block">
+                      Vinculado con
+                    </span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[180px] truncate block">
+                      {itemParaVincular.articuloNombre}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      ID: {itemParaVincular.articuloId}
+                    </span>
+                  </div>
+                  {onDesvincularArticulo && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={desvinculando}
+                      onClick={handleDesvincular}
+                      className="h-8 px-2.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50"
+                      title="Quitar vinculación de este ítem"
+                    >
+                      {desvinculando ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Unlink className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      <span>Desvincular</span>
+                    </Button>
+                  )}
                 </div>
-                {onDesvincularArticulo && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={desvinculando}
-                    onClick={handleDesvincular}
-                    className="h-8 px-2.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50"
-                    title="Quitar vinculación de este ítem"
-                  >
-                    {desvinculando ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Unlink className="w-3.5 h-3.5 mr-1" />
-                    )}
-                    <span>Desvincular</span>
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* INPUT BUSCADOR INSTANTÁNEO */}
           <div className="relative mt-4">
@@ -284,29 +332,78 @@ export function BuscadorArticulosImportacionModal({
               </button>
             )}
           </div>
+
+          {/* BOTONES DE FILTRADO POR PROVEEDOR */}
+          {filtroProveedorId && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSoloProveedor(true)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                  soloProveedor
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                <span>Artículos de {filtroProveedorNombre || "este proveedor"}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    soloProveedor
+                      ? "bg-emerald-700 text-white"
+                      : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                  }`}
+                >
+                  {articulosDelProveedor.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSoloProveedor(false)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                  !soloProveedor
+                    ? "bg-sky-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                <span>Todo el Catálogo</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    !soloProveedor
+                      ? "bg-sky-700 text-white"
+                      : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                  }`}
+                >
+                  {articulos.length}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* LISTA DE ARTÍCULOS */}
         <div ref={listRef} className="h-[460px] overflow-y-auto p-3 bg-slate-50/50 dark:bg-slate-950/20 space-y-1.5">
           {cargandoArticulos ? (
-            <div className="py-24 text-center text-slate-400 text-sm font-medium flex flex-col items-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-sky-600" />
-              <span>Cargando catálogo de artículos...</span>
+            <div className="py-20 text-center text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-sky-500" />
+              <p className="text-sm">Cargando catálogo de artículos...</p>
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="py-24 text-center text-slate-400 text-sm font-medium">
-              No se encontraron artículos para &quot;{searchTerm}&quot;
+            <div className="py-20 text-center text-slate-400">
+              <Package className="w-10 h-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-semibold">No se encontraron artículos</p>
+              <p className="text-xs mt-1">Prueba con otra palabra clave o cambia el filtro</p>
             </div>
           ) : (
-            searchResults.map((prod, idx) => {
-              const isSelected = idx === selectedIndex
-              const isItemVinculado = itemParaVincular.articuloId === prod.id
+            searchResults.map((prod, index) => {
+              const isSelected = index === selectedIndex
+              const isItemVinculado = itemParaVincular?.articuloId === prod.id
               const guardandoEste = guardandoId === prod.id
 
               return (
                 <div
                   key={prod.id}
-                  data-item-index={idx}
+                  data-item-index={index}
                   role="button"
                   tabIndex={0}
                   onClick={() => handleSeleccionar(prod)}
@@ -365,11 +462,21 @@ export function BuscadorArticulosImportacionModal({
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-400 font-mono">
+                      <div className="flex items-center gap-2 text-xs text-slate-400 font-mono flex-wrap mt-0.5">
                         <span>ID: {prod.id}</span>
-                        {prod.codigoProveedor && (
-                          <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
-                            Cód Prov: {prod.codigoProveedor}
+                        {(prod.codigoProveedor || prod.supplierItemNoSugerido) && (
+                          <span className="bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 rounded text-[11px] font-bold border border-sky-100 dark:border-sky-800">
+                            Fábrica: {prod.codigoProveedor || prod.supplierItemNoSugerido}
+                          </span>
+                        )}
+                        {prod.fobUsdSugerido && (
+                          <span className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded text-[11px] font-bold border border-emerald-100 dark:border-emerald-800">
+                            Último FOB: ${prod.fobUsdSugerido.toFixed(2)} USD
+                          </span>
+                        )}
+                        {prod.proveedorNombre && (
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded text-[10px]">
+                            {prod.proveedorNombre}
                           </span>
                         )}
                       </div>
@@ -394,6 +501,8 @@ export function BuscadorArticulosImportacionModal({
                       className={`rounded-xl text-xs font-bold px-3 ${
                         isItemVinculado
                           ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : esModoCrearBorrador
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                           : isSelected
                           ? "bg-sky-600 hover:bg-sky-700 text-white"
                           : "bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900"
@@ -401,6 +510,8 @@ export function BuscadorArticulosImportacionModal({
                     >
                       {guardandoEste ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : esModoCrearBorrador ? (
+                        "+ Agregar"
                       ) : isItemVinculado ? (
                         "Vinculado"
                       ) : (
@@ -424,7 +535,7 @@ export function BuscadorArticulosImportacionModal({
             <span className="kbd bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-600 dark:text-slate-300 font-mono text-[11px] font-bold ml-2">
               Enter
             </span>
-            <span>Vincular</span>
+            <span>{esModoCrearBorrador ? "Agregar al Pedido" : "Vincular"}</span>
           </div>
 
           <Button

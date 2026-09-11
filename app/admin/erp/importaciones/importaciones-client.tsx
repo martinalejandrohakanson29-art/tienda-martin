@@ -29,6 +29,8 @@ import {
   Edit3,
   Edit2,
   Unlink,
+  Download,
+  Plus,
 } from "lucide-react"
 import {
   cargarPreformasAction,
@@ -41,6 +43,7 @@ import {
   actualizarPreformaAction,
   actualizarItemPreformaAction,
   eliminarItemPreformaAction,
+  crearPreformaManualAction,
   ActualizarPreformaInput,
   ActualizarItemPreformaInput,
 } from "@/app/actions/preformas"
@@ -50,9 +53,13 @@ import {
 } from "./buscador-articulos-importacion-modal"
 import { EditarPreformaModal } from "./editar-preforma-modal"
 import { EditarItemModal } from "./editar-item-modal"
+import { CrearPreformaModal } from "./crear-preforma-modal"
+import { exportarPreformaAExcel } from "@/lib/exportar-preforma-excel"
+import { buscarProveedorPorNombre } from "@/lib/proveedores-importacion"
 
 export interface PreformaItemView {
   id: string
+  preformaId?: string | null
   supplierItemNo: string
   descripcionOriginal?: string | null
   logo?: string | null
@@ -78,6 +85,7 @@ export interface PreformaView {
   fechaEmision?: string | null
   proveedor?: string | null
   totalFob?: number | null
+  observaciones?: string | null
   totalArticulos: number
   totalUnidades: number
   vinculados: number
@@ -136,6 +144,8 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
 
   const [itemParaEditar, setItemParaEditar] = useState<PreformaItemView | null>(null)
   const [modalEditarItemAbierto, setModalEditarItemAbierto] = useState(false)
+
+  const [modalCrearPreformaAbierto, setModalCrearPreformaAbierto] = useState(false)
 
   // Cargar catálogo de artículos al montar
   const cargarCatalogo = async () => {
@@ -546,10 +556,18 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
             <RefreshCw className={`w-5 h-5 ${isPending ? "animate-spin" : ""}`} />
           </button>
           <button
-            onClick={() => setModalSubidaAbierto(true)}
-            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-sky-600/20 transition-all duration-200 active:scale-95"
+            onClick={() => setModalCrearPreformaAbierto(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-600/20 transition-all duration-200 active:scale-95 text-xs sm:text-sm"
+            title="Crear una preforma seleccionando artículos directamente del catálogo"
           >
-            <UploadCloud className="w-5 h-5" />
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Crear Pre-forma</span>
+          </button>
+          <button
+            onClick={() => setModalSubidaAbierto(true)}
+            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-sky-600/20 transition-all duration-200 active:scale-95 text-xs sm:text-sm"
+          >
+            <UploadCloud className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Cargar Pre-forma</span>
           </button>
         </div>
@@ -847,6 +865,15 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => exportarPreformaAExcel(preforma)}
+                      className="p-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-semibold flex items-center gap-1.5"
+                      title="Descargar esta preforma en Excel (.xlsx)"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Excel</span>
+                    </button>
+
+                    <button
                       onClick={() => handleAbrirEditarPreforma(preforma)}
                       className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-1.5"
                       title="Editar datos de la preforma"
@@ -1094,6 +1121,14 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
                     <span>Ver Archivo</span>
                   </a>
                 )}
+                <button
+                  onClick={() => exportarPreformaAExcel(preformaSeleccionada)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold transition-colors"
+                  title="Descargar preforma en formato Excel (.xlsx)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Descargar Excel</span>
+                </button>
                 <button
                   onClick={() => handleAbrirEditarPreforma(preformaSeleccionada)}
                   className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-xl text-xs font-bold transition-colors"
@@ -1374,15 +1409,28 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
       )}
 
       {/* MODAL BUSCADOR DE ARTÍCULOS IDÉNTICO A VENTAS MOSTRADOR */}
-      <BuscadorArticulosImportacionModal
-        open={modalBuscadorAbierto}
-        onOpenChange={setModalBuscadorAbierto}
-        itemParaVincular={itemParaVincular}
-        articulos={articulosCatalogo}
-        cargandoArticulos={cargandoCatalogo}
-        onSelectArticulo={handleVincularArticulo}
-        onDesvincularArticulo={() => handleDesvincularArticulo()}
-      />
+      {(() => {
+        const preformaDeItem =
+          preformaSeleccionada ||
+          (itemParaVincular
+            ? preformas.find((p) => p.id === itemParaVincular.preformaId || p.items.some((it) => it.id === itemParaVincular.id))
+            : null)
+        const provInfo = buscarProveedorPorNombre(preformaDeItem?.proveedor)
+
+        return (
+          <BuscadorArticulosImportacionModal
+            open={modalBuscadorAbierto}
+            onOpenChange={setModalBuscadorAbierto}
+            itemParaVincular={itemParaVincular}
+            articulos={articulosCatalogo}
+            cargandoArticulos={cargandoCatalogo}
+            filtroProveedorId={provInfo?.id || null}
+            filtroProveedorNombre={provInfo?.nombreCorto || preformaDeItem?.proveedor || null}
+            onSelectArticulo={handleVincularArticulo}
+            onDesvincularArticulo={() => handleDesvincularArticulo()}
+          />
+        )
+      })()}
 
       {/* MODAL EDITAR PREFORMA (CABECERA) */}
       <EditarPreformaModal
@@ -1399,6 +1447,16 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
         item={itemParaEditar}
         onGuardar={handleGuardarItem}
         onEliminar={handleEliminarItem}
+      />
+
+      {/* MODAL CREAR PREFORMA MANUAL (FLUJO INVERSO) */}
+      <CrearPreformaModal
+        open={modalCrearPreformaAbierto}
+        onOpenChange={setModalCrearPreformaAbierto}
+        articulosCatalogo={articulosCatalogo}
+        cargandoCatalogo={cargandoCatalogo}
+        onPreformaCreada={(nueva) => setPreformas((prev) => [nueva, ...prev])}
+        crearPreformaActionFn={crearPreformaManualAction}
       />
     </div>
   )

@@ -748,6 +748,7 @@ export async function obtenerPreformasAction(filtroEstado?: string) {
           fechaEmision: p.fechaEmision ? p.fechaEmision.toISOString() : null,
           proveedor: p.proveedor,
           totalFob: p.totalFob ? Number(p.totalFob) : null,
+          observaciones: p.observaciones || null,
           totalArticulos: p.totalArticulos,
           totalUnidades: p.totalUnidades,
           vinculados,
@@ -948,6 +949,22 @@ export async function obtenerArticulosParaBuscadorAction() {
         precio: true,
         costo: true,
         codigoProveedor: true,
+        proveedorId: true,
+        proveedor: {
+          select: {
+            id: true,
+            razonSocial: true,
+            nombreFantasia: true,
+          },
+        },
+        preformaItems: {
+          select: {
+            supplierItemNo: true,
+            precioUnitarioUsd: true,
+          },
+          orderBy: { id: "desc" },
+          take: 1,
+        },
         oculto: true,
         esPack: true,
         updatedAt: true,
@@ -964,6 +981,13 @@ export async function obtenerArticulosParaBuscadorAction() {
         precio: Number(art.precio),
         costo: art.costo ? Number(art.costo) : 0,
         codigoProveedor: art.codigoProveedor || null,
+        proveedorId: art.proveedorId || null,
+        proveedorNombre: art.proveedor ? (art.proveedor.razonSocial || art.proveedor.nombreFantasia) : null,
+        fobUsdSugerido: art.preformaItems?.[0]?.precioUnitarioUsd
+          ? Number(art.preformaItems[0].precioUnitarioUsd)
+          : null,
+        supplierItemNoSugerido:
+          art.preformaItems?.[0]?.supplierItemNo || art.codigoProveedor || null,
         oculto: art.oculto || false,
         esPack: art.esPack || false,
         ultimaModificacion: art.updatedAt.toISOString(),
@@ -1200,4 +1224,185 @@ export async function eliminarItemPreformaAction(itemId: string) {
     return { success: false, error: error.message || "Error al eliminar ítem" }
   }
 }
+
+export interface CrearPreformaManualItemInput {
+  articuloId: string
+  supplierItemNo?: string
+  descripcionOriginal?: string | null
+  cantidad: number
+  precioUnitarioUsd?: number | null
+  logo?: string | null
+  size?: string | null
+  fotoUrl?: string | null
+}
+
+export interface CrearPreformaManualInput {
+  numeroFactura?: string | null
+  proveedor?: string | null
+  fechaEmision?: string | Date | null
+  observaciones?: string | null
+  items: CrearPreformaManualItemInput[]
+}
+
+/**
+ * Crea una nueva preforma de manera manual seleccionando artículos del sistema
+ */
+export async function crearPreformaManualAction(input: CrearPreformaManualInput) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+
+  if (!input.items || input.items.length === 0) {
+    return { success: false, error: "Debes agregar al menos un artículo a la preforma" }
+  }
+
+  try {
+    let fecha: Date | null = null
+    if (input.fechaEmision) {
+      const d = new Date(input.fechaEmision)
+      if (!isNaN(d.getTime())) fecha = d
+    }
+
+    // Buscar fotos previas para artículos que no traigan fotoUrl explícita
+    const articuloIdsSinFoto = input.items.filter((i) => !i.fotoUrl).map((i) => i.articuloId)
+    const fotosMap = new Map<string, string>()
+
+    if (articuloIdsSinFoto.length > 0) {
+      const itemsPrevios = await prisma.preformaItem.findMany({
+        where: {
+          articuloId: { in: articuloIdsSinFoto },
+          fotoUrl: { not: null },
+        },
+        select: {
+          articuloId: true,
+          fotoUrl: true,
+        },
+        orderBy: { id: "desc" },
+      })
+
+      for (const it of itemsPrevios) {
+        if (it.articuloId && it.fotoUrl && !fotosMap.has(it.articuloId)) {
+          fotosMap.set(it.articuloId, it.fotoUrl)
+        }
+      }
+    }
+
+    let totalUnidades = 0
+    let totalFob = 0
+
+    const itemsToCreate = input.items.map((item) => {
+      const cant = Math.max(1, item.cantidad || 1)
+      totalUnidades += cant
+
+      const precioUnit = item.precioUnitarioUsd && item.precioUnitarioUsd > 0 ? item.precioUnitarioUsd : null
+      const precioTot = precioUnit ? cant * precioUnit : null
+      if (precioTot) totalFob += precioTot
+
+      const fotoKey = item.fotoUrl || (item.articuloId ? fotosMap.get(item.articuloId) : null) || null
+
+      return {
+        supplierItemNo: item.supplierItemNo || item.articuloId,
+        descripcionOriginal: item.descripcionOriginal || null,
+        logo: item.logo || null,
+        size: item.size || null,
+        fotoUrl: fotoKey,
+        cantidad: cant,
+        precioUnitarioUsd: precioUnit,
+        precioTotalUsd: precioTot,
+        articuloId: item.articuloId,
+      }
+    })
+
+    const cleanProv = (input.proveedor || "PROVEEDOR").replace(/[^a-zA-Z0-9_-]/g, "_")
+    const nombreArchivoGenerado = `preforma_${cleanProv}_${Date.now()}.xlsx`
+
+    const nuevaPreforma = await prisma.preformaImportacion.create({
+      data: {
+        nombreArchivo: nombreArchivoGenerado,
+        tipoArchivo: "EXCEL",
+        estado: "EN_CURSO",
+        numeroFactura: input.numeroFactura || null,
+        fechaEmision: fecha || new Date(),
+        proveedor: input.proveedor || null,
+        observaciones: input.observaciones || null,
+        totalArticulos: itemsToCreate.length,
+        totalUnidades: totalUnidades,
+        totalFob: totalFob > 0 ? totalFob : null,
+        items: {
+          create: itemsToCreate,
+        },
+      },
+      include: {
+        items: {
+          include: {
+            articulo: {
+              select: {
+                id: true,
+                nombre: true,
+                stock: true,
+                codigoProveedor: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    revalidatePath("/admin/erp/importaciones")
+    revalidatePath("/admin/erp")
+
+    // Formatear para retornar con URLs firmadas
+    const itemsFormateados = await Promise.all(
+      nuevaPreforma.items.map(async (i) => ({
+        id: i.id,
+        supplierItemNo: i.supplierItemNo,
+        descripcionOriginal: i.descripcionOriginal,
+        logo: i.logo,
+        size: i.size,
+        fotoUrl: await generarUrlFirmadaFoto(i.fotoUrl),
+        cantidad: i.cantidad,
+        precioUnitarioUsd: i.precioUnitarioUsd ? Number(i.precioUnitarioUsd) : null,
+        precioTotalUsd: i.precioTotalUsd ? Number(i.precioTotalUsd) : null,
+        articuloId: i.articuloId,
+        articuloNombre: i.articulo?.nombre || null,
+        articuloStock: i.articulo?.stock ?? null,
+        articuloCodigoProveedor: i.articulo?.codigoProveedor || null,
+      }))
+    )
+
+    const vinculados = itemsFormateados.filter((i) => i.articuloId !== null).length
+
+    const preformaView = {
+      id: nuevaPreforma.id,
+      numero: nuevaPreforma.numero,
+      nombreArchivo: nuevaPreforma.nombreArchivo,
+      archivoUrl: nuevaPreforma.archivoUrl,
+      tipoArchivo: nuevaPreforma.tipoArchivo,
+      estado: nuevaPreforma.estado,
+      numeroFactura: nuevaPreforma.numeroFactura,
+      fechaEmision: nuevaPreforma.fechaEmision ? nuevaPreforma.fechaEmision.toISOString() : null,
+      proveedor: nuevaPreforma.proveedor,
+      totalFob: nuevaPreforma.totalFob ? Number(nuevaPreforma.totalFob) : null,
+      totalArticulos: nuevaPreforma.totalArticulos,
+      totalUnidades: nuevaPreforma.totalUnidades,
+      observaciones: nuevaPreforma.observaciones,
+      vinculados,
+      noVinculados: nuevaPreforma.totalArticulos - vinculados,
+      createdAt: nuevaPreforma.createdAt.toISOString(),
+      updatedAt: nuevaPreforma.updatedAt.toISOString(),
+      items: itemsFormateados,
+    }
+
+    return {
+      success: true,
+      data: preformaView,
+      message: `Preforma #${nuevaPreforma.numero} creada exitosamente con ${itemsFormateados.length} artículos vinculados.`,
+    }
+  } catch (error: any) {
+    console.error("Error al crear preforma manual:", error)
+    return { success: false, error: error.message || "Error al crear la preforma" }
+  }
+}
+
 

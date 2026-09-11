@@ -1,7 +1,11 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue } from "react";
 import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X, FileSpreadsheet, Upload, TrendingUp, TrendingDown, Minus, RefreshCw, DollarSign, Lock } from "lucide-react";
+
+function quitarAcentos(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 import Link from "next/link";
 import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo, aplicarMargenFijoMasivo, previsualizarExcelProveedor, aplicarActualizacionMasivaExcel } from "@/app/actions/listas";
 import type { PreviewExcelResultado } from "@/app/actions/listas";
@@ -155,40 +159,96 @@ export default function ArticulosClient({
     proveedorId: null
   });
 
-  // --- NUEVO BUSCADOR INTELIGENTE Y FLEXIBLE ---
+  // --- OPTIMIZACIÓN: Pre-indexación de búsqueda y desacople de input con useDeferredValue ---
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const isSearching = searchTerm !== deferredSearchTerm;
+
+  // Pre-indexamos los textos de los artículos una sola vez (solo al cargar o si cambia el catálogo).
+  // Esto evita normalizar miles de strings con Unicode NFD y regex en cada pulsación del teclado.
+  const articulosIndexados = useMemo(() => {
+    return articulos.map(art => ({
+      art,
+      searchKey: quitarAcentos(
+        `${art.nombre} ${art.id} ${art.codigoProveedor || ""} ${art.proveedorNombre || ""}`.toLowerCase()
+      )
+    }));
+  }, [articulos]);
+
+  // Pre-indexamos proveedores para los selectores y modales de filtrado rápido
+  const proveedoresIndexados = useMemo(() => {
+    return proveedores.map(p => ({
+      id: p.id,
+      nombre: p.nombre,
+      searchKey: quitarAcentos(p.nombre.toLowerCase())
+    }));
+  }, [proveedores]);
+
+  // Opciones memoizadas para el select de proveedor en cada fila (evita reconciliar 50 x 300 = 15.000 nodos en cada render)
+  const opcionesProveedoresMemo = useMemo(() => (
+    <>
+      <option value="none">Sin proveedor</option>
+      {proveedores.map(p => (
+        <option key={p.id} value={p.id}>{p.nombre}</option>
+      ))}
+    </>
+  ), [proveedores]);
+
+  // Filtrado ultrarrápido sobre los datos pre-indexados
   const articulosFiltrados = useMemo(() => {
-    const quitarAcentos = (texto: string) =>
-      texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    let lista = articulosIndexados;
 
-    let lista = articulos;
-    if (soloOcultos) lista = lista.filter(art => art.oculto);
-    else if (soloVisibles) lista = lista.filter(art => !art.oculto);
-
-    if (soloAtadosDolar) lista = lista.filter(art => art.esCostoDolar);
-
-    if (filtroProveedorId === "__sin__") {
-      lista = lista.filter(art => !art.proveedorId);
-    } else if (filtroProveedorId) {
-      lista = lista.filter(art => art.proveedorId === filtroProveedorId);
+    if (soloOcultos) {
+      lista = lista.filter(item => item.art.oculto);
+    } else if (soloVisibles) {
+      lista = lista.filter(item => !item.art.oculto);
     }
 
-    if (!searchTerm.trim()) return lista;
+    if (soloAtadosDolar) {
+      lista = lista.filter(item => item.art.esCostoDolar);
+    }
 
-    const busquedaLimpia = quitarAcentos(searchTerm.toLowerCase().trim());
-    const palabrasBuscadas = busquedaLimpia.split(/\s+/);
+    if (filtroProveedorId === "__sin__") {
+      lista = lista.filter(item => !item.art.proveedorId);
+    } else if (filtroProveedorId) {
+      lista = lista.filter(item => item.art.proveedorId === filtroProveedorId);
+    }
 
-    return lista.filter(art => {
-      const nombreLimpio = quitarAcentos(art.nombre.toLowerCase());
-      const idLimpio = quitarAcentos(art.id.toLowerCase());
-      const codigoProveedorLimpio = quitarAcentos((art.codigoProveedor || "").toLowerCase());
-      const proveedorLimpio = quitarAcentos((art.proveedorNombre || "").toLowerCase());
-      return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p) || codigoProveedorLimpio.includes(p) || proveedorLimpio.includes(p));
-    });
-  }, [searchTerm, articulos, soloOcultos, soloVisibles, soloAtadosDolar, filtroProveedorId]);
+    const busqueda = deferredSearchTerm.trim();
+    if (!busqueda) {
+      return lista.map(item => item.art);
+    }
+
+    const busquedaLimpia = quitarAcentos(busqueda.toLowerCase());
+    const palabrasBuscadas = busquedaLimpia.split(/\s+/).filter(Boolean);
+
+    if (palabrasBuscadas.length === 0) {
+      return lista.map(item => item.art);
+    }
+
+    const resultado: Articulo[] = [];
+    const len = lista.length;
+    const pLen = palabrasBuscadas.length;
+
+    for (let i = 0; i < len; i++) {
+      const item = lista[i];
+      let coincide = true;
+      for (let j = 0; j < pLen; j++) {
+        if (!item.searchKey.includes(palabrasBuscadas[j])) {
+          coincide = false;
+          break;
+        }
+      }
+      if (coincide) {
+        resultado.push(item.art);
+      }
+    }
+
+    return resultado;
+  }, [articulosIndexados, soloOcultos, soloVisibles, soloAtadosDolar, filtroProveedorId, deferredSearchTerm]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, soloOcultos, soloVisibles, soloAtadosDolar, filtroProveedorId]);
+  }, [deferredSearchTerm, soloOcultos, soloVisibles, soloAtadosDolar, filtroProveedorId]);
 
   // Lógica de Paginación
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
@@ -197,10 +257,14 @@ export default function ArticulosClient({
 
   // --- Selección múltiple: siempre relativa a TODO lo que devuelve el filtro actual, sin importar la página ---
   const idsFiltrados = useMemo(() => articulosFiltrados.map(a => a.id), [articulosFiltrados]);
-  const seleccionadosEnFiltro = useMemo(
-    () => idsFiltrados.filter(id => selectedIds.has(id)).length,
-    [idsFiltrados, selectedIds]
-  );
+  const seleccionadosEnFiltro = useMemo(() => {
+    if (selectedIds.size === 0 || articulosFiltrados.length === 0) return 0;
+    let count = 0;
+    for (let i = 0; i < articulosFiltrados.length; i++) {
+      if (selectedIds.has(articulosFiltrados[i].id)) count++;
+    }
+    return count;
+  }, [articulosFiltrados, selectedIds]);
   const todosFiltradosSeleccionados = idsFiltrados.length > 0 && seleccionadosEnFiltro === idsFiltrados.length;
   const algunosFiltradosSeleccionados = seleccionadosEnFiltro > 0 && !todosFiltradosSeleccionados;
 
@@ -223,12 +287,12 @@ export default function ArticulosClient({
   }, [bulkProveedorListaAbierta]);
 
   const proveedoresFiltradosBulk = useMemo(() => {
-    const quitarAcentos = (texto: string) =>
-      texto.normalize("NFD").replace(new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g"), "");
     const busqueda = quitarAcentos(bulkProveedorBusqueda.toLowerCase().trim());
     if (!busqueda) return proveedores;
-    return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
-  }, [proveedores, bulkProveedorBusqueda]);
+    return proveedoresIndexados
+      .filter(p => p.searchKey.includes(busqueda))
+      .map(p => ({ id: p.id, nombre: p.nombre }));
+  }, [proveedores, proveedoresIndexados, bulkProveedorBusqueda]);
 
   // Cierra el buscador de proveedor del modal de Excel al hacer clic afuera
   useEffect(() => {
@@ -243,12 +307,12 @@ export default function ArticulosClient({
   }, [excelProveedorListaAbierta]);
 
   const proveedoresFiltradosExcel = useMemo(() => {
-    const quitarAcentos = (texto: string) =>
-      texto.normalize("NFD").replace(new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g"), "");
     const busqueda = quitarAcentos(excelProveedorBusqueda.toLowerCase().trim());
     if (!busqueda) return proveedores;
-    return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
-  }, [proveedores, excelProveedorBusqueda]);
+    return proveedoresIndexados
+      .filter(p => p.searchKey.includes(busqueda))
+      .map(p => ({ id: p.id, nombre: p.nombre }));
+  }, [proveedores, proveedoresIndexados, excelProveedorBusqueda]);
 
   // Cierra el buscador del filtro de listado por proveedor al hacer clic afuera
   useEffect(() => {
@@ -263,12 +327,12 @@ export default function ArticulosClient({
   }, [filtroProveedorListaAbierta]);
 
   const proveedoresFiltradosFiltro = useMemo(() => {
-    const quitarAcentos = (texto: string) =>
-      texto.normalize("NFD").replace(new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g"), "");
     const busqueda = quitarAcentos(filtroProveedorBusqueda.toLowerCase().trim());
     if (!busqueda) return proveedores;
-    return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
-  }, [proveedores, filtroProveedorBusqueda]);
+    return proveedoresIndexados
+      .filter(p => p.searchKey.includes(busqueda))
+      .map(p => ({ id: p.id, nombre: p.nombre }));
+  }, [proveedores, proveedoresIndexados, filtroProveedorBusqueda]);
 
   const toggleSeleccionarTodosFiltrados = () => {
     setSelectedIds(prev => {
@@ -768,8 +832,22 @@ export default function ArticulosClient({
               placeholder="Ej: kit 170, etc..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
             />
+            {isSearching ? (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+              </div>
+            ) : searchTerm ? (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200/60 transition-colors"
+                title="Borrar búsqueda"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
           <button
             onClick={() => setSoloOcultos(prev => {
@@ -1100,10 +1178,7 @@ export default function ArticulosClient({
                               disabled={guardandoProveedorSelId === art.id}
                               className={`h-7 text-xs font-bold border-none bg-transparent shadow-none px-1.5 -ml-1.5 rounded-lg hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none max-w-[160px] ${art.oculto ? 'text-slate-400' : 'text-slate-700'} ${!art.proveedorId ? 'text-slate-300 font-normal' : ''}`}
                             >
-                              <option value="none">Sin proveedor</option>
-                              {proveedores.map(p => (
-                                <option key={p.id} value={p.id}>{p.nombre}</option>
-                              ))}
+                              {opcionesProveedoresMemo}
                             </select>
                             {guardandoProveedorSelId === art.id && (
                               <Loader2 className="h-3 w-3 animate-spin text-indigo-500 flex-shrink-0" />

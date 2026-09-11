@@ -44,12 +44,20 @@ export async function obtenerArticulosParaListas() {
         proveedorId: art.proveedorId,
         proveedorNombre: art.proveedor ? (art.proveedor.nombreFantasia || art.proveedor.razonSocial) : null,
         packItems: art.packItems?.map(packItem => ({
-          ...packItem,
+          id: packItem.id,
+          packId: packItem.packId,
+          componenteId: packItem.componenteId,
+          cantidad: packItem.cantidad,
           componente: {
-            ...packItem.componente,
+            id: packItem.componente.id,
+            nombre: packItem.componente.nombre,
             precio: Number(packItem.componente.precio),
             costo: Number(packItem.componente.costo || 0),
-            margenGanancia: Number(packItem.componente.margenGanancia || 0)
+            costoUsd: packItem.componente.costoUsd != null ? Number(packItem.componente.costoUsd) : null,
+            margenGanancia: Number(packItem.componente.margenGanancia || 0),
+            stock: packItem.componente.stock,
+            esPack: packItem.componente.esPack || false,
+            esServicio: packItem.componente.esServicio || false
           }
         })) || []
       }))
@@ -588,13 +596,16 @@ export async function obtenerPacks() {
         stock: 0,
         esPack: true,
         packItems: pack.packItems?.map(packItem => ({
-          ...packItem,
+          id: packItem.id,
+          packId: packItem.packId,
+          componenteId: packItem.componenteId,
+          cantidad: packItem.cantidad,
           componente: {
-            ...packItem.componente,
+            id: packItem.componente.id,
+            nombre: packItem.componente.nombre,
             precio: Number(packItem.componente.precio),
             stock: packItem.componente.stock
-          },
-          cantidad: packItem.cantidad
+          }
         })) || []
       }))
     };

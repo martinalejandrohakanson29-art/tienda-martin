@@ -49,6 +49,16 @@ export interface EstadoConversacion {
      * cliente insistió con "??" y contestó sobre otro kit).
      */
     escaladoPendiente?: { motivo: string; resumen: string; en: string } | null
+    /**
+     * Negativa de compatibilidad que YA se le dio al cliente en esta charla.
+     *
+     * Las herramientas de compat no tienen memoria: miran "moto + kit" y
+     * devuelven el veredicto de la fila, y la guía le ordena al modelo copiar
+     * la línea tal cual. Sin este rastro el cliente podía decir cualquier cosa
+     * ("ya lo tengo modificado", "no importa, lo compro igual") y recibía la
+     * MISMA negativa palabra por palabra (conv 3874, Wave NF).
+     */
+    negativaEntregada?: { moto: string; kit: string; detalle: string; en: string } | null
 }
 
 const VACIO: EstadoConversacion = {}
@@ -59,6 +69,13 @@ const VACIO: EstadoConversacion = {}
  * no queremos que el bot siga mudo para siempre por una consulta de anteayer.
  */
 const ESCALADO_PENDIENTE_VIGENCIA_MS = 24 * 60 * 60 * 1000
+
+/**
+ * La negativa pesa una semana. Es más que el escalado a propósito: el cliente
+ * que se va a mandar a alesar el motor vuelve a los días, y volver a recibir el
+ * "no le va" cuando escribe de nuevo es justo el destrato que evitamos.
+ */
+const NEGATIVA_VIGENCIA_MS = 7 * 24 * 60 * 60 * 1000
 
 /** Clave canónica de un tema para comparar sin duplicar por mayúsculas/acentos. */
 export function normalizarTema(tema: string): string {
@@ -78,9 +95,13 @@ export function unirTemas(previos: string[] | null | undefined, nuevos: string[]
     return salida
 }
 
-function escaladoVigente(en: Date | null): boolean {
+function vigente(en: Date | null, ventanaMs: number): boolean {
     if (!en) return false
-    return Date.now() - new Date(en).getTime() < ESCALADO_PENDIENTE_VIGENCIA_MS
+    return Date.now() - new Date(en).getTime() < ventanaMs
+}
+
+function escaladoVigente(en: Date | null): boolean {
+    return vigente(en, ESCALADO_PENDIENTE_VIGENCIA_MS)
 }
 
 export async function cargarEstadoConversacion(clave?: string): Promise<EstadoConversacion> {
@@ -101,13 +122,18 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 escalado_pendiente_motivo: string | null
                 escalado_pendiente_resumen: string | null
                 escalado_pendiente_en: Date | null
+                negativa_moto: string | null
+                negativa_kit: string | null
+                negativa_detalle: string | null
+                negativa_en: Date | null
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
                    variante_etiqueta, variante_precio, moto_confirmada,
                    pack_presentado_id, pack_presentado_nombre, pack_presentado_precio,
                    COALESCE(temas_respondidos, '{}') AS temas_respondidos,
-                   escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en
+                   escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en,
+                   negativa_moto, negativa_kit, negativa_detalle, negativa_en
             FROM chat_conversacion_estado
             WHERE clave = ${clave}
             LIMIT 1
@@ -141,7 +167,16 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                       resumen: f.escalado_pendiente_resumen || "",
                       en: (f.escalado_pendiente_en || new Date()).toISOString()
                   }
-                : null
+                : null,
+            negativaEntregada:
+                f.negativa_moto && vigente(f.negativa_en, NEGATIVA_VIGENCIA_MS)
+                    ? {
+                          moto: f.negativa_moto,
+                          kit: f.negativa_kit || "",
+                          detalle: f.negativa_detalle || "",
+                          en: (f.negativa_en || new Date()).toISOString()
+                      }
+                    : null
         }
     } catch (err) {
         console.warn("[estado] no se pudo leer chat_conversacion_estado:", (err as any)?.message)
@@ -164,7 +199,8 @@ export async function guardarEstadoConversacion(
         patch.motoConfirmada === undefined &&
         patch.packPresentado === undefined &&
         patch.temasRespondidos === undefined &&
-        patch.escaladoPendiente === undefined
+        patch.escaladoPendiente === undefined &&
+        patch.negativaEntregada === undefined
     ) {
         return
     }
@@ -183,13 +219,15 @@ export async function guardarEstadoConversacion(
             // se "des-contesta" en un turno posterior.
             temasRespondidos: unirTemas(actual.temasRespondidos, patch.temasRespondidos || []),
             escaladoPendiente:
-                patch.escaladoPendiente !== undefined ? patch.escaladoPendiente : actual.escaladoPendiente
+                patch.escaladoPendiente !== undefined ? patch.escaladoPendiente : actual.escaladoPendiente,
+            negativaEntregada:
+                patch.negativaEntregada !== undefined ? patch.negativaEntregada : actual.negativaEntregada
         }
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -204,6 +242,10 @@ export async function guardarEstadoConversacion(
                 escalado_pendiente_motivo = EXCLUDED.escalado_pendiente_motivo,
                 escalado_pendiente_resumen = EXCLUDED.escalado_pendiente_resumen,
                 escalado_pendiente_en = EXCLUDED.escalado_pendiente_en,
+                negativa_moto = EXCLUDED.negativa_moto,
+                negativa_kit = EXCLUDED.negativa_kit,
+                negativa_detalle = EXCLUDED.negativa_detalle,
+                negativa_en = EXCLUDED.negativa_en,
                 actualizado_en = NOW()`,
             clave,
             merged.grupoPineado?.id ?? null,
@@ -218,7 +260,11 @@ export async function guardarEstadoConversacion(
             merged.temasRespondidos ?? [],
             merged.escaladoPendiente?.motivo ?? null,
             merged.escaladoPendiente?.resumen ?? null,
-            merged.escaladoPendiente?.en ? new Date(merged.escaladoPendiente.en) : null
+            merged.escaladoPendiente?.en ? new Date(merged.escaladoPendiente.en) : null,
+            merged.negativaEntregada?.moto ?? null,
+            merged.negativaEntregada?.kit ?? null,
+            merged.negativaEntregada?.detalle ?? null,
+            merged.negativaEntregada?.en ? new Date(merged.negativaEntregada.en) : null
         )
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)
@@ -318,6 +364,12 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
     if (estado.temasRespondidos && estado.temasRespondidos.length > 0) {
         lineas.push(
             `- Temas que YA le contestaste en esta charla: ${estado.temasRespondidos.join(", ")}. Si el cliente vuelve a tocar uno de esos temas sin preguntar nada nuevo (te da un dato, aclara, corrige), NO re-expliques ese tema: ni el mismo texto, ni reformulado con otras palabras, ni "resumido". Respondé en UN renglón, natural, diciéndole qué significa ese dato para él (que llega igual, que no cambia nada, que queda anotado). Solo si hace una pregunta nueva sobre el tema, contestá esa pregunta y nada más.`
+        )
+    }
+
+    if (estado.negativaEntregada?.moto) {
+        lineas.push(
+            `- A este cliente YA le dijiste que el kit no le va a la "${estado.negativaEntregada.moto}", con su motivo. No se lo repitas ni se lo reformules por ningun motivo. Si vuelve sobre ese tema (insiste, aclara algo de su moto, dice que la mando a modificar), ejecuta escalar_a_humano(motivo: 'compatibilidad_dudosa') y guarda silencio sobre ese punto: lo sigue el equipo.`
         )
     }
 

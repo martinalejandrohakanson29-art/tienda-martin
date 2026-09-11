@@ -50,6 +50,14 @@ export interface ResultadoResolverVariante {
     /** Moto que quedó CONFIRMADA compatible en este paso (para la memoria de estado). */
     moto_confirmada?: string
     /**
+     * Moto y motivo del veredicto NEGATIVO. Viajan sueltos (no solo dentro del
+     * texto de la guía) porque el motor los usa para recordar a quién ya se le
+     * dio esta negativa y para leer qué condición pedía la fila — ver el punto
+     * de control de `motor.ts` y `nucleo/negativa-condicional.ts`.
+     */
+    moto?: string
+    detalle?: string
+    /**
      * Pregunta lista para enviar tal cual al cliente (la `pregunta_variante` del
      * grupo). Red de seguridad: si el modelo filtra la guía interna en vez de
      * redactar, el motor manda ESTA en lugar de quedarse mudo.
@@ -520,6 +528,12 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     resuelta: false,
                     grupo_id: grupo.id,
                     incompatible: true,
+                    // Moto y motivo VIAJAN en el resultado (no solo dentro del
+                    // texto de la guía): el motor los necesita para recordar a
+                    // quién ya se le dio esta negativa y para leer qué condición
+                    // pedía la fila. Ver `nucleo/negativa-condicional.ts`.
+                    moto: motoTexto,
+                    detalle: compat.detalle || undefined,
                     // La negativa la redacta la casa, no la IA: ver
                     // `nucleo/compat-negativa.ts` (conv 3874, "te soy sincero").
                     mensaje_para_agente: await guiaIncompatibilidad({

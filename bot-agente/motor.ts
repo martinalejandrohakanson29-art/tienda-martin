@@ -6,7 +6,12 @@ import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
 import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
-import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla } from "./nucleo/texto"
+import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto } from "./nucleo/texto"
+import {
+    condicionSuperada,
+    guiaCondicionSuperada,
+    guiaNegativaYaEntregada
+} from "./nucleo/negativa-condicional"
 import { resolverMoto } from "./nucleo/motos"
 import {
     cargarEstadoConversacion,
@@ -1411,14 +1416,105 @@ export async function ejecutarTurnoAgente(
                     }).catch((err) => console.error("[motor] fallo al persistir moto_no_registrada:", err))
                 }
 
+                // 3. LA NEGATIVA DE COMPATIBILIDAD NO SE SIRVE A CIEGAS.
+                //
+                //    Las herramientas de compat no tienen memoria ni leen el
+                //    mensaje: miran "moto + kit", devuelven el veredicto de la
+                //    fila y la guía le ordena al modelo copiar la línea tal
+                //    cual. Eso está bien la PRIMERA vez. Después no:
+                //
+                //    a) La fila casi nunca dice "imposible", dice "hay que
+                //       alesar los cárteres" / "hay que cambiar la leva": es una
+                //       condición. Si el cliente dice que ya la cumplió, el
+                //       veredicto habla de una moto de fábrica, no de la suya.
+                //    b) Si ya se la dimos y sigue escribiendo del tema, no
+                //       sabemos por qué insiste. Repetir la misma línea es
+                //       responder ciego (conv 3874, 10-11/09, Wave NF: "Si ya
+                //       se ya lo tengo a agrandado los carter todo" → misma
+                //       negativa palabra por palabra al día siguiente).
+                //
+                //    En los dos casos la charla pasa al equipo en silencio. El
+                //    control vive acá, en un solo lugar, porque cubre los tres
+                //    puntos del código que sirven una negativa y porque es el
+                //    único que tiene juntos el veredicto, el mensaje del cliente
+                //    y la memoria de la conversación.
+                //
+                //    Qué NO hay acá: una lista de modificaciones posibles. El
+                //    "qué hay que hacerle" sale del `detalle` de la propia fila,
+                //    así que un kit nuevo con otra condición funciona sin tocar
+                //    código (ver `nucleo/negativa-condicional.ts`).
+                let guiaNegativa: string | null = null
+                const resNeg = ejecucion.resultado || {}
+                const esVeredictoNegativo =
+                    (call.function.name === "resolver_variante" && resNeg.incompatible === true) ||
+                    (call.function.name === "consultar_compatibilidad" &&
+                        resNeg.encontrado === true &&
+                        resNeg.compatible === false)
+
+                if (esVeredictoNegativo) {
+                    const motoNeg = String(
+                        resNeg.moto || resNeg.modelo_moto_detectado || ejecucion.argumentos?.modelo_moto || ""
+                    ).trim()
+                    const kitNeg = String(
+                        ejecucion.argumentos?.combo ||
+                            ejecucion.argumentos?.kit_nombre_o_id ||
+                            resNeg.kit ||
+                            ""
+                    ).trim()
+                    const detalleNeg = String(resNeg.detalle || "")
+                    const previa = estadoConv.negativaEntregada
+                    const yaSeLaDimos =
+                        !!previa && normalizarTexto(previa.moto) === normalizarTexto(motoNeg) && !!motoNeg
+                    const superada = condicionSuperada(mensajeUsuario, detalleNeg || previa?.detalle)
+
+                    if (motoNeg && (superada || yaSeLaDimos)) {
+                        guiaNegativa = superada
+                            ? guiaCondicionSuperada({ moto: motoNeg, tipo: superada.tipo })
+                            : guiaNegativaYaEntregada({ moto: motoNeg })
+
+                        const resumen = superada
+                            ? superada.tipo === "hecho"
+                                ? `Dice que a su ${motoNeg} YA le hizo la modificación que pide la ficha${superada.termino ? ` (${superada.termino})` : ""}: confirmar si así le entra${kitNeg ? ` el "${kitNeg}"` : ""}.`
+                                : `Está dispuesto a hacerle la modificación que pide la ficha a su ${motoNeg}${superada.termino ? ` (${superada.termino})` : ""}: confirmar si así le entra${kitNeg ? ` el "${kitNeg}"` : ""}.`
+                            : `Insiste después de la negativa de "${motoNeg}"${kitNeg ? ` para "${kitNeg}"` : ""}.`
+
+                        motivoEscalado = "compatibilidad_dudosa"
+                        marcarEscalado("compatibilidad_dudosa")
+                        escaladoPersistido = true
+                        anotarEscaladoPendiente(
+                            "compatibilidad_dudosa",
+                            `${resumen} (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
+                        )
+                        await escalarAHumano({
+                            motivo: "compatibilidad_dudosa",
+                            resumen_consulta: `${resumen} El cliente escribió: "${mensajeUsuario.slice(0, 160)}".`,
+                            modelo_moto: motoNeg,
+                            kit: kitNeg || undefined,
+                            conversation_id: opciones.conversationId
+                        }).catch((err) =>
+                            console.error("[motor] fallo al persistir escalado de negativa condicional:", err)
+                        )
+                    } else if (motoNeg) {
+                        // Primera negativa de esta moto: queda anotada para que
+                        // la próxima vez no se repita de memoria.
+                        patchEstado.negativaEntregada = {
+                            moto: motoNeg,
+                            kit: kitNeg,
+                            detalle: detalleNeg,
+                            en: new Date().toISOString()
+                        }
+                    }
+                }
+
                 // El modelo ve SOLO `mensaje_para_agente`: es el contrato de cada
                 // herramienta (qué mostrar y qué NO mostrar en este paso). Los arrays
                 // crudos (packs, grupos, variantes...) quedan en el inspector y la base
                 // pero NO llegan al modelo, para que no contradiga la guía del paso.
                 const contenidoParaModelo =
-                    ejecucion.resultado && typeof ejecucion.resultado.mensaje_para_agente === "string"
+                    guiaNegativa ??
+                    (ejecucion.resultado && typeof ejecucion.resultado.mensaje_para_agente === "string"
                         ? ejecucion.resultado.mensaje_para_agente
-                        : JSON.stringify(ejecucion.resultado)
+                        : JSON.stringify(ejecucion.resultado))
 
                 mensajes.push({
                     role: "tool",

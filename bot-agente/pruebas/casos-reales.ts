@@ -21,6 +21,8 @@ export interface CasoPrueba {
         grupoPineado?: { id: number; nombre: string }
         varianteResuelta?: { packId: number; etiqueta: string; precio: number }
         temasRespondidos?: string[]
+        /** Negativa de compatibilidad que ya se le dio en un turno anterior. */
+        negativaEntregada?: { moto: string; kit: string; detalle: string; en: string }
     }
     resultadoEsperado: {
         debeLlamarHerramientas?: string[]
@@ -1037,6 +1039,64 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             patronProhibido: /env[ií]o gratis (?:de|para|con) (?:las|los|el|la) (?:piezas|partes|dos)|los dos con env[ií]o gratis/i,
             descripcionEsperada:
                 "Debe cotizar las dos piezas con el total que devuelve la herramienta ($38.500), aclarar que el envio corre por cuenta del cliente y no atribuirle el envio gratis del kit a las piezas sueltas."
+        }
+    },
+    {
+        // Conv 3874 (10-11/09). El bot le dijo que el combo no le va a la Wave
+        // NF porque hay que alesar los carteres. El cliente contesto "Si ya se
+        // ya lo tengo a agrandado los carter todo / Ya esta todo modificado" y
+        // al dia siguiente recibio la MISMA negativa palabra por palabra: la
+        // herramienta mira "moto + kit" y la guia ordena copiar la linea tal
+        // cual, asi que el bot respondio ciego sin mirar lo que le dijeron.
+        //
+        // La fila no dice "imposible", dice que trabajo hace falta. Si el
+        // cliente ya lo hizo, el veredicto habla de una moto de fabrica y no de
+        // la suya: lo toma el equipo.
+        id: "caso-65-negativa-condicional-ya-modificado",
+        titulo: "Le dijimos que no y contesta que ya tiene el motor modificado",
+        mensajeCliente: "Si ya se ya lo tengo a agrandado los carter todo\nYa esta todo modificado",
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero mas informacion SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            { rol: "assistant", contenido: "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribucion de regalo.\n\nTenes 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvio gratis a todo el pais!\n\nA que moto se lo queres poner?" },
+            { rol: "user", contenido: "Hola le quiero poner a una wave nf es recorrido corto" },
+            { rol: "assistant", contenido: "Ese kit no le va a la Wave NF. Para que entre hay que hacerle modificaciones al motor (alesar los carteres) — no es un cambio directo de fabrica." }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" },
+            negativaEntregada: {
+                moto: "Wave NF",
+                kit: "Combo Tapa CDI + Cilindro 120",
+                detalle: "Para que entre hay que hacerle modificaciones al motor (alesar los carteres) — no es un cambio directo de fabrica.",
+                en: new Date().toISOString()
+            }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "No puede repetir la negativa ni confirmarle que ahora si le entra: escala a compatibilidad_dudosa y guarda silencio. Lo resuelve el equipo, que es el que sabe si con los carteres alesados le va."
+        }
+    },
+    {
+        // La otra cara del mismo caso: el cliente avisa la modificacion en el
+        // MISMO mensaje en que dice la moto, antes de que exista ninguna
+        // negativa previa. Sin mirar el detalle de la fila, el bot le largaba
+        // el "no le va" igual de ciego.
+        id: "caso-66-negativa-condicional-de-entrada",
+        titulo: "Dice la moto y la modificacion juntas, antes de cualquier negativa",
+        mensajeCliente: "es para una wave nf, pero ya la tengo con los carter alesados",
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero mas informacion SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            { rol: "assistant", contenido: "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribucion de regalo.\n\nTenes 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvio gratis a todo el pais!\n\nA que moto se lo queres poner?" }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "La fila dice que no le entra SIN alesar; el cliente dice que ya esta alesado. No se le repite la negativa ni se le confirma: escala."
         }
     }
 ]

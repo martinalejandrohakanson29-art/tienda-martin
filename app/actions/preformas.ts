@@ -715,7 +715,7 @@ export async function obtenerPreformasAction(filtroEstado?: string) {
             descripcionOriginal: i.descripcionOriginal,
             logo: i.logo,
             size: i.size,
-            fotoUrl: i.fotoUrl,
+            fotoUrl: i.fotoUrl ? `/api/importaciones/items/${i.id}/foto` : null,
             cantidad: i.cantidad,
             precioUnitarioUsd: i.precioUnitarioUsd ? Number(i.precioUnitarioUsd) : null,
             precioTotalUsd: i.precioTotalUsd ? Number(i.precioTotalUsd) : null,

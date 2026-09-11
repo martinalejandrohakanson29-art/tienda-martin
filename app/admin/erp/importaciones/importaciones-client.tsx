@@ -962,28 +962,39 @@ export function ImportacionesClient({ initialData }: { initialData: PreformaView
 
                           {/* FOTO */}
                           <td className="py-3 px-2">
-                            {item.fotoUrl ? (
-                              <button
-                                onClick={() =>
-                                  setFotoEnZoom({
-                                    url: item.fotoUrl!,
-                                    titulo: `${item.supplierItemNo} - ${item.descripcionOriginal || ""}`,
-                                  })
-                                }
-                                className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center hover:scale-105 transition-transform"
-                                title="Ver foto ampliada"
-                              >
-                                <img
-                                  src={item.fotoUrl}
-                                  alt={item.supplierItemNo}
-                                  className="w-full h-full object-contain"
-                                />
-                              </button>
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-600">
-                                <ImageIcon className="w-4 h-4" />
-                              </div>
-                            )}
+                            {(() => {
+                              const itemFotoSrc = item.fotoUrl
+                                ? item.fotoUrl.startsWith("http") && !item.fotoUrl.includes(typeof window !== "undefined" ? window.location.host : "")
+                                  ? `/api/importaciones/items/${item.id}/foto`
+                                  : item.fotoUrl
+                                : null
+
+                              return itemFotoSrc ? (
+                                <button
+                                  onClick={() =>
+                                    setFotoEnZoom({
+                                      url: itemFotoSrc,
+                                      titulo: `${item.supplierItemNo} - ${item.descripcionOriginal || ""}`,
+                                    })
+                                  }
+                                  className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center hover:scale-105 transition-transform"
+                                  title="Ver foto ampliada"
+                                >
+                                  <img
+                                    src={itemFotoSrc}
+                                    alt={item.supplierItemNo}
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).src = `/api/importaciones/items/${item.id}/foto`
+                                    }}
+                                  />
+                                </button>
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-600">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )
+                            })()}
                           </td>
 
                           {/* CÓDIGO */}

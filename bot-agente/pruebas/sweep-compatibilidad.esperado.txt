@@ -55,4 +55,5 @@ rouser 125               esc SI  esc esc esc esc esc
 rouser 200               esc esc esc esc esc esc esc
 Ferrari 500              esc esc esc esc esc esc esc
 Weber 150                esc esc esc esc esc esc esc
+Jawa 150 Supernova       esc esc esc esc esc esc esc
 mi moto                  esc esc esc esc esc esc esc

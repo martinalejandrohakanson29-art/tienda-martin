@@ -328,23 +328,35 @@ function mismoProducto(a: FilaProducto, b: FilaProducto): boolean {
 /**
  * ¿Dos tokens de modelo se refieren al mismo modelo?
  *
- * La contención de substrings ("uno está dentro del otro") es indispensable
- * para variantes como "zb" / "zb110", pero con tokens CORTOS produce falsos
- * positivos entre motos que no tienen nada que ver: "nt" está dentro de
- * "hu-NT-er", así que una fila de Zanella NT 110 confirmaba compatibilidad para
- * una Corven Hunter 150 (otra marca, otra cilindrada, otro motor). Detectado en
- * el barrido moto x kit del 07/09.
+ * Acá hubo DOS versiones de la contención de substrings y las dos fallaron:
+ *  - sin piso de largo, "nt" caía dentro de "hu-NT-er" y una fila de Zanella
+ *    NT 110 confirmaba compatibilidad para una Corven Hunter 150 (barrido moto
+ *    x kit del 07/09);
+ *  - con piso de 4, "perno" cae dentro de "su-PERNO-va": la fila "S2 perno 15
+ *    Motomel" del cilindro 170 le confirmó compatibilidad a una Jawa 150
+ *    Supernova (conv 4028, 12/09). Otra marca, otra moto, y encima una moto que
+ *    no existe en `motos_modelos`.
  *
- * Regla: igualdad siempre; contención solo cuando el token más corto tiene 4+
- * caracteres, que es donde deja de ser casualidad. Los typos reales ("smach",
- * "scua") ya los resuelve el catálogo canónico antes de llegar acá.
+ * El piso de largo nunca fue el criterio: un substring en el MEDIO de otra
+ * palabra es casualidad ortográfica a cualquier largo. Lo que sí es señal es el
+ * token pegado a su cilindrada ("zb" / "zb110", "nt" / "nt110"), que es el caso
+ * real que la contención venía a cubrir.
+ *
+ * Regla: igualdad, o el token corto es el arranque/final del largo y lo que
+ * sobra son SOLO dígitos. Los typos ("smach", "wawe") van por `esTypoDe` — el
+ * criterio único de `nucleo/motos`— en vez de emularlos con contención.
  */
 export function tokensDeModeloCoinciden(a: string, b: string): boolean {
     if (!a || !b) return false
     if (a === b) return true
+    if (esTypoDe(a, b)) return true
     const corto = a.length <= b.length ? a : b
     const largo = a.length <= b.length ? b : a
-    return corto.length >= 4 && largo.includes(corto)
+    if (!largo.startsWith(corto) && !largo.endsWith(corto)) return false
+    const resto = largo.startsWith(corto)
+        ? largo.slice(corto.length)
+        : largo.slice(0, largo.length - corto.length)
+    return resto.length > 0 && /^\d+$/.test(resto)
 }
 
 /**
@@ -810,6 +822,10 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 .filter((m) => m.length >= 3)
         )
         const esSoloMarca = (texto: string) => marcasConocidas.has(normalizarTexto(texto))
+        /** Marcas conocidas que nombra un texto ya normalizado. */
+        const marcasEn = (textoNorm: string) =>
+            new Set(textoNorm.split(" ").filter((t) => marcasConocidas.has(t)))
+        const marcasCliente = marcasEn(motoBuscada)
 
         const motoCanonicaResuelta = resolverMotoCanonica(args.modelo_moto, motosCanonicas)
         // Cilindradas del modelo que resolvió el cliente. Si están, una fila que
@@ -869,6 +885,20 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 continue
             }
 
+            // Fila de OTRA marca: no habla de esta moto.
+            //
+            // Cuando los dos textos nombran una marca conocida y son marcas
+            // distintas, no hay parecido de nombre que valga — son motores
+            // distintos. Es barato y ataja de raíz la familia de falsos
+            // positivos por casualidad ortográfica entre modelos de marcas que
+            // no tienen nada que ver (la fila de una Motomel contestando por una
+            // Honda). Si alguno de los dos no nombra marca, esto no opina: hay
+            // filas cargadas como "blitz" o "wave nf" a secas y siguen valiendo.
+            const marcasFila = marcasEn(regMotoNorm)
+            if (marcasFila.size > 0 && marcasCliente.size > 0) {
+                if (![...marcasCliente].some((m) => marcasFila.has(m))) continue
+            }
+
             // Fila que nombra OTRA cilindrada: no habla de esta moto.
             //
             // Es el espejo positivo de la regla de la conv 3131 (una regla
@@ -893,6 +923,21 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
 
             const tokensReg = regMotoNorm.split(" ").filter((p) => p.length >= 2)
             const distintivasReg = tokensReg.filter((w) => !palabrasIgnoradas.has(w) && isNaN(Number(w)))
+
+            // Espejo del filtro de marca, del otro lado: el cliente NO nombró
+            // ningún modelo (dijo "tengo una 110" y nada más), así que una fila
+            // que sí nombra uno no puede contestar por él.
+            //
+            // Ese caso lo tiene que contestar la fila genérica `110` —"le va a
+            // cualquier 110"—, pero la genérica perdía el scoring: para un "110"
+            // pelado ganaba la fila `gilera smash 110`, que suma los 25 de
+            // contención más los 40 del nombre exacto del kit. Venía dando la
+            // respuesta correcta de casualidad (esa fila dice compatible); con
+            // una fila negativa de otro modelo, el bot le negaba el kit a
+            // cualquier 110.
+            if (distintivasBuscadas.length === 0 && distintivasReg.length > 0) {
+                continue
+            }
 
             // `scoreMoto` acumula SOLO lo que matcheó de la moto (canónica, texto,
             // palabra distintiva, tokens). El kit se puntúa aparte. Regla dura
@@ -1043,6 +1088,35 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             })
             const respaldo = elegibles.sort((a, b) => b.score - a.score)[0]
             if (respaldo) mejorMatch = { ...mejorMatch, detalle: respaldo.reg.detalle }
+        }
+
+        // Red de seguridad: el scorer no puede rescatar una moto que el
+        // resolvedor NO reconoció.
+        //
+        // `resolverMoto` ya sabe decir "ninguna" —el cliente nombró una moto que
+        // no está en `motos_modelos`— y esa rama termina en escalado. Pero abajo
+        // solo se actuaba sobre "ambigua": con "ninguna" la charla seguía derecho
+        // al scorer, y cualquier fila que arañara el piso de 25 salía como
+        // CONFIRMADO. Así una Jawa 150 Supernova se llevó un "le entra directo"
+        // de la fila de una Motomel S2 (conv 4028, 12/09).
+        //
+        // Dos excepciones, las dos imprescindibles:
+        //  - match LITERAL: hay filas cargadas a mano para motos que no están en
+        //    el catálogo canónico ("sapucai 150", "okinoi tango"), y ahí la fila
+        //    nombra la moto del cliente tal cual;
+        //  - fila GENÉRICA: la fila `110` pelada es la que sostiene el "le va a
+        //    cualquier 110", y justamente se usa cuando el cliente no nombró
+        //    ningún modelo ("tengo una 110", "Okinoi 110") y por lo tanto la moto
+        //    nunca va a resolver. Esa fila no afirma nada sobre un modelo: habla
+        //    de la cilindrada, que es el único dato que el cliente dio.
+        //
+        // Lo que se corta es lo del medio: una fila que SÍ nombra un modelo
+        // concreto contestando por una moto que no reconocimos.
+        if (mejorMatch && !mejorCoincidenciaExacta && resol && resol.confianza === "ninguna") {
+            const distintivasGanador = normalizarTexto(mejorMatch.modelo_moto)
+                .split(" ")
+                .filter((w) => w.length >= 2 && !palabrasIgnoradas.has(w) && isNaN(Number(w)))
+            if (distintivasGanador.length > 0) mejorMatch = null
         }
 
         if (mejorMatch) {

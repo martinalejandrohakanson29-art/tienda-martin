@@ -64,6 +64,9 @@ const SNAPSHOT = join(__dirname, "sweep-compatibilidad.esperado.txt")
  *    "le va directo" a una 110, por dos filas de artículo envenenadas. Tiene
  *    que dar `esc` en la columna del Kit 170, nunca `SI`.
  *  - "Ferrari 500" / "Weber 150": moto que no existe, nunca se confirma.
+ *  - "Jawa 150 Supernova": conv 4028. Moto que no está en `motos_modelos`, y
+ *    "su-PERNO-va" contenía el token "perno" de la fila "S2 perno 15 Motomel"
+ *    del cilindro 170: le salió "le entra directo". Tiene que dar `esc`.
  *  - "rouser" / "rouser 125" / "rouser 200": la fila `rouser 125` no tiene que
  *    hablar por la NS 200 (otra cilindrada), pero sí por su propia moto.
  */
@@ -72,7 +75,7 @@ const GRAFIAS_EXTRA = [
     "weve nf", "wuave", "wave s", "wave s 2022", "110 wave",
     "110", "una 110", "tengo un 110", "Okinoi 110", "Gilera 110",
     "rouser", "rouser 125", "rouser 200",
-    "Ferrari 500", "Weber 150", "mi moto",
+    "Ferrari 500", "Weber 150", "Jawa 150 Supernova", "mi moto",
 ]
 
 async function construirSweep(): Promise<string> {

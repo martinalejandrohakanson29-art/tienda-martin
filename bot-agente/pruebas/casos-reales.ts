@@ -1206,5 +1206,44 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "La negativa de la Crypton nunca salió: el turno se recalcula con la ráfaga entera y tiene que darla (el 'hay que agrandar algo?' lo contesta el propio motivo de la fila), no quedarse mudo."
         }
+    },
+    {
+        // Conv 4028 (12/09). Entró por el anuncio del Kit 170 y dijo "Tengo una
+        // jawa 150 supernoba". El bot contestó "Si, le entra directo a la Jawa
+        // 150 Supernova, no precisa modificar nada": compatibilidad afirmada
+        // sobre una moto que NO está en `motos_modelos` y de la que no hay una
+        // sola fila cargada.
+        //
+        // El scorer había matcheado la fila "S2 perno 15 Motomel" del cilindro
+        // 170 porque "su-PERNO-va" contiene "perno", y esos 30 puntos alcanzaban
+        // solos. Dos fixes en `compatibilidad.ts`: `tokensDeModeloCoinciden` ya
+        // no matchea substrings en el medio de una palabra, y una moto que
+        // `resolverMoto` no reconoce no puede salir CONFIRMADO por una fila que
+        // nombra otro modelo. El sweep determinista cubre las dos
+        // (`sweep-compatibilidad.ts`, fila "Jawa 150 Supernova"); este caso
+        // cubre que el motor haga lo correcto de punta a punta.
+        id: "caso-70-moto-inexistente-no-se-confirma",
+        titulo: "Moto que no existe en el catálogo ('jawa 150 supernoba') — escala, no confirma compatibilidad",
+        mensajeCliente: "Tengo una jawa 150 supernoba",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información del kit170cc" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\nel kit incluye:\n✅cilindro con piston, aros y perno, y tambien la junta de tapa y de base\n✅leva de calle de 7.80\n\nno precisa modificaciones.\nHacemos envios a todo el pais\n\nA que moto se lo queres poner?"
+            }
+        ],
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            // Por las dudas de que un modelo decida hablar igual: lo que nunca
+            // puede aparecer es la afirmación de compatibilidad.
+            patronProhibido: /le (entra|va)\b|es compatible|sin (modificar|modificaciones)/i,
+            descripcionEsperada:
+                "La Jawa 150 Supernova no está en el catálogo de motos ni tiene fila de compatibilidad: escala a moto_no_registrada y guarda silencio, sin afirmar que le entra."
+        }
     }
 ]

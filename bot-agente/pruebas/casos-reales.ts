@@ -1343,5 +1343,57 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Pregunta por el dato que difiere entre variantes: da los dos diámetros (54mm corto / 52.4mm largo) y, como todavía falta la moto, repregunta la moto — no le pide al cliente que elija el recorrido."
         }
+    },
+    {
+        id: "caso-75-pago-contra-entrega-es-desconfianza",
+        titulo: "Pide pagar al recibir: el 'no' va con la prueba de que existimos (conv 4154)",
+        mensajeCliente: "El precio seria 99 mil\nY como seria\nLo traen a domicilio y pago aca",
+        historial: [
+            { rol: "user", contenido: "Hola quiero mas informacion sobre el kit 120 + leva de calle de 6.4" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola, cómo va! 🔥\n\nEl combo Kit 120 corto + leva de calle de 6.40 sale $99.000 con envío gratis a todo el país.\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 4, nombre: "Kit 120 corto + Leva 6.40" }
+        },
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_info_negocio"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // En vivo contestó el "no" perfecto y seco ("no trabajamos con pago
+            // al recibir, el pago va siempre antes de despachar") y el cliente
+            // se fue en el mensaje siguiente. Pedir contra entrega es la forma
+            // criolla de decir "no te conozco": el no tiene que ir con el local,
+            // las redes y la salida por Mercado Libre con compra protegida.
+            patronRespuesta: /mercado\s*libre|maps\.app\.goo\.gl|instagram/i,
+            descripcionEsperada:
+                "Mantiene el dato (el pago va antes de despachar) pero en el mismo turno da la razón para confiar: local físico con Maps, Instagram y la alternativa de comprarlo por Mercado Libre con compra protegida. No deja el 'no' solo."
+        }
+    },
+    {
+        id: "caso-76-se-baja-por-desconfianza-un-rescate",
+        titulo: "'No gracias paso' justo después del pago por adelantado: un rescate y sin jerga (conv 4154)",
+        mensajeCliente: "No gracias paso",
+        historial: [
+            { rol: "user", contenido: "Lo traen a domicilio y pago aca" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Ojo, no trabajamos con pago al recibir: el pago va siempre antes de despachar. Podés transferir (te paso el alias o CBU) o pagar en efectivo acá en el local."
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // En vivo: "Dale, sin problema. Cuando quieras seguimos a mano." —
+            // "a mano" es jerga nuestra de oficina, del otro lado no significa
+            // nada. Y se fue un cliente que ya había aceptado el precio.
+            patronProhibido: /a mano|un humano|una persona real|descuento/i,
+            descripcionEsperada:
+                "Se baja por el pago por adelantado, no por el producto: un solo intento de rescate corto con la alternativa (Mercado Libre con compra protegida, o pasar por el local) y ahí se calla. Sin jerga interna, sin insistir y sin inventar descuentos."
+        }
     }
 ]

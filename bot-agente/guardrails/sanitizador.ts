@@ -142,6 +142,21 @@ const MULETILLAS_SINCERIDAD = [
     /\blamento\s+(decirte|informarte|comunicarte)(\s+que)?\s*[:,]*\s*/gi,
 ]
 
+// Jerga interna de oficina que se le escapa al cliente.
+//
+// Conv 4154 (14/09): el cliente se bajo de la compra y el bot se despidio con
+// "Dale, sin problema. Cuando quieras seguimos a mano.". "A mano" es como
+// hablamos NOSOTROS de responder manualmente en vez de con el bot; del otro
+// lado no significa nada (y suena raro). Lo mismo con "te atiende un humano" o
+// "te sigue un agente": ademas de jerga, delatan que lo anterior no lo era.
+//
+// No se descarta el mensaje (el resto suele estar bien): se reemplaza la
+// muletilla por como lo diria alguien del mostrador.
+const JERGA_INTERNA_DE_OFICINA: [RegExp, string][] = [
+    [/\b(seguimos|segu[ií]s|sigo|continuamos|hablamos|charlamos|coordinamos|lo vemos|lo seguimos)\s+a\s+mano\b/gi, "$1 por acá"],
+    [/\b(te|lo|la)\s+(sigue|atiende|contesta|responde|va a atender|va a responder|va a contestar)\s+(un|una)\s+(humano|humana|persona real|agente|operador|operadora)\b[^.\n!?]*/gi, "seguimos por acá"],
+]
+
 // Corrección obligatoria de tuteo neutro a voseo argentino (ej: Recuerda -> Recordá)
 const CORRECCIONES_VOSEO_ARGENTINO: [RegExp, string][] = [
     [/\brecuerda\b/gi, "recordá"],
@@ -638,6 +653,17 @@ export function sanitizarMensajeSalida(
 
     // 2.c Reemplazo de fórmulas pesadas de call center por cierres naturales de mostrador
     for (const [regex, reemplazo] of FRASES_CALL_CENTER) {
+        regex.lastIndex = 0
+        const nuevo = limpio.replace(regex, reemplazo).trim()
+        if (nuevo !== limpio) {
+            limpio = nuevo
+            modificado = true
+        }
+    }
+
+    // 2.c-bis Jerga interna nuestra que no significa nada del otro lado
+    // ("seguimos a mano", "te atiende un humano").
+    for (const [regex, reemplazo] of JERGA_INTERNA_DE_OFICINA) {
         regex.lastIndex = 0
         const nuevo = limpio.replace(regex, reemplazo).trim()
         if (nuevo !== limpio) {

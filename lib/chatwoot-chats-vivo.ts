@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { chatwootConfig } from "@/lib/chatwoot-bot"
+import { chatwootConfig, marcarConversacionLeidaEnChatwoot } from "@/lib/chatwoot-bot"
 
 // Espejo local de conversaciones reales de Chatwoot en PostgreSQL
 // (tabla chatwoot_conversaciones_espejo).
@@ -425,6 +425,13 @@ export async function actualizarDestacadoEnEspejo(conversationId: number, destac
  * nada lo volvía a poner en ON (calcularBotPausadoDesdeHistorial devuelve null
  * para el mensaje propio del bot, así que la reconciliación del webhook no
  * pisaba ese true espurio).
+ *
+ * También apaga el contador de no leídos: si ya le contestamos al cliente
+ * (aunque sea una respuesta automática/de plantilla), no queda nada pendiente
+ * de leer en esa conversación. Sin el aviso a Chatwoot (`update_last_seen`) el
+ * `unread_count` que trae la API queda pegado en lo que tenía ANTES de
+ * nuestra respuesta, y el próximo sync de la tabla espejo lo vuelve a pisar
+ * con ese valor viejo, resucitando el +1 aunque ya esté todo contestado.
  */
 export async function registrarMensajeSalienteEnEspejo(
     conversationId: number,
@@ -437,11 +444,13 @@ export async function registrarMensajeSalienteEnEspejo(
         UPDATE chatwoot_conversaciones_espejo
         SET ultimo_mensaje = ${contenido.slice(0, 1000)},
             ultimo_mensaje_propio = true,
+            no_leidos = 0,
             bot_pausado = CASE WHEN ${pausarBot} THEN true ELSE bot_pausado END,
             ultima_actividad = NOW(),
             actualizado_en = NOW()
         WHERE id = ${BigInt(conversationId)}
     `
+    await marcarConversacionLeidaEnChatwoot(ACCOUNT_ID, conversationId)
 }
 
 /**

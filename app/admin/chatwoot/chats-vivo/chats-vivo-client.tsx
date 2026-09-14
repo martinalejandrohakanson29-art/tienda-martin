@@ -893,7 +893,9 @@ export function ChatsVivoClient({
                                 ultimoMensajePropio: esPropio,
                                 ultimaActividad: new Date().toISOString(),
                                 horaEtiqueta: "ahora",
-                                noLeidos: esActiva ? 0 : (esPropio ? item.noLeidos : item.noLeidos + 1),
+                                // Un mensaje saliente (nuestro, aunque sea de plantilla) ya
+                                // contestó lo que hubiera pendiente: no hay nada que leer.
+                                noLeidos: esActiva || esPropio ? 0 : item.noLeidos + 1,
                                 botPausado: typeof data.botPausado === "boolean" ? data.botPausado : item.botPausado,
                             }
                             lista = [actualizada, ...prev.conversaciones.slice(0, idx), ...prev.conversaciones.slice(idx + 1)]

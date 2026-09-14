@@ -312,7 +312,8 @@ function esSaludoSinIntencion(msg: string): boolean {
 function extraerFotoDeBienvenida(
     herramientasEjecutadas: HerramientaEjecutadaInfo[],
     estadoConv: EstadoConversacion,
-    descartados: { packsDescartados: Set<number>; gruposDescartados: Set<number> }
+    descartados: { packsDescartados: Set<number>; gruposDescartados: Set<number> },
+    mensajeFinal: string
 ): string | undefined {
     for (const ej of herramientasEjecutadas) {
         if (ej.nombre !== "consultar_catalogo_y_precios") continue
@@ -334,6 +335,21 @@ function extraerFotoDeBienvenida(
         // no mandamos la foto de un kit que el mensaje no presenta.
         if (pack && descartados.packsDescartados.has(pack.id)) continue
         if (grupo && descartados.gruposDescartados.has(grupo.id)) continue
+
+        // El mensaje tiene que PRESENTAR ese kit para que la foto tenga sentido.
+        // Es el mismo criterio de `confirmarPresentadoSegunMensaje` (el precio
+        // del kit en el texto), que hasta ahora solo corría cuando en el turno
+        // había varias búsquedas. Con una sola no se chequeaba nada: en la conv
+        // 4194 el mensaje era "si, vendemos repuestos, decime qué pieza buscás"
+        // y salió con la foto del kit dakar 200 pegada, un kit que el texto ni
+        // nombra. Si el kit no tiene precio cargado no se exige nada (no hay
+        // evidencia posible) y la foto sale como siempre.
+        const precios: number[] = pack
+            ? [Number(pack.precio) || 0]
+            : (grupo?.variantes || []).map((v: { precio: number }) => Number(v.precio) || 0)
+        const presentaElKit =
+            precios.every((p) => !p) || precios.some((p) => precioApareceEnTexto(mensajeFinal, p))
+        if (!presentaElKit) continue
 
         if (!yaPineadoAntes) {
             const foto = grupo?.foto_url || pack?.foto_url
@@ -1476,7 +1492,12 @@ export async function ejecutarTurnoAgente(
             return {
                 mensajeFinal: mensajeFinalUnificado || null,
                 mensajesFinales: mensajesFinalesSanitizados,
-                fotoUrl: extraerFotoDeBienvenida(herramientasEjecutadas, estadoConv, descartadosPorElMensaje),
+                fotoUrl: extraerFotoDeBienvenida(
+                    herramientasEjecutadas,
+                    estadoConv,
+                    descartadosPorElMensaje,
+                    mensajeFinalUnificado || ""
+                ),
                 herramientasEjecutadas,
                 // Con escalado parcial el turno derivó algo Y contesta: el
                 // consumidor tiene que enviar el mensaje igual (ver

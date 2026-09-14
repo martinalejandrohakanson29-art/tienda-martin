@@ -382,3 +382,64 @@ export function guiaMarcaSinModeloAgotada(marca: string): string {
         `Si en el mismo mensaje pregunto otra cosa (precio, envio, demora), esa si contestala.`,
     ].join("\n")
 }
+
+/**
+ * ¿Lo que se está buscando es la MOTO del cliente y nada más?
+ *
+ * Por qué existe (conv 4194, 14/09): el cliente preguntó "venden repuestos para
+ * la moto rouser ns200" y el modelo buscó el catálogo con `termino_busqueda:
+ * "Rouser NS200"`. El scorer del catálogo no sabe qué es una moto: le vio el
+ * número 200, lo cruzó con el "kit dakar 200 economico" y devolvió
+ * `encontrado: true`. Con eso el bot le contestó que sí vendíamos repuestos
+ * para su moto —no vendemos NADA para la NS 200— y le adjuntó la foto de ese
+ * kit. Nunca consultó compatibilidad ni escaló.
+ *
+ * La moto no se busca en el catálogo: se busca en `consultar_compatibilidad`,
+ * que es la única tabla que sabe qué le entra a qué. Esta función es el guard
+ * determinista que separa un caso del otro.
+ *
+ * Criterio: hay evidencia ALFABÉTICA de moto (un modelo resuelto o una marca de
+ * fábrica) y, sacando las palabras de esa moto, no queda ninguna palabra de
+ * producto. Por eso:
+ *   - "rouser ns200", "para una gilera"        -> es moto (no hay producto)
+ *   - "kit 120", "escape rouser", "tapa cdi"   -> NO (queda "kit"/"escape"/"tapa")
+ *   - "120", "170 varillero"                   -> NO (números pelados: cilindrada
+ *     de producto, que es justo como se busca el catálogo de siempre)
+ * El error por omisión cae del lado de seguir buscando el catálogo, que es el
+ * comportamiento de siempre.
+ */
+export async function terminoEsSoloMoto(texto: string): Promise<{ esMoto: boolean; moto?: string }> {
+    const norm = normalizarTexto(texto || "")
+    if (!norm) return { esMoto: false }
+
+    const tokens = norm.split(" ").filter(Boolean)
+    const alfabeticos = tokens.filter((t) => t.length >= 2 && isNaN(Number(t)) && !RELLENO.has(t))
+    // Sin una sola palabra, lo único que hay son números: eso es una cilindrada
+    // de kit ("120"), no una moto.
+    if (alfabeticos.length === 0) return { esMoto: false }
+
+    const resol = await resolverMoto(norm).catch(() => null)
+    const modelos = resol?.modelo ? [resol.modelo] : resol?.candidatos || []
+    const hayMarca = alfabeticos.some((t) => MARCAS_MOTO.has(t))
+    if (modelos.length === 0 && !hayMarca) return { esMoto: false }
+
+    // Palabras que pertenecen a la(s) moto(s) reconocida(s).
+    const identidad = new Set<string>()
+    for (const m of modelos) {
+        for (const w of normalizarTexto(m.nombre_completo).split(" ")) if (w) identidad.add(w)
+        for (const a of m.aliases) for (const w of normalizarTexto(a).split(" ")) if (w) identidad.add(w)
+    }
+
+    const restantes = alfabeticos.filter((t) => {
+        if (MARCAS_MOTO.has(t) || identidad.has(t)) return false
+        for (const p of identidad) if (esTypoDe(t, p)) return false
+        return true
+    })
+    if (restantes.length > 0) return { esMoto: false }
+
+    // Sin modelo resuelto (marca sola, o familia ambigua) se devuelve lo que
+    // dijo el cliente pero sin el relleno de la frase: "para una gilera" viaja
+    // como "gilera", no como "para una gilera".
+    const sinRelleno = tokens.filter((t) => !RELLENO.has(t)).join(" ").trim()
+    return { esMoto: true, moto: resol?.modelo?.nombre_completo || sinRelleno || texto.trim() }
+}

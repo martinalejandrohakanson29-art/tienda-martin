@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
+import { terminoEsSoloMoto } from "../nucleo/motos"
 
 export interface ArgsCatalogoPrecios {
     termino_busqueda?: string
@@ -754,6 +755,24 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             gruposFiltrados = grupos.filter((g) => g.id === args.grupo_id)
             packsFiltrados = []
         } else if (args.termino_busqueda) {
+            // GUARD: el término es la MOTO del cliente, no un producto.
+            //
+            // El catálogo no se busca por la moto: el scorer solo ve el número
+            // y cruza la cilindrada de la moto con la del kit ("rouser ns200"
+            // -> "kit dakar 200 economico", conv 4194). Ver `terminoEsSoloMoto`.
+            const comoMoto = await terminoEsSoloMoto(args.termino_busqueda).catch(() => ({ esMoto: false, moto: undefined }))
+            if (comoMoto.esMoto) {
+                const moto = comoMoto.moto || args.termino_busqueda
+                return {
+                    encontrado: false,
+                    packs: [],
+                    grupos: [],
+                    mensaje_para_agente: `'${args.termino_busqueda}' es una MOTO, no un producto del catálogo. El catálogo NO se busca por la moto del cliente: el número de la moto es su cilindrada y matchea kits que no tienen nada que ver con ella.
+Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con modelo_moto: '${moto}'.
+⛔ PROHIBIDO decirle al cliente que tenemos (o que no tenemos) repuestos para su moto sin ese dato, y PROHIBIDO pedirle que te diga qué pieza busca como si ya supieras que le vendemos algo. Si la compatibilidad no consta, ejecutá escalar_a_humano con motivo 'moto_no_registrada' y guardá silencio sobre ese punto.`
+                }
+            }
+
             // Scorer unico y compartido: ver bot-agente/nucleo/texto.ts
             const puntuarItem = (nombre: string, corpusExtra: string): number =>
                 puntuarItemCatalogo(args.termino_busqueda!, nombre, corpusExtra)

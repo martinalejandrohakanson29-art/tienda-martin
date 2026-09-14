@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma"
-import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT, MENSAJE_VARIOS_KITS_DEFAULT } from "@/lib/chat-config-constants"
 
 export interface ConfiguracionAgente {
     tonoEstilo: string
     palabrasProhibidas: string[] // palabras a limpiar automáticamente
     permitirBro: boolean // si false, reemplaza "bro" por "amigo" o lo quita
     mensajeIncompatibilidad: string
+    /** Repregunta fija para la ráfaga que trae las plantillas de dos o más anuncios distintos. */
+    mensajeVariosKits: string
     openaiApiKey?: string
     deepseekApiKey?: string
     openrouterApiKey?: string
@@ -59,6 +61,7 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     palabrasProhibidas: ["culiau", "culiao", "che", "chabón", "amigazo", "master", "vieja", "flaco", "wey", "pana"],
     permitirBro: true,
     mensajeIncompatibilidad: MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+    mensajeVariosKits: MENSAJE_VARIOS_KITS_DEFAULT,
     openaiApiKey: "",
     deepseekApiKey: "",
     openrouterApiKey: "",
@@ -91,6 +94,7 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
         const tonoEstilo = mapa.get("tono_estilo_vendedor") || CONFIG_DEFAULTS.tonoEstilo
         const permitirBro = mapa.has("permitir_bro") ? mapa.get("permitir_bro") === "true" : CONFIG_DEFAULTS.permitirBro
         const mensajeIncompatibilidad = mapa.get("mensaje_incompatibilidad") || CONFIG_DEFAULTS.mensajeIncompatibilidad
+        const mensajeVariosKits = mapa.get("mensaje_varios_kits") || CONFIG_DEFAULTS.mensajeVariosKits
         const palabrasRaw = mapa.get("palabras_prohibidas")
         let palabrasProhibidas = CONFIG_DEFAULTS.palabrasProhibidas
         if (palabrasRaw) {
@@ -139,6 +143,7 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             palabrasProhibidas,
             permitirBro,
             mensajeIncompatibilidad,
+            mensajeVariosKits,
             openaiApiKey,
             deepseekApiKey,
             openrouterApiKey,

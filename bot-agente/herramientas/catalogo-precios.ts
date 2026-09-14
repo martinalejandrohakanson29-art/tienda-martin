@@ -527,6 +527,53 @@ export async function detectarPlantillaAnuncio(mensajeUsuario: string): Promise<
     }
 }
 
+/**
+ * Kits/combos cuya plantilla de anuncio aparece TEXTUALMENTE dentro del mensaje.
+ *
+ * Es el caso del cliente que clickea varios avisos seguidos: el debounce junta
+ * las plantillas de los tres anuncios en una sola ráfaga y `detectarPlantillaAnuncio`
+ * tiene que elegir una (o, si ninguna es exacta, ninguna). Entregar la ficha de
+ * un kit y callar los otros dos es peor que preguntar (conv 4149, 14/09).
+ *
+ * Solo mira la dirección "el mensaje CONTIENE la plantilla": la inversa (la
+ * plantilla contiene al mensaje) es el match difuso de un "Hola quiero más
+ * información" pelado y no prueba que el cliente haya nombrado ese kit.
+ */
+export async function detectarPlantillasEnLaRafaga(
+    mensajeUsuario: string
+): Promise<{ tipo: "pack" | "grupo"; id: number; nombre: string }[]> {
+    const textoNorm = normalizarTexto(mensajeUsuario)
+    if (!textoNorm || textoNorm.length < 5) return []
+
+    try {
+        const grupos = await prisma.$queryRaw<{ id: number; nombre: string; plantillas_bienvenida: string | null }[]>`
+            SELECT id, nombre, plantillas_bienvenida
+            FROM chat_pack_grupos
+            WHERE activo = true
+        `
+        const packs = await prisma.$queryRaw<{ id: number; nombre: string; plantillas_bienvenida: string | null }[]>`
+            SELECT id, nombre, plantillas_bienvenida
+            FROM chat_packs
+            WHERE activo = true
+        `
+
+        const contenida = (plantilla: string | null) => {
+            const norm = normalizarTexto(plantilla)
+            // Una plantilla corta ("hola") entraría en cualquier texto: el piso
+            // es el mismo que usa el matcher del referral.
+            return norm.length >= 8 && textoNorm.includes(norm)
+        }
+
+        return [
+            ...grupos.filter((g) => contenida(g.plantillas_bienvenida)).map((g) => ({ tipo: "grupo" as const, id: g.id, nombre: g.nombre })),
+            ...packs.filter((p) => contenida(p.plantillas_bienvenida)).map((p) => ({ tipo: "pack" as const, id: p.id, nombre: p.nombre })),
+        ]
+    } catch (err) {
+        console.error("Error en detectarPlantillasEnLaRafaga:", err)
+        return []
+    }
+}
+
 export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promise<ResultadoCatalogoPrecios> {
     try {
         // Consultar packs simples activos incluyendo plantillas y detalles

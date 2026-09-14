@@ -9,7 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Save, Loader2, Check, AlertTriangle, Trash2, Link2, Plus } from "lucide-react"
 
-import { guardarMensajeIncompatibilidad, guardarCostoEnvioSueltas } from "@/app/actions/chat-config"
+import {
+    guardarMensajeIncompatibilidad,
+    guardarMensajeVariosKits,
+    guardarCostoEnvioSueltas,
+} from "@/app/actions/chat-config"
 import {
     guardarInfoNegocio,
     eliminarInfoNegocio,
@@ -17,6 +21,7 @@ import {
 } from "@/app/actions/info-negocio"
 import {
     MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+    MENSAJE_VARIOS_KITS_DEFAULT,
     type ChatConfig,
 } from "@/lib/chat-config-constants"
 import { FICHAS_TEMAS_NEGOCIO, SINONIMOS_CONFIANZA, type FichaTemaNegocio } from "@/lib/temas-negocio"
@@ -473,6 +478,8 @@ function RespuestasFijasBloque({
                 </CardContent>
             </Card>
 
+            <VariosKitsCard valorInicial={configInicial.mensajeVariosKits} onError={setError} />
+
             <CostoEnvioCard valorInicial={configInicial.costoEnvioSueltas} onError={setError} />
 
             <p className="text-xs text-gray-400">
@@ -481,6 +488,101 @@ function RespuestasFijasBloque({
                 de lo que escribió la persona — no usa este mensaje.
             </p>
         </section>
+    )
+}
+
+function VariosKitsCard({
+    valorInicial,
+    onError,
+}: {
+    valorInicial: string
+    onError: (mensaje: string | null) => void
+}) {
+    const [texto, setTexto] = useState(valorInicial)
+    const [guardado, setGuardado] = useState(valorInicial)
+    const [guardando, setGuardando] = useState(false)
+    const [ok, setOk] = useState(false)
+
+    const sinCambios = texto.trim() === guardado.trim()
+
+    async function guardar() {
+        setGuardando(true)
+        onError(null)
+        setOk(false)
+        try {
+            const res = await guardarMensajeVariosKits(texto)
+            setGuardado(res.valor)
+            setTexto(res.valor)
+            setOk(true)
+            setTimeout(() => setOk(false), 2500)
+        } catch (e) {
+            onError(e instanceof Error ? e.message : "No se pudo guardar")
+        } finally {
+            setGuardando(false)
+        }
+    }
+
+    return (
+        <Card className="border-t-4 border-t-emerald-500 shadow-md">
+            <CardHeader>
+                <CardTitle className="text-xl">Cuando pregunta por varios kits a la vez</CardTitle>
+                <CardDescription>
+                    Si el cliente clickeó dos o más anuncios seguidos, las plantillas llegan todas juntas en la
+                    misma tanda. En vez de mandarle la ficha de uno solo y dejar los otros colgando, el bot
+                    pregunta con este texto y espera. No nombra los kits a propósito: los nombres del catálogo son
+                    internos y al cliente no le dicen nada.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="msg-varios-kits">Texto</Label>
+                    <Textarea
+                        id="msg-varios-kits"
+                        value={texto}
+                        onChange={(e) => setTexto(e.target.value)}
+                        rows={2}
+                        maxLength={500}
+                        placeholder={MENSAJE_VARIOS_KITS_DEFAULT}
+                    />
+                    <p className="text-xs text-gray-400">{texto.trim().length}/500</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <Button
+                        onClick={guardar}
+                        disabled={guardando || sinCambios || !texto.trim()}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    >
+                        {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Guardar
+                    </Button>
+                    {ok && (
+                        <span className="text-sm text-emerald-600 flex items-center gap-1">
+                            <Check className="h-4 w-4" /> Guardado
+                        </span>
+                    )}
+                    {!sinCambios && !ok && (
+                        <button
+                            type="button"
+                            onClick={() => setTexto(guardado)}
+                            className="text-sm text-gray-400 hover:text-gray-600 underline"
+                        >
+                            deshacer cambios
+                        </button>
+                    )}
+                </div>
+
+                {guardado.trim() !== MENSAJE_VARIOS_KITS_DEFAULT.trim() && (
+                    <button
+                        type="button"
+                        onClick={() => setTexto(MENSAJE_VARIOS_KITS_DEFAULT)}
+                        className="text-xs text-gray-400 hover:text-gray-600 underline"
+                    >
+                        volver al texto original
+                    </button>
+                )}
+            </CardContent>
+        </Card>
     )
 }
 

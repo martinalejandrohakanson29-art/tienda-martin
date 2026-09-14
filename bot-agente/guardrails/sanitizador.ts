@@ -419,7 +419,12 @@ export function quitarHechosYaDichos(
                 if (contieneUrl(frase)) return true
                 const hechos = extraerHechos(frase)
                 if (hechos.size === 0) return true
-                return ![...hechos].some((h) => yaDichos.has(h))
+                // Se recorta solo si TODO lo que dice la frase ya se dijo. Con
+                // "alcanza con que uno se repita" se perdian datos nuevos por
+                // arrastre: "Cuesta $99.990 envio gratis" se caia entera porque
+                // la ficha del otro kit ya habia dicho "gratis", y el cliente se
+                // quedaba sin el precio que acababa de pedir (conv 4149, 14/09).
+                return ![...hechos].every((h) => yaDichos.has(h))
             })
 
             if (conservadas.length === frases.length) {

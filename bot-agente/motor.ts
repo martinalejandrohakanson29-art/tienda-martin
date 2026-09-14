@@ -671,7 +671,57 @@ export async function ejecutarTurnoAgente(
     //  b) Si la moto ya está confirmada, la bienvenida seguía cerrando con
     //     "A qué moto se lo querés poner?" — una pregunta ya respondida.
     {
-        const { detectarPlantillaAnuncio, detectarPlantillaPorReferral } = await import("./herramientas/catalogo-precios")
+        const { detectarPlantillaAnuncio, detectarPlantillaPorReferral, detectarPlantillasEnLaRafaga } = await import(
+            "./herramientas/catalogo-precios"
+        )
+
+        // El cliente clickeó VARIOS anuncios seguidos y el debounce juntó sus
+        // plantillas en una sola ráfaga (conv 4149, 14/09: el 200, el 170+leva y
+        // el 220 en cinco minutos). Antes se entregaba la ficha de uno solo —el
+        // que ganara el match— y los otros quedaban colgando o se derivaban.
+        //
+        // No lo adivinamos por él: se le devuelve la pregunta con la letra de la
+        // casa (chat_config.mensaje_varios_kits), costo $0. A propósito NO se
+        // enumeran los kits: los nombres del catálogo son internos.
+        const plantillasEnLaRafaga = await detectarPlantillasEnLaRafaga(mensajeUsuario)
+        if (plantillasEnLaRafaga.length > 1) {
+            const pregunta = sanitizarMensajeSalida(config.mensajeVariosKits, {
+                palabrasProhibidas: config.palabrasProhibidas,
+                permitirBro: config.permitirBro,
+                esConversacionEnCurso: historialPrevio.length > 0
+            }).textoLimpio
+
+            // Preguntar dos veces lo mismo es peor que no preguntar: si ya salió
+            // en esta charla, el turno sigue de largo y lo resuelve el modelo con
+            // el catálogo (o deriva, que es la salida honesta).
+            const yaSePregunto = historialPrevio.some(
+                (m) => m.rol === "assistant" && normalizarTexto(m.contenido) === normalizarTexto(pregunta)
+            )
+
+            if (pregunta && !yaSePregunto) {
+                return {
+                    mensajeFinal: pregunta,
+                    mensajesFinales: [pregunta],
+                    herramientasEjecutadas: [
+                        {
+                            nombre: "match_plantilla_publicidad",
+                            argumentos: { varios: plantillasEnLaRafaga.map((p) => `${p.tipo}:${p.id}`).join(", ") },
+                            resultado: {
+                                match_directo: false,
+                                origen: "anuncio_instagram",
+                                mensaje_para_agente:
+                                    `La ráfaga trae las plantillas de ${plantillasEnLaRafaga.length} anuncios distintos ` +
+                                    `(${plantillasEnLaRafaga.map((p) => p.nombre).join(", ")}). No se entrega ninguna ficha: ` +
+                                    `se le pregunta al cliente por cuál kit consulta (costo \$0).`
+                            }
+                        }
+                    ],
+                    escaladoHumano: false,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: sinCostoLLM(modelo)
+                }
+            }
+        }
 
         // Primero por texto (la plantilla exacta que manda el cliente). Si no,
         // por el referral del anuncio: en WhatsApp el cliente muchas veces
@@ -788,8 +838,15 @@ export async function ejecutarTurnoAgente(
                                 // la rafaga era justamente "cuanto sale", el sub-turno
                                 // no tiene nada que agregar y volvia a tirar los mismos
                                 // numeros tres segundos despues (conv 3859, 10/09).
-                                `Esa ficha YA le dio el precio de cada opcion y que el envio es gratis: no repitas esos datos. ` +
-                                `Si lo unico que preguntaba era el precio o el envio, ya esta contestado — no mandes nada mas. ` +
+                                //
+                                // Ojo con el alcance: esto vale SOLO para el combo de la
+                                // ficha. Sin esa aclaracion el modelo se guardaba tambien
+                                // el precio de OTRO kit que el cliente preguntaba en la
+                                // misma rafaga ("y el 170 mas leva que vale?") y le
+                                // contestaba que incluia, sin el numero.
+                                `Esa ficha YA le dio el precio y el envio DE ESE combo ("${matchPlantilla.nombre}"): no repitas esos datos. ` +
+                                `Si te pregunta por OTRO producto, ese precio no salio todavia — daselo. ` +
+                                `Si lo unico que preguntaba era el precio o el envio de ESE combo, ya esta contestado — no mandes nada mas. ` +
                                 (textoFinal.includes("?") && /moto/i.test(textoFinal)
                                     ? `La ficha que ya salió cierra preguntandole la moto, asi que NO se la vuelvas a preguntar: quedaria preguntada dos veces seguidas.]`
                                     : `]`)
@@ -805,12 +862,20 @@ export async function ejecutarTurnoAgente(
                     { ...opciones, referralAnuncio: undefined, globosYaEmitidos: [textoFinal] }
                 )
 
-                // El resto escaló (dato que no tenemos): el pendiente ya está en la
-                // bandeja del equipo, pero el cliente igual tiene que recibir la
+                // El resto escaló ENTERO (dato que no tenemos): el pendiente ya está
+                // en la bandeja del equipo, pero el cliente igual tiene que recibir la
                 // bienvenida del anuncio que clickeó. Los escalados "duros"
                 // (pide humano, reclamo, insulto) ni llegan acá: los corta el
                 // detector determinista sobre la ráfaga completa, más arriba.
-                if (turnoResto.escaladoHumano) {
+                //
+                // Si el escalado es PARCIAL no se entra acá: el sub-turno derivó una
+                // consulta pero contestó las otras, y esa respuesta tiene que salir
+                // igual (conv 4149, 14/09: preguntó por tres kits, se derivó el que
+                // no está en el catálogo y con él se tiró a la basura el precio del
+                // otro, que la herramienta ya había resuelto). Este `if` miraba
+                // `escaladoHumano` a secas y dejaba la rama de la plantilla afuera
+                // del escalado parcial que rige en el flujo normal.
+                if (turnoResto.escaladoHumano && !turnoResto.escaladoParcial) {
                     if (!turnoResto.escaladoPersistido) {
                         await escalarAHumano({
                             motivo: turnoResto.motivoEscalado || "otro",
@@ -829,12 +894,22 @@ export async function ejecutarTurnoAgente(
                     }
                 }
 
+                // La ficha ya cierra con "a qué moto se lo querés poner?": el
+                // sub-turno tiene la orden de no repetirla, pero la orden es del
+                // prompt y a veces no la cumple — y el cliente lee la misma
+                // pregunta dos globos seguidos. Backstop determinista de este
+                // lado, que es donde se sabe con certeza si ya se preguntó.
+                const laFichaYaPreguntoLaMoto = quitarPreguntaDeMotoFinal(textoFinal) !== textoFinal
+                const globosResto = (turnoResto.mensajesFinales || [])
+                    .map((g, i, arr) =>
+                        laFichaYaPreguntoLaMoto && i === arr.length - 1 ? quitarPreguntaDeMotoFinal(g) : g
+                    )
+                    .filter(Boolean)
+
                 return {
                     ...turnoResto,
-                    mensajeFinal: [textoFinal, turnoResto.mensajeFinal]
-                        .filter(Boolean)
-                        .join("\n\n---\n\n"),
-                    mensajesFinales: [textoFinal, ...(turnoResto.mensajesFinales || [])],
+                    mensajeFinal: [textoFinal, ...globosResto].filter(Boolean).join("\n\n---\n\n"),
+                    mensajesFinales: [textoFinal, ...globosResto],
                     fotoUrl: matchPlantilla.fotoUrl || turnoResto.fotoUrl || undefined,
                     herramientasEjecutadas: [infoMatch, ...(turnoResto.herramientasEjecutadas || [])],
                     latenciaMs: Date.now() - inicio

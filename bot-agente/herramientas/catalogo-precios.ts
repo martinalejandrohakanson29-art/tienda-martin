@@ -801,6 +801,31 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
             }
         }
 
+        /**
+         * El cliente nombró su moto en ESTE mensaje y el catálogo acaba de
+         * encontrarle el producto que pidió. Son dos datos distintos: el
+         * catálogo dice qué vendemos, no a qué moto le entra.
+         *
+         * Sin este aviso el modelo pasaba derecho de "el producto existe" a
+         * "sí, tenemos para tu moto" (conv 4194 con la Rouser NS 200, 4086 con
+         * una ZB 110, 4071 y 3968 con una XR 150 que recibió el combo de las
+         * 110). El motor tiene un backstop que mutea esas afirmaciones y las
+         * deriva, pero derivar cuesta trabajo del equipo: acá se le da al
+         * modelo la chance de resolverlo solo, consultando la compatibilidad.
+         */
+        const motoEnJuego = (args.__embudo?.motoDelMensaje || "").trim()
+        const motoYaValidada = (args.__embudo?.motoConfirmada || "").trim()
+        const avisoMoto =
+            motoEnJuego && motoEnJuego !== motoYaValidada
+                ? [
+                      `⚠️ EL CLIENTE NOMBRÓ SU MOTO EN ESTE MENSAJE: ${motoEnJuego}.`,
+                      `El catálogo NO sabe si lo de abajo le entra a esa moto: acá figura qué vendemos, no para qué moto sirve.`,
+                      `ANTES de decirle que tenemos algo para su moto, que le sirve o que le entra, consultá: consultar_compatibilidad(kit_nombre_o_id, modelo_moto: "${motoEnJuego}") — o resolver_variante si el combo tiene variantes.`,
+                      `Si la compatibilidad no consta, ejecutá escalar_a_humano con motivo 'moto_no_registrada' y guardá silencio sobre ese punto. PROHIBIDO contestarle igual "sí, vendemos/tenemos" ni pedirle que te diga qué pieza busca: eso ya es afirmarle que le vendemos algo.`,
+                      ``
+                  ].join("\n")
+                : ""
+
         if (packsFiltrados.length === 0 && gruposFiltrados.length === 0) {
             return {
                 encontrado: false,
@@ -841,7 +866,7 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
                 encontrado: true,
                 packs: packsFiltrados,
                 grupos: gruposFiltrados,
-                mensaje_para_agente: lineasOpciones.join("\n")
+                mensaje_para_agente: avisoMoto + lineasOpciones.join("\n")
             }
         }
 
@@ -987,7 +1012,7 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
             encontrado: true,
             packs: packsFiltrados,
             grupos: gruposFiltrados,
-            mensaje_para_agente: lineas.join("\n")
+            mensaje_para_agente: avisoMoto + lineas.join("\n")
         }
     } catch (error: any) {
         console.error("Error en consultarCatalogoPrecios:", error)

@@ -12,6 +12,7 @@
  */
 import { terminoEsSoloMoto } from "../nucleo/motos"
 import { herramientaCatalogoPrecios } from "../herramientas/catalogo-precios"
+import { afirmaCompatibilidad, afirmaTenerParaSuMoto } from "../guardrails/sanitizador"
 
 interface Caso {
     termino: string
@@ -49,6 +50,39 @@ async function main() {
     const okTool = res.encontrado === false && /consultar_compatibilidad/.test(res.mensaje_para_agente)
     if (!okTool) fallos++
     console.log(`${okTool ? "✓" : "✗"} consultar_catalogo_y_precios("Rouser NS200") -> encontrado=${res.encontrado}, packs=${(res.packs || []).length}`)
+
+    // ── El hueco "moto + producto en el mismo término" ───────────────────────
+    // Ahí el catálogo SÍ encuentra el producto (queda "escape"/"kit" después de
+    // sacar la moto), así que el corte no es la búsqueda sino lo que se afirma.
+    const resMoto: any = await herramientaCatalogoPrecios.ejecutar({
+        termino_busqueda: "kit 120",
+        __embudo: { motoDelMensaje: "Honda XR 150" }
+    } as any)
+    const okAviso =
+        /XR 150/.test(resMoto.mensaje_para_agente) && /consultar_compatibilidad/.test(resMoto.mensaje_para_agente)
+    if (!okAviso) fallos++
+    console.log(`${okAviso ? "✓" : "✗"} el catálogo avisa que el cliente nombró su moto y exige chequear compatibilidad`)
+
+    const resSinMoto: any = await herramientaCatalogoPrecios.ejecutar({ termino_busqueda: "kit 120" } as any)
+    const okSinAviso = !/NOMBRÓ SU MOTO/.test(resSinMoto.mensaje_para_agente)
+    if (!okSinAviso) fallos++
+    console.log(`${okSinAviso ? "✓" : "✗"} sin moto nombrada el catálogo no agrega nada`)
+
+    // Backstop del motor: qué frases cuentan como "afirmar sobre la moto".
+    const frases: { texto: string; afirma: boolean; nota: string }[] = [
+        { texto: "Buenas! Si, vendemos repuestos y accesorios.", afirma: true, nota: "conv 4194" },
+        { texto: "Si, tenemos los repuestos y los kits.", afirma: true, nota: "conv 4086" },
+        { texto: "Si, le entra directo a la ZB 110 sin modificar nada", afirma: true, nota: "conv 3767" },
+        { texto: "Tenemos envio gratis a todo el pais.", afirma: false, nota: "el envio no es la moto" },
+        { texto: "Si, tenemos stock.", afirma: false, nota: "stock pelado no afirma nada de la moto" },
+        { texto: "El Kit 120 sale $99.990 el corto. Para que moto lo buscas?", afirma: false, nota: "precio + repregunta" },
+    ]
+    for (const f of frases) {
+        const r = afirmaCompatibilidad(f.texto) || afirmaTenerParaSuMoto(f.texto)
+        const ok = r === f.afirma
+        if (!ok) fallos++
+        console.log(`${ok ? "✓" : "✗"} afirma=${r} "${f.texto.slice(0, 55)}"   [${f.nota}]`)
+    }
 
     console.log(fallos === 0 ? "\nTODO OK" : `\n${fallos} FALLO(S)`)
     process.exit(fallos === 0 ? 0 : 1)

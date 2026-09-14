@@ -574,6 +574,28 @@ export function afirmaCompatibilidad(texto: string | null | undefined): boolean 
     return rx.some((r) => r.test(t))
 }
 
+/**
+ * ¿El texto afirma que TENEMOS algo para la moto del cliente?
+ *
+ * Es el primo comercial de `afirmaCompatibilidad`: no dice "le entra", dice
+ * "si, vendemos repuestos" o "tenemos los kits para eso". Suena inofensivo y es
+ * la misma afirmación sin dato — en la conv 4194 (14/09) se le contestó eso a
+ * una Rouser NS 200, para la que no tenemos absolutamente nada, y en la 4086 se
+ * le volcó la lista entera de combos a una ZB 110 sin mirar compatibilidad.
+ *
+ * El complemento (repuesto/kit/combo/pieza...) es obligatorio a proposito: sin
+ * el, "tenemos envio gratis" o "tenemos stock" entraban como afirmacion.
+ */
+export function afirmaTenerParaSuMoto(texto: string | null | undefined): boolean {
+    const t = (texto || "").trim()
+    if (!t) return false
+    const rx = [
+        /\b(vendemos|tenemos|manejamos|trabajamos|contamos\s+con)\b[^.!?\n]{0,50}\b(repuesto|accesorio|pieza|producto|kit|combo|cilindro|escape|leva|tapa)/i,
+        /\b(tenemos|vendemos)\b[^.!?\n]{0,30}\bpara\s+(tu|esa|la|ese|el)\b/i,
+    ]
+    return rx.some((r) => r.test(t))
+}
+
 export function sanitizarMensajeSalida(
     texto: string | null | undefined,
     opciones: OpcionesSanitizacion = {}

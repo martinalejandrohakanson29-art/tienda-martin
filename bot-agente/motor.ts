@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad, afirmaTenerParaSuMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto } from "./nucleo/texto"
@@ -1168,6 +1168,25 @@ export async function ejecutarTurnoAgente(
      */
     const esFlashDeepseek = (m: string) => /deepseek.*flash/.test(m.toLowerCase())
 
+    /**
+     * La moto que el cliente nombró en ESTE mensaje, resuelta una sola vez por
+     * turno (el resolvedor cachea los modelos 60s).
+     *
+     * Viaja a las tools en el embudo: `consultar_catalogo_y_precios` encuentra
+     * productos por su nombre y no tiene forma de saber que el cliente ya dijo
+     * para qué moto los quiere, así que no avisaba nada y el modelo pasaba
+     * derecho de "existe el producto" a "sí, te sirve". Con el dato, la tool le
+     * exige chequear compatibilidad antes de afirmar — que es lo que evita
+     * llegar al backstop de la moto y tener que derivarle el caso al equipo.
+     */
+    const motoDelMensajeTurno = await resolverMoto(mensajeUsuario)
+        .then((r) =>
+            r.confianza === "ninguna"
+                ? null
+                : r.modelo?.nombre_completo || r.candidatos.map((c) => c.nombre_completo).join(" / ") || null
+        )
+        .catch(() => null)
+
     while (paso < MAX_PASOS_REACT) {
         paso++
 
@@ -1471,6 +1490,68 @@ export async function ejecutarTurnoAgente(
                 }
             }
 
+            /**
+             * BACKSTOP DE LA MOTO: el cliente nombró su moto y el mensaje
+             * afirma algo sobre ella —que le entra, o que tenemos algo para
+             * ella— sin que ninguna herramienta lo haya confirmado.
+             *
+             * Es el hueco que quedaba abierto cuando el término de búsqueda
+             * lleva moto Y producto ("escape para rouser ns200"): el guard de
+             * `terminoEsSoloMoto` no aplica, el catálogo encuentra el producto y
+             * de ahí a "sí, tenemos" hay un paso que nadie chequeaba.
+             *
+             * Medido contra los últimos 800 turnos enviados: dispara en 5 (0,6%)
+             * y los 5 son errores reales — a una XR 150 se le recitó "compatible
+             * con todas las 110", a una ZB 110 "le entra directo" sin consultar,
+             * y a la Rouser NS 200 de la conv 4194 que le vendíamos repuestos.
+             *
+             * Exime `motoConfirmada`: si la moto ya quedó validada en un turno
+             * anterior, repetir que le va no es afirmar de memoria.
+             */
+            if (
+                mensajeFinalUnificado &&
+                !compatConfirmadaPorHerramienta &&
+                !estadoConv.motoConfirmada &&
+                (afirmaCompatibilidad(mensajeFinalUnificado) || afirmaTenerParaSuMoto(mensajeFinalUnificado))
+            ) {
+                const motoDelCliente = await resolverMoto(mensajeUsuario).catch(() => null)
+                if (motoDelCliente && motoDelCliente.confianza !== "ninguna") {
+                    const nombreMoto =
+                        motoDelCliente.modelo?.nombre_completo ||
+                        motoDelCliente.candidatos.map((c) => c.nombre_completo).join(" / ") ||
+                        mensajeUsuario.slice(0, 60)
+                    console.warn(`[motor] backstop de la moto: el mensaje afirmaba sobre "${nombreMoto}" sin compatibilidad confirmada`)
+                    const motivo = "compatibilidad_dudosa"
+                    const resumen = `El cliente nombró su ${nombreMoto} y el bot iba a afirmar sin dato de compatibilidad: "${mensajeFinalUnificado.replace(/\n/g, " ").slice(0, 200)}"`
+                    const resultadoEscalado = await escalarAHumano({
+                        motivo,
+                        resumen_consulta: resumen,
+                        modelo_moto: nombreMoto,
+                        conversation_id: opciones.conversationId
+                    }).catch((err) => {
+                        console.error("[motor] fallo al persistir el backstop de la moto:", err)
+                        return null
+                    })
+                    anotarEscaladoPendiente(motivo, resumen)
+                    await persistirEstado()
+                    herramientasEjecutadas.push({
+                        nombre: "escalar_a_humano",
+                        argumentos: { motivo, resumen_consulta: resumen },
+                        resultado: resultadoEscalado || { escalado: true, motivo, resumen }
+                    })
+                    return {
+                        mensajeFinal: null,
+                        mensajesFinales: [],
+                        herramientasEjecutadas,
+                        escaladoHumano: true,
+                        motivoEscalado: motivo,
+                        escaladoPersistido: Boolean(resultadoEscalado),
+                        latenciaMs: Date.now() - inicio,
+                        tokensUsados: tokensTotales
+                    }
+                }
+            }
+
             // BACKSTOP del cierre social: el local ya se había despedido y el
             // modelo salió con un "perdón, no te entendí, me lo repetís?" por
             // un mensaje suelto del cliente ("Metta", conv 3985). Si no hay
@@ -1579,7 +1660,8 @@ export async function ejecutarTurnoAgente(
                         // al "solo turnos anteriores" de arriba: acá el dato es
                         // un cupo, y si una ráfaga repregunta dos veces en el
                         // mismo turno tiene que verse ya en el segundo paso.
-                        repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0
+                        repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
+                        motoDelMensaje: motoDelMensajeTurno
                     }
                 })
                 herramientasEjecutadas.push(ejecucion)

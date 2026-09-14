@@ -63,6 +63,14 @@ export interface EstadoEmbudo {
      * insistir más allá de `TOPE_REPREGUNTAS_MOTO` y derivar al equipo.
      */
     repreguntasMoto?: number
+    /**
+     * Moto que el cliente nombró en el mensaje de ESTE turno (la resuelve el
+     * motor con `resolverMoto`). No es lo mismo que `motoConfirmada`: esa ya
+     * pasó por compatibilidad, esta recién se nombró y no la validó nadie.
+     * `consultar_catalogo_y_precios` la usa para exigir el chequeo de
+     * compatibilidad antes de que el modelo afirme que el producto le sirve.
+     */
+    motoDelMensaje?: string | null
 }
 
 /**

@@ -139,7 +139,12 @@ async function main() {
         return
     }
 
-    const esperado = readFileSync(SNAPSHOT, "utf8")
+    // El snapshot se escribe con LF, pero en Windows `core.autocrlf` lo deja en
+    // CRLF al hacer checkout: sin esto la comparación fallaba SIEMPRE y el sweep
+    // reportaba las 56 filas como cambiadas, con los veredictos idénticos a
+    // ambos lados del "->" (el `.trim()` del diff se come el \r). Un chequeo que
+    // grita en verde no sirve: se deja de mirar.
+    const esperado = readFileSync(SNAPSHOT, "utf8").replace(/\r\n/g, "\n")
     if (actual === esperado) {
         const filas = actual.split("\n").filter((l) => l && !l.startsWith("#")).length
         console.log(`Sweep OK: ${filas} motos sin cambios de veredicto.`)

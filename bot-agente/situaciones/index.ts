@@ -45,6 +45,13 @@ const SITUACIONES_FALLBACK: SituacionRegla[] = [
             "Consulta comercial de asesor. Ejecuta escalar_a_humano con motivo 'mayorista' y guarda silencio total cara al cliente."
     },
     {
+        clave: "catalogo_generico_mayor_unidad",
+        titulo: "Pide el catalogo/lista de precios en general (sin aclarar mayor o unidad)",
+        disparadores: ["el catalogo", "los catalogos", "mandame el catalogo", "pasame el catalogo", "tienen catalogo", "que catalogo tienen", "catalogo completo", "catalogo de kits", "catalogo de productos", "que kits tenes", "que kits tienen", "que combos tenes", "que combos tienen", "que productos tienen", "que productos venden", "lista de precios", "pasame la lista de precios", "pasame los precios", "que precios tienen", "que variedad tienen", "que tenes disponible", "que tienen disponible", "vendes por catalogo", "venden por catalogo"],
+        instruccion:
+            "El cliente pidio el catalogo, la lista de kits o los precios en general, sin decir todavia si busca por unidad o por mayor. ANTES de llamar a consultar_catalogo_y_precios o dar cualquier precio, pregunta corto y directo: 'Por mayor o por unidad?'. No listes kits ni des precios en este mensaje. Excepcion: si en este mismo mensaje el cliente ya aclaro que es por unidad (o ya nombro un producto o su moto puntual), no preguntes nada y seguí el flujo normal. Si ya aclaro que es por mayor, tampoco preguntes: ejecuta escalar_a_humano con motivo 'mayorista' y guarda silencio total."
+    },
+    {
         clave: "descuento_unitario",
         titulo: "Pide descuento en compra unitaria",
         // El regateo de mostrador casi nunca dice "descuento": dice "haceme

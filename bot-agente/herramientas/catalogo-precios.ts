@@ -223,6 +223,12 @@ interface OpcionesComposicion {
     yaPresentado: boolean
     /** Categorías de pieza que el catálogo vende por separado (para la regla de negación). */
     categoriasCatalogo: string[]
+    /**
+     * El embudo todavía espera la moto del cliente. Si falta, la única
+     * repregunta válida es la moto: preguntarle el recorrido por nuestra cuenta
+     * lo pone a elegir algo que define el motor, no él (conv 4157).
+     */
+    motoPendiente?: boolean
 }
 
 /**
@@ -292,12 +298,28 @@ function bloqueComposicion(opciones: OpcionesComposicion): string[] {
         // escribió "no trae seguros". Negar acá es inventar (conv 3707: el bot
         // dijo que el cilindro no traía pistón; el detalle dice que sí).
         `   - Si pregunta por algo que va DENTRO de una de esas piezas (pistón, aros, perno, juntas, seguros, válvulas, resortes, retenes...), la respuesta está en el texto de la pieza, arriba: si ahí figura, confirmáselo; si el texto NO lo menciona, no tenés el dato — PROHIBIDO decirle que no viene: ejecutá escalar_a_humano(motivo: 'consulta_tecnica') y guardá silencio.`,
+        // "Hay que cambiar el pistón?" -> "No, no lo tenés que comprar aparte":
+        // el "No" arranca negando y el cliente volvió a preguntar si venía
+        // (conv 4157). Si la respuesta es que SÍ viene, se dice en positivo.
+        `   - Cuando la pieza SÍ viene incluida, contestá en positivo y arrancá por eso ("ya viene con...", "va incluido"), aunque el cliente lo haya preguntado en negativo ("hay que cambiarlo?", "lo tengo que comprar aparte?"). Nunca abras la respuesta con un "no" suelto: se lee como que no viene.`,
         `   - Los textos de cada pieza son dato para que contestes con precisión, NO son un libreto: contestá SOLO lo que preguntó, con tus palabras, en 1 o 2 renglones. Nunca los recites enteros ni agregues milímetros, medidas o frases de venta que no te pidió.`
     ]
 
     if (hayEjeDeVariante) {
+        // Esta regla se disparaba con cualquier pregunta que rozara una pieza que
+        // difiere. El cliente preguntó si el kit traía pistón (respuesta unánime:
+        // sí, en las dos) y el bot le abrió los dos diámetros y le pidió el
+        // recorrido: convirtió una respuesta cerrada en una duda (conv 4157).
         reglas.push(
-            `   - Si pregunta por algo que cambia según la variante y todavía no sabés cuál lleva: contestale las dos y cerrá preguntándole cuál tiene, en el MISMO renglón (ej: "el pistón va 54mm en el corto y 52.4 en el largo, sabés cuál tenés?"). PROHIBIDO contestar una sola de las dos al azar.`
+            `   - Antes de abrir las dos variantes, fijate QUÉ preguntó: si preguntó si algo VIENE INCLUIDO y figura en la pieza de las dos opciones, la respuesta es una sola y no depende de la variante — se lo confirmás seco, sin nombrar medidas ni las dos opciones.`,
+            `   - Solo si preguntó justo por el dato que DIFIERE entre las variantes (la medida, el diámetro, los mm): le das los dos valores, sin agregar medidas que no preguntó. PROHIBIDO contestar una sola de las dos al azar.`
+        )
+        // El recorrido lo define el motor de la moto, no el gusto del cliente:
+        // mientras la moto falte, esa es la única repregunta válida.
+        reglas.push(
+            opciones.motoPendiente
+                ? `   - Todavía no sabés qué moto tiene: si te falta un dato para precisar, lo que preguntás es la MOTO, no el recorrido. PROHIBIDO pedirle que elija él la variante.`
+                : `   - Si después de contestar te sigue faltando la variante, preguntásela en el mismo renglón, corta.`
         )
     }
 
@@ -903,7 +925,10 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                     })),
                     varianteResueltaPackId: embudo.varianteResuelta?.packId ?? null,
                     yaPresentado: grupoYaPresentado(g),
-                    categoriasCatalogo
+                    categoriasCatalogo,
+                    // Sin moto y sin variante firme, la pregunta que falta es la
+                    // moto: el recorrido lo deduce el motor a partir de ella.
+                    motoPendiente: !embudo.motoConfirmada && !embudo.varianteResuelta
                 })
             )
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {

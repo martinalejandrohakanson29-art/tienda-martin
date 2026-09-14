@@ -1292,5 +1292,56 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Es regateo, no un pedido de precio: tiene que contestar que los precios son finales con envío gratis incluido (con firmeza y buena onda), en el mismo mensaje, sin inventar rebajas y sin ignorar el pedido."
         }
+    },
+    {
+        id: "caso-73-piston-incluido-no-abre-medidas",
+        titulo: "'Hay q cambiar pistón?' (conv 4157) — viene incluido: se confirma seco, sin los mm ni pedir el recorrido",
+        mensajeCliente: "Hay q cambiar pistón?",
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // En vivo: "No, no lo tenés que comprar aparte... El pistón va en
+            // 54mm si es recorrido corto y 52.4 en el largo. Sabés cuál tenés?"
+            // El cliente volvió a preguntar si venía el pistón.
+            patronProhibido: /54|52[.,]4|mm|recorrido (corto|largo)/i,
+            descripcionEsperada:
+                "El pistón viene incluido en las dos variantes: se confirma en positivo ('ya viene con pistón, aros, perno y seguros') en 1 o 2 renglones. No abre los diámetros ni le pregunta qué recorrido tiene: la moto sigue siendo la pregunta pendiente."
+        }
+    },
+    {
+        id: "caso-74-medida-piston-si-abre-las-dos",
+        titulo: "'De cuánto es el pistón?' — acá SÍ van los dos diámetros, pero la repregunta sigue siendo la moto",
+        mensajeCliente: "de cuanto es el piston?",
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Contracara del caso 73: la medida SÍ depende de la variante, así
+            // que van las dos. Lo que no vuelve es pedirle que elija el recorrido.
+            patronRespuesta: /54[\s\S]*52[.,]4|52[.,]4[\s\S]*54/i,
+            descripcionEsperada:
+                "Pregunta por el dato que difiere entre variantes: da los dos diámetros (54mm corto / 52.4mm largo) y, como todavía falta la moto, repregunta la moto — no le pide al cliente que elija el recorrido."
+        }
     }
 ]

@@ -957,6 +957,14 @@ export async function ejecutarTurnoAgente(
     let escaladoParcial = false
     /** Algún escalado del turno exige silencio total: pisa a `escaladoParcial`. */
     let silencioAbsoluto = false
+    /**
+     * Backstop del escalado parcial: si ninguna OTRA herramienta del turno
+     * resolvió un dato real para el cliente, no hay "resto de la ráfaga" que
+     * contestar. No alcanza con pedirle al modelo que lo sepa (conv 4112,
+     * 14/09: el modelo redactó una respuesta igual en vez del centinela
+     * SIN_RESPUESTA); esto lo verifica el motor por su cuenta.
+     */
+    let huboOtroDatoResuelto = false
 
     const fechaHoraCordoba = new Intl.DateTimeFormat("es-AR", {
         timeZone: "America/Argentina/Cordoba",
@@ -1183,7 +1191,15 @@ export async function ejecutarTurnoAgente(
             // Escalado parcial: el modelo avisa con el centinela que no le quedó
             // nada para contestar por fuera de lo derivado. Silencio total, que
             // es la salida vieja y segura.
-            if (escaladoParcial && CENTINELA_SIN_RESPUESTA.test(contenido)) {
+            //
+            // Backstop (conv 4112, 14/09): si ninguna otra herramienta resolvió
+            // un dato real, no existe "resto de la ráfaga" — no se confía en que
+            // el modelo haya usado el centinela; se calla igual aunque haya
+            // redactado texto.
+            if (escaladoParcial && (CENTINELA_SIN_RESPUESTA.test(contenido) || !huboOtroDatoResuelto)) {
+                if (!CENTINELA_SIN_RESPUESTA.test(contenido)) {
+                    console.warn("[motor] escalado parcial sin dato adicional resuelto, texto libre descartado:", contenido.slice(0, 200))
+                }
                 await persistirEstado()
                 return {
                     mensajeFinal: null,
@@ -1648,6 +1664,12 @@ export async function ejecutarTurnoAgente(
                             en: new Date().toISOString()
                         }
                     }
+                }
+
+                // Esta herramienta no fue la que escaló y trajo algo real (no un
+                // "no encontrado"): hay "resto de la ráfaga" legítimo para contestar.
+                if (!escaloEnEsteCall && ejecucion.resultado && ejecucion.resultado.encontrado !== false) {
+                    huboOtroDatoResuelto = true
                 }
 
                 // El modelo ve SOLO `mensaje_para_agente`: es el contrato de cada

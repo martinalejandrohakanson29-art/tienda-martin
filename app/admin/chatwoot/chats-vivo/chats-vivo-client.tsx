@@ -28,6 +28,7 @@ import {
     type PanelChatsVivo,
 } from "@/app/actions/chats-vivo"
 import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
+import type { SaludMotor } from "@/lib/bot-agente-salud"
 import { CheckEstadoMensaje, ImageLightboxModal, MensajeAdjuntos } from "@/components/chatwoot/chat-media-viewer"
 import { AvisoDerivacion, EscaladosPanel } from "./escalados-panel"
 
@@ -274,6 +275,51 @@ type ItemRapido = {
  * (el orden se guarda en localStorage por `lsKey`). Lo usan tanto el botón
  * "Enviar info de kit" como "Notas rápidas".
  */
+/**
+ * Chip de salud del proveedor de IA.
+ *
+ * El 14/09 DeepSeek se degradó toda la tarde: los clientes esperaron más de 3
+ * minutos (el motor reintenta 3 veces a 60s antes de pasar al suplente) y desde
+ * la app no se notaba nada, porque las respuestas igual salían. Este chip es el
+ * único lugar donde eso se ve sin entrar a los logs.
+ *
+ * Se muestra SIEMPRE, incluso en verde: un indicador que solo aparece cuando
+ * hay problema no se distingue de uno roto. En verde es mínimo (un punto y
+ * "IA"); cuando hay demoras o caída se agranda, cambia de color y explica qué
+ * está pasando en el tooltip.
+ */
+function ChipSaludMotor({ salud }: { salud?: SaludMotor }) {
+    if (!salud || salud.estado === "sin_datos") return null
+
+    const estilos = {
+        ok: {
+            caja: "bg-gray-50 text-gray-500 border-gray-200",
+            punto: "bg-emerald-500",
+            texto: "IA",
+        },
+        lento: {
+            caja: "bg-amber-50 text-amber-700 border-amber-200",
+            punto: "bg-amber-500 animate-pulse",
+            texto: salud.etiqueta,
+        },
+        caido: {
+            caja: "bg-red-50 text-red-700 border-red-200",
+            punto: "bg-red-500 animate-pulse",
+            texto: salud.etiqueta,
+        },
+    }[salud.estado]
+
+    return (
+        <span
+            title={salud.detalle}
+            className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${estilos.caja}`}
+        >
+            <span className={`h-1.5 w-1.5 rounded-full ${estilos.punto}`} />
+            {estilos.texto}
+        </span>
+    )
+}
+
 function SelectorRapido({
     etiqueta,
     Icono,
@@ -1594,6 +1640,7 @@ export function ChatsVivoClient({
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             En vivo
                         </span>
+                        <ChipSaludMotor salud={panel?.saludMotor} />
                     </div>
                     <p className="text-[11px] text-gray-500" suppressHydrationWarning>
                         {fallo

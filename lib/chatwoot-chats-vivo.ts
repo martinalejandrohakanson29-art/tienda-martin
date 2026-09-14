@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { chatwootConfig, marcarConversacionLeidaEnChatwoot } from "@/lib/chatwoot-bot"
+import { obtenerSaludMotor, type SaludMotor } from "@/lib/bot-agente-salud"
 
 // Espejo local de conversaciones reales de Chatwoot en PostgreSQL
 // (tabla chatwoot_conversaciones_espejo).
@@ -38,6 +39,12 @@ export type PanelChatsVivo = {
     conversaciones: ConversacionVivo[]
     periodoDias: number
     actualizadoEn: string
+    /**
+     * Estado del proveedor de IA que contesta los WhatsApp. Viaja con el panel
+     * (que ya se sincroniza solo cada 3,5s) en vez de tener su propio fetch:
+     * el valor sale de un cache de 20s, así que no agrega carga real.
+     */
+    saludMotor?: SaludMotor
 }
 
 const PALETA_AVATAR = [
@@ -391,7 +398,11 @@ export async function listarChatsVivo(periodoDias: number): Promise<PanelChatsVi
         }
     })
 
-    return { conversaciones, periodoDias, actualizadoEn: new Date().toISOString() }
+    // La salud del motor nunca puede voltear el panel: si falla, el chip
+    // simplemente no aparece.
+    const saludMotor = await obtenerSaludMotor().catch(() => undefined)
+
+    return { conversaciones, periodoDias, actualizadoEn: new Date().toISOString(), saludMotor }
 }
 
 /** Actualiza el estado bot_pausado de una conversación en la tabla espejo. */

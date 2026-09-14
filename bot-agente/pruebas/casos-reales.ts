@@ -275,13 +275,30 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
     },
     {
         id: "caso-21-pedido-link-mercadolibre",
-        titulo: "Cliente pide link de Mercado Libre (fuera del sistema)",
+        titulo: "Cliente pide el link de nuestra página de Mercado Libre",
         mensajeCliente: "pasame un link de mercadolibre",
+        // Hasta el 14/09 esto escalaba: el link no estaba en ningún lado. Hoy sí
+        // está cargado (info_negocio, fila `garantia`) y además es la salida que
+        // le ofrecemos al que no se anima a transferir por adelantado — el bot
+        // no puede ofrecer compra protegida y callarse cuando se la piden.
         resultadoEsperado: {
-            debeLlamarHerramientas: ["escalar_a_humano"],
+            debeLlamarHerramientas: ["consultar_info_negocio"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /mercadolibre\.com\.ar\/pagina\/revolucion_market/i,
+            descripcionEsperada: "Pasa el link oficial de nuestra página de Mercado Libre, copiado carácter por carácter del dato cargado."
+        }
+    },
+    {
+        id: "caso-21b-link-publicacion-puntual-escala",
+        titulo: "Pide el link de UNA publicación puntual: eso sí escala",
+        mensajeCliente: "pasame el link de la publicacion del kit 120 en mercado libre",
+        // Contracara del 21: la página oficial la tenemos, el link de un aviso
+        // puntual no. Lo mismo vale para cualquier link de pago.
+        resultadoEsperado: {
             debeEscalarHumano: true,
             debeGuardarSilencio: true,
-            descripcionEsperada: "Debe escalar inmediatamente a humano en silencio sin asumir que no hay link ni dar negativas."
+            descripcionEsperada: "El link de una publicación concreta no está en el sistema: escala en silencio, sin inventarlo ni mandar la página genérica como si fuera el aviso."
         }
     },
     {

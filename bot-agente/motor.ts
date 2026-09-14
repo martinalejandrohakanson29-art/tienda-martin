@@ -475,9 +475,23 @@ function detectarEscaladoDeterminista(msg: string): { motivo: string; resumen: s
     }
 
     // 4. Pedido explícito de link (Mercado Libre, publicación, link de pago)
+    //
+    // EXCEPCIÓN (14/09): el link de NUESTRA página oficial de Mercado Libre sí
+    // lo tenemos cargado (info_negocio, fila `garantia`) y desde hoy es parte
+    // del argumento de confianza: al que no se anima a transferir por adelantado
+    // se le ofrece comprar por ML con compra protegida. Escalar ese pedido
+    // dejaba al bot ofreciendo una salida y callándose cuando se la pedían.
+    // Lo que sigue escalando es lo que de verdad no tenemos a mano: el link de
+    // una PUBLICACIÓN puntual y cualquier link de PAGO (ese lo arma un humano).
+    const rxNuestraPaginaML = /\b(mercado\s*libre|mercadolibre|meli)\b/i
+    const rxPublicacionPuntual = /\b(publicacion|publicación|aviso|anuncio|articulo|artículo|item|producto)\b/i
+    const rxLinkDePago = /\b(mercado\s*pago|mercadopago|link\s+de\s+pago|pagar|pago)\b/i
+    const pideNuestraPaginaML =
+        rxNuestraPaginaML.test(texto) && !rxPublicacionPuntual.test(texto) && !rxLinkDePago.test(texto)
+
     const rxLinkML = /\b(link|enlace|publicacion)\s+(de\s+)?(mercadolibre|mercado\s+libre|ml|pago|mercadopago|mercado\s+pago)\b/i
     const rxLinkGenerico = /\b(pasame|mandame|pasa|manda|tenes|comparti(me)?|dame)\s+(el\s+|un\s+)?(link|enlace|publicacion)\b/i
-    if (rxLinkML.test(texto) || rxLinkGenerico.test(texto)) {
+    if (!pideNuestraPaginaML && (rxLinkML.test(texto) || rxLinkGenerico.test(texto))) {
         return {
             motivo: "pedido_link_externo",
             resumen: `Cliente solicita link externo o de pago: "${msg}"`

@@ -22,6 +22,10 @@ import {
     EstadoConversacion
 } from "./nucleo/estado-persistente"
 import { debeCallarPorCierreSocial, esDespedidaDelBot, pareceNoTeEntendi } from "./nucleo/cierre-social"
+import {
+    pideAlternativaTrasNegativa,
+    resumenAlternativaTrasNegativa
+} from "./nucleo/alternativa-tras-negativa"
 
 export interface OpcionesEjecucion {
     apiKey?: string
@@ -651,6 +655,56 @@ export async function ejecutarTurnoAgente(
             ],
             escaladoHumano: true,
             motivoEscalado: escaladoInmediato.motivo,
+            escaladoPersistido: true,
+            latenciaMs: Date.now() - inicio,
+            tokensUsados: sinCostoLLM(modelo)
+        }
+    }
+
+    // 0.c Ya le dijimos que el kit no le va a su moto y ahora pregunta si tenemos
+    //     otra cosa para esa misma moto ("Y algo para esa no tenes ??", conv 4186).
+    //     No hay ninguna alternativa confirmada por el sistema —la compat se
+    //     consulta producto -> moto, nunca al revés— así que el modelo se queda
+    //     sin dato y rellena: la vez pasada le devolvió un menú de categorías
+    //     inventado y le prometió "las opciones y precios que tenemos para esa".
+    //     Silencio y a la bandeja técnica, que es quien sabe si hay algo.
+    if (pideAlternativaTrasNegativa(mensajeUsuario, estadoConv.negativaEntregada)) {
+        const negativa = estadoConv.negativaEntregada!
+        const resumen = resumenAlternativaTrasNegativa(negativa, mensajeUsuario)
+        const motivo = "compatibilidad_dudosa"
+
+        const resultado = await escalarAHumano({
+            motivo,
+            resumen_consulta: resumen,
+            modelo_moto: negativa.moto,
+            kit: negativa.kit || undefined,
+            conversation_id: opciones.conversationId
+        }).catch((err) => {
+            console.error("[motor] fallo al persistir escalado por alternativa tras negativa:", err)
+            return {
+                escalado: true,
+                motivo,
+                resumen,
+                mensaje_para_agente: "ESCALADO DETERMINISTA (no se pudo persistir)."
+            }
+        })
+
+        await guardarEstadoConversacion(estadoKey, {
+            escaladoPendiente: { motivo, resumen, en: new Date().toISOString() }
+        }).catch(() => {})
+
+        return {
+            mensajeFinal: null,
+            mensajesFinales: [],
+            herramientasEjecutadas: [
+                {
+                    nombre: "escalar_a_humano",
+                    argumentos: { motivo, resumen_consulta: resumen, modelo_moto: negativa.moto },
+                    resultado
+                }
+            ],
+            escaladoHumano: true,
+            motivoEscalado: motivo,
             escaladoPersistido: true,
             latenciaMs: Date.now() - inicio,
             tokensUsados: sinCostoLLM(modelo)

@@ -521,7 +521,8 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
 
     if (estado.negativaEntregada?.moto) {
         lineas.push(
-            `- A este cliente YA le dijiste que el kit no le va a la "${estado.negativaEntregada.moto}", con su motivo. No se lo repitas ni se lo reformules por ningun motivo. Si vuelve sobre ese tema (insiste, aclara algo de su moto, dice que la mando a modificar), ejecuta escalar_a_humano(motivo: 'compatibilidad_dudosa') y guarda silencio sobre ese punto: lo sigue el equipo.`
+            `- A este cliente YA le dijiste que el kit no le va a la "${estado.negativaEntregada.moto}", con su motivo. No se lo repitas ni se lo reformules por ningun motivo. Si vuelve sobre ese tema (insiste, aclara algo de su moto, dice que la mando a modificar), ejecuta escalar_a_humano(motivo: 'compatibilidad_dudosa') y guarda silencio sobre ese punto: lo sigue el equipo.\n` +
+                `- Si te pide OTRA cosa para esa misma moto ("y algo para esa no tenes?", "que le puedo poner?"): no tenes ninguna alternativa confirmada por el sistema para esa moto. PROHIBIDO ofrecerle armar algo, listarle categorias o rubros para que elija, o prometerle "las opciones y precios que tenemos para esa". Ejecuta escalar_a_humano(motivo: 'compatibilidad_dudosa') y silencio sobre ese punto.`
         )
     }
 

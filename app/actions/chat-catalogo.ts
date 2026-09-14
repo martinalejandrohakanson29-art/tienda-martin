@@ -15,6 +15,50 @@ function parsePrecio(precio: string): number | null {
     return isNaN(n) ? null : n
 }
 
+/**
+ * Cilindradas para las que sirve un producto ("110", "125, 150, 190").
+ *
+ * Es la red que evita que una fila positiva confirme un kit a una moto de otro
+ * motor: si la moto del cliente resuelve a una cilindrada que no está acá, el
+ * bot no la confirma y deriva (ver `bot-agente/herramientas/compatibilidad.ts`
+ * y `n8n-workflows/chat-catalogo-cilindrada-base.sql`). Vacío = no filtra.
+ */
+function parseCilindradas(txt: string | undefined): number[] {
+    const nums = (txt || "")
+        .split(/[^\d]+/)
+        .map((n) => Number(n))
+        .filter((n) => Number.isFinite(n) && n > 0 && n < 2000)
+    return [...new Set(nums)].sort((a, b) => a - b)
+}
+
+/**
+ * Lee `cilindradas_base` de una tabla del catálogo aparte y tolerante: si la
+ * migración todavía no corrió, el panel sigue funcionando sin el campo (mismo
+ * criterio que los sinónimos de variante y el atributo fijo).
+ */
+async function cilindradasBasePorId(tabla: "chat_articulos" | "chat_packs" | "chat_pack_grupos"): Promise<Map<number, number[]>> {
+    try {
+        const filas = await prisma.$queryRawUnsafe<{ id: number; cilindradas_base: number[] | null }[]>(
+            `SELECT id, cilindradas_base FROM ${tabla}`
+        )
+        return new Map(filas.map((f) => [Number(f.id), f.cilindradas_base || []]))
+    } catch {
+        return new Map()
+    }
+}
+
+async function guardarCilindradasBase(
+    tabla: "chat_articulos" | "chat_packs" | "chat_pack_grupos",
+    id: number,
+    cilindradas: number[]
+) {
+    try {
+        await prisma.$executeRawUnsafe(`UPDATE ${tabla} SET cilindradas_base = $1 WHERE id = $2`, cilindradas, id)
+    } catch {
+        /* columna inexistente: se ignora hasta correr la migración */
+    }
+}
+
 // --- Artículos ---
 
 // Un "artículo" del catálogo del bot no se tipea a mano: es una referencia a
@@ -38,6 +82,8 @@ export type ChatArticulo = {
     activo: boolean
     creado_en: Date
     es_pack: boolean
+    /** Para qué motor es la pieza (110, 150...). Vacío = no filtra por cilindrada. */
+    cilindradas_base: number[]
 }
 
 export type ChatArticuloInput = {
@@ -51,6 +97,7 @@ export type ChatArticuloInput = {
     envioGratis: "si" | "no" | "" // "" = sin definir
     envio: string // aclaración opcional (transporte, demora, costo)
     activo: boolean
+    cilindradasBase: string // "110" / "125, 150" — vacío = no filtra
 }
 
 export type ArticuloMostradorResultado = {
@@ -89,14 +136,18 @@ export async function buscarArticulosMostrador(query: string): Promise<ArticuloM
 
 export async function getChatArticulos(): Promise<ChatArticulo[]> {
     await requireAdmin()
-    return prisma.$queryRaw<ChatArticulo[]>`
-        SELECT ca.id, ca.articulo_mostrador_id, am.nombre, ca.titulo_comercial, ca.alias, ca.precio, ca.detalle, ca.categoria,
-               ca.envio_gratis, ca.envio, ca.activo, ca.creado_en,
-               COALESCE(am."esPack", false) AS es_pack
-        FROM chat_articulos ca
-        JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
-        ORDER BY am.nombre ASC
-    `
+    const [filas, cilindradas] = await Promise.all([
+        prisma.$queryRaw<Omit<ChatArticulo, "cilindradas_base">[]>`
+            SELECT ca.id, ca.articulo_mostrador_id, am.nombre, ca.titulo_comercial, ca.alias, ca.precio, ca.detalle, ca.categoria,
+                   ca.envio_gratis, ca.envio, ca.activo, ca.creado_en,
+                   COALESCE(am."esPack", false) AS es_pack
+            FROM chat_articulos ca
+            JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
+            ORDER BY am.nombre ASC
+        `,
+        cilindradasBasePorId("chat_articulos"),
+    ])
+    return filas.map((f) => ({ ...f, cilindradas_base: cilindradas.get(Number(f.id)) ?? [] }))
 }
 
 export async function guardarChatArticulo(data: ChatArticuloInput) {
@@ -136,6 +187,8 @@ export async function guardarChatArticulo(data: ChatArticuloInput) {
             throw error
         }
     }
+
+    await guardarCilindradasBase("chat_articulos", id!, parseCilindradas(data.cilindradasBase))
 
     revalidatePath(RUTA)
     return { success: true, id }
@@ -380,6 +433,8 @@ export type ChatPackGrupo = {
     foto_url: string | null
     categoria: string | null
     activo: boolean
+    /** Para qué motor es el combo (110, 150...). Vacío = no filtra por cilindrada. */
+    cilindradas_base: number[]
 }
 
 export type ChatPackGrupoInput = {
@@ -392,15 +447,20 @@ export type ChatPackGrupoInput = {
     preguntaVarianteReintento: string
     fotoUrl: string
     categoria: string
+    cilindradasBase: string // "110" / "125, 150" — vacío = no filtra
 }
 
 export async function getChatPackGrupos(): Promise<ChatPackGrupo[]> {
     await requireAdmin()
-    return prisma.$queryRaw<ChatPackGrupo[]>`
-        SELECT id, nombre, plantillas_bienvenida, plantillas_referral, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, categoria, activo
-        FROM chat_pack_grupos
-        ORDER BY nombre ASC
-    `
+    const [filas, cilindradas] = await Promise.all([
+        prisma.$queryRaw<Omit<ChatPackGrupo, "cilindradas_base">[]>`
+            SELECT id, nombre, plantillas_bienvenida, plantillas_referral, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, categoria, activo
+            FROM chat_pack_grupos
+            ORDER BY nombre ASC
+        `,
+        cilindradasBasePorId("chat_pack_grupos"),
+    ])
+    return filas.map((f) => ({ ...f, cilindradas_base: cilindradas.get(Number(f.id)) ?? [] }))
 }
 
 export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ id: number }> {
@@ -426,6 +486,7 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
                 foto_url = ${fotoUrl}, categoria = ${categoria}
             WHERE id = ${data.id}
         `
+        await guardarCilindradasBase("chat_pack_grupos", data.id, parseCilindradas(data.cilindradasBase))
         revalidatePath(RUTA)
         return { id: data.id }
     }
@@ -435,6 +496,7 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
         VALUES (${nombre}, ${plantillasBienvenida}, ${plantillasReferral}, ${mensajeBienvenida}, ${preguntaVariante}, ${preguntaVarianteReintento}, ${fotoUrl}, ${categoria})
         RETURNING id
     `
+    await guardarCilindradasBase("chat_pack_grupos", inserted[0].id, parseCilindradas(data.cilindradasBase))
     revalidatePath(RUTA)
     return { id: inserted[0].id }
 }
@@ -491,6 +553,8 @@ export type ChatPack = {
     /** Sinónimos que desmienten el atributo fijo: si el cliente dice uno, este pack no le sirve. */
     atributo_fijo_contradice: string[] | null
     categoria: string | null
+    /** Para qué motor es el pack (110, 150...). Vacío = no filtra por cilindrada. */
+    cilindradas_base: number[]
     componentes: ChatPackComponente[]
 }
 
@@ -511,6 +575,7 @@ export type ChatPackInput = {
     atributoFijo: string
     atributoFijoContradice: string
     categoria: string
+    cilindradasBase: string // "110" / "125, 150" — vacío = no filtra
 }
 
 export type ChatPackComponenteInput = {
@@ -522,7 +587,7 @@ export async function getChatPacks(): Promise<ChatPack[]> {
     await requireAdmin()
 
     const packs = await prisma.$queryRaw<
-        Omit<ChatPack, "componentes" | "sinonimos_variante" | "atributo_fijo" | "atributo_fijo_contradice">[]
+        Omit<ChatPack, "componentes" | "sinonimos_variante" | "atributo_fijo" | "atributo_fijo_contradice" | "cilindradas_base">[]
     >`
         SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, plantillas_referral, detalle, activo, creado_en, grupo_id, criterio_variante, categoria
         FROM chat_packs
@@ -563,8 +628,11 @@ export async function getChatPacks(): Promise<ChatPack[]> {
         ORDER BY pa.pack_id, pa.orden ASC
     `
 
+    const cilindradasPorPack = await cilindradasBasePorId("chat_packs")
+
     return packs.map((pack) => ({
         ...pack,
+        cilindradas_base: cilindradasPorPack.get(Number(pack.id)) ?? [],
         sinonimos_variante: sinonimosPorPack.get(pack.id) ?? [],
         atributo_fijo: fijoPorPack.get(pack.id)?.atributo_fijo ?? null,
         atributo_fijo_contradice: fijoPorPack.get(pack.id)?.atributo_fijo_contradice ?? [],
@@ -654,6 +722,10 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
     } catch {
         /* columnas inexistentes: se ignora hasta correr la migración */
     }
+
+    // Cilindrada del pack: solo para los packs SUELTOS. Si pertenece a un
+    // grupo, el motor la toma del grupo (mismo criterio que la categoría).
+    await guardarCilindradasBase("chat_packs", packId!, data.grupoId ? [] : parseCilindradas(data.cilindradasBase))
 
     await prisma.$executeRaw`DELETE FROM chat_pack_articulos WHERE pack_id = ${packId}`
     let orden = 0

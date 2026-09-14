@@ -1245,5 +1245,52 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "La Jawa 150 Supernova no está en el catálogo de motos ni tiene fila de compatibilidad: escala a moto_no_registrada y guarda silencio, sin afirmar que le entra."
         }
+    },
+    {
+        id: "caso-71-moto-de-otra-cilindrada-no-se-confirma",
+        titulo: "Kit de 110 para una moto de 150 (conv 4068) — escala, no dice 'le va bien'",
+        mensajeCliente: "Hola yo necesito para la rx 150 2012 bariyera",
+        historial: [
+            { rol: "user", contenido: "Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4?" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola, cómo va! 🔥\n\nEl combo Kit 120 corto + leva de calle de 6.40 sale $99.000 con envío gratis a todo el país.\n\nA qué moto se lo querés poner?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 4, nombre: "Kit 120 corto + Leva 6.40" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            // Lo que pasó en vivo: "Le va bien a la RX 150 2012" y siguió
+            // pidiendo la medida de la leva, con un kit que es para motor 110.
+            patronProhibido: /le va bien|le (entra|va)\b|es compatible|leva (corta|larga)/i,
+            descripcionEsperada:
+                "La RX 150 es de otra cilindrada que el kit (110): ninguna fila positiva puede confirmarla, escala en silencio y no pregunta la variante."
+        }
+    },
+    {
+        id: "caso-72-haceme-precio-es-regateo",
+        titulo: "'Haceme precio' es pedido de descuento (conv 4068) — se contesta, no se ignora",
+        mensajeCliente: "Haceme precio",
+        historial: [
+            { rol: "user", contenido: "Hola, para la zb 110" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Le va bien a la ZB 110.\n\nTu moto tiene leva corta (69mm) o larga (74mm)? Si no estás seguro hay que desarmar la tapa y medir."
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 4, nombre: "Kit 120 corto + Leva 6.40" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            descripcionEsperada:
+                "Es regateo, no un pedido de precio: tiene que contestar que los precios son finales con envío gratis incluido (con firmeza y buena onda), en el mismo mensaje, sin inventar rebajas y sin ignorar el pedido."
+        }
     }
 ]

@@ -45,6 +45,13 @@ const FORM_VACIO: ChatArticuloInput = {
     envioGratis: "",
     envio: "",
     activo: true,
+    cilindradasBase: "",
+}
+
+/** Espejo liviano del parseo del servidor, solo para reflejar el cambio en la tabla sin recargar. */
+function parseCilindradasUI(txt: string): number[] {
+    const nums = (txt || "").split(/[^\d]+/).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n < 2000)
+    return [...new Set(nums)].sort((a, b) => a - b)
 }
 
 function formatearPrecio(precio: number | null): string {
@@ -140,6 +147,7 @@ export function ArticulosTab({
             envioGratis: articulo.envio_gratis === true ? "si" : articulo.envio_gratis === false ? "no" : "",
             envio: articulo.envio || "",
             activo: articulo.activo,
+            cilindradasBase: (articulo.cilindradas_base || []).join(", "),
         })
         setNombreSeleccionado(articulo.nombre)
         setEsPackSeleccionado(articulo.es_pack)
@@ -192,6 +200,7 @@ export function ArticulosTab({
                 activo: form.activo,
                 creado_en: articulos.find((a) => a.id === form.id)?.creado_en || new Date(),
                 es_pack: esPackSeleccionado,
+                cilindradas_base: parseCilindradasUI(form.cilindradasBase),
             }
             setArticulos((prev) => {
                 const existe = prev.some((a) => a.id === actualizado.id)
@@ -462,6 +471,23 @@ export function ArticulosTab({
                             </p>
                         </div>
 
+                        <div className="space-y-1">
+                            <Label htmlFor="cilindradas-base">Para qué motor es (cilindradas)</Label>
+                            <Input
+                                id="cilindradas-base"
+                                placeholder="Ej: 110  /  125, 150, 190  —  vacío = no filtra"
+                                value={form.cilindradasBase}
+                                onChange={(e) => actualizarCampo("cilindradasBase", e.target.value)}
+                                disabled={guardando}
+                            />
+                            <p className="text-xs text-gray-400">
+                                Red contra el &quot;le va bien&quot; a una moto de otro motor: si el cliente tiene una moto
+                                de una cilindrada que no está acá, ninguna fila positiva la confirma y el bot deriva. Las
+                                filas de &quot;no compatible&quot; siguen valiendo igual. Dejalo vacío en las piezas que van
+                                a motores distintos (carburador, filtro, codo).
+                            </p>
+                        </div>
+
                         <div className="space-y-3 pt-6 border-t border-slate-200">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                 <Label>Compatibilidad de este artículo</Label>
@@ -635,9 +661,20 @@ export function ArticulosTab({
                                             </TableCell>
                                             <TableCell className="text-sm text-gray-500 max-w-[240px] truncate">{articulo.alias || "—"}</TableCell>
                                             <TableCell className="text-sm text-gray-500 capitalize">
-                                                {articulo.categoria ? (
-                                                    <Badge variant="outline" className="font-normal capitalize">{articulo.categoria}</Badge>
-                                                ) : "—"}
+                                                <span className="inline-flex flex-wrap items-center gap-1">
+                                                    {articulo.categoria ? (
+                                                        <Badge variant="outline" className="font-normal capitalize">{articulo.categoria}</Badge>
+                                                    ) : "—"}
+                                                    {(articulo.cilindradas_base || []).length > 0 && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            title="Cilindradas para las que sirve: una moto de otro motor no se confirma, se deriva"
+                                                            className="font-normal text-sky-700 border-sky-300 bg-sky-50"
+                                                        >
+                                                            {articulo.cilindradas_base.join("/")}cc
+                                                        </Badge>
+                                                    )}
+                                                </span>
                                             </TableCell>
                                             <TableCell className="text-sm">{formatearPrecio(articulo.precio)}</TableCell>
                                             <TableCell className="text-sm">

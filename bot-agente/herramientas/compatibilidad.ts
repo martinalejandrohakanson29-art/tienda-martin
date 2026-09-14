@@ -125,6 +125,66 @@ async function composicionDelKitPedido(
 }
 
 /**
+ * Para qué cilindrada de motor es el producto por el que se pregunta.
+ *
+ * Sale del catálogo (`cilindradas_base`, ver
+ * `n8n-workflows/chat-catalogo-cilindrada-base.sql`), nunca del nombre: el "120"
+ * del Kit 120 es el diámetro del cilindro que se PONE, no el motor al que va.
+ *
+ * Se toma la unión de lo declarado por el pack, su grupo y sus piezas. Un
+ * producto sin declarar devuelve vacío y no filtra nada: esta red se activa solo
+ * donde hay dato cargado.
+ */
+async function cilindradasBaseDelKit(
+    kitPedido: string | undefined,
+    composicion: { packIds: Set<number>; articuloIds: Set<number> }
+): Promise<Set<number>> {
+    const packIds = [...composicion.packIds]
+    const articuloIds = [...composicion.articuloIds]
+    const pedido = (kitPedido || "").trim()
+    if (!pedido) return new Set()
+
+    try {
+        const filas: { cc: number[] | null }[] = []
+
+        if (packIds.length > 0) {
+            filas.push(
+                ...(await prisma.$queryRaw<{ cc: number[] | null }[]>`
+                    SELECT cilindradas_base AS cc FROM chat_packs WHERE id = ANY(${packIds})
+                    UNION ALL
+                    SELECT g.cilindradas_base FROM chat_pack_grupos g
+                    JOIN chat_packs p ON p.grupo_id = g.id
+                    WHERE p.id = ANY(${packIds})
+                `)
+            )
+        }
+        if (articuloIds.length > 0) {
+            filas.push(
+                ...(await prisma.$queryRaw<{ cc: number[] | null }[]>`
+                    SELECT cilindradas_base AS cc FROM chat_articulos WHERE id = ANY(${articuloIds})
+                `)
+            )
+        }
+
+        // Pieza suelta: el pedido no cae en ningún pack ("cilindro 120 solo"),
+        // así que se busca el artículo por nombre igual que el resto del pozo.
+        if (filas.length === 0) {
+            const articulos = await prisma.$queryRaw<{ titulo_comercial: string; cc: number[] | null }[]>`
+                SELECT titulo_comercial, cilindradas_base AS cc FROM chat_articulos WHERE activo = true
+            `
+            filas.push(...articulos.filter((a) => coincideKitInteligente(pedido, a.titulo_comercial)))
+        }
+
+        const cc = new Set<number>()
+        for (const f of filas) for (const n of f.cc || []) if (Number(n) > 0) cc.add(Number(n))
+        return cc
+    } catch {
+        // Columna todavía sin migrar: el bot sigue funcionando como antes.
+        return new Set()
+    }
+}
+
+/**
  * El cliente dijo solo la marca: se repregunta el modelo en vez de escalar,
  * salvo que ya se le haya preguntado hasta el tope (conv 3947, 11/09).
  *
@@ -842,6 +902,10 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             packIds: new Set<number>(),
         }))
 
+        // Para qué motor es este producto (110, 150...). Ver el filtro de más
+        // abajo y `cilindradasBaseDelKit`.
+        const ccBaseKit = await cilindradasBaseDelKit(args.kit_nombre_o_id, composicion).catch(() => new Set<number>())
+
         // Buscamos coincidencia con puntuación.
         //
         // DOS CAPAS, no una. Una fila de `chat_combo_compatibilidad` o de la
@@ -919,6 +983,25 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                 if (ccFila.length > 0 && !ccFila.some((cc) => ccModeloCliente.has(cc))) {
                     continue
                 }
+            }
+
+            // La moto es de OTRA cilindrada que la del producto: ninguna fila
+            // positiva puede confirmarla.
+            //
+            // El filtro de arriba mira la cilindrada que nombra la FILA; éste
+            // mira la del PRODUCTO, que es lo único que ataja una fila cargada
+            // sin cilindrada en el texto. Real (conv 4068, 13/09): "Zanella RX"
+            // figuraba compatible con el "Cilindro 120 corto" —una de las 11
+            // filas que el aprendizaje repartió entre las piezas de un combo— y
+            // por ahí una RX 150 se llevó "Le va bien" a un kit para 110.
+            //
+            // Solo descarta POSITIVOS. Una fila que dice que NO entra sigue
+            // hablando, venga de donde venga: la respuesta conservadora nunca se
+            // filtra. Sin ningún positivo el kit queda sin confirmación y el
+            // turno termina derivado al equipo, que es lo correcto cuando el
+            // sistema no sabe.
+            if (reg.compatible && ccBaseKit.size > 0 && ccModeloCliente.size > 0) {
+                if (![...ccModeloCliente].some((cc) => ccBaseKit.has(cc))) continue
             }
 
             const tokensReg = regMotoNorm.split(" ").filter((p) => p.length >= 2)

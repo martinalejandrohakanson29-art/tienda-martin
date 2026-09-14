@@ -47,7 +47,11 @@ const SITUACIONES_FALLBACK: SituacionRegla[] = [
     {
         clave: "descuento_unitario",
         titulo: "Pide descuento en compra unitaria",
-        disparadores: ["me haces descuento", "algun descuento", "en efectivo cuanto", "me bajas el precio", "ultimo precio"],
+        // El regateo de mostrador casi nunca dice "descuento": dice "haceme
+        // precio", "cuanto es lo menos", "me lo dejas en". En la conv 4068 el
+        // cliente escribio "Haceme precio" y, sin disparador que pegara, el bot
+        // ni lo contesto ni lo derivo: siguio preguntando la leva.
+        disparadores: ["me haces descuento", "algun descuento", "en efectivo cuanto", "me bajas el precio", "ultimo precio", "haceme precio", "haceme un precio", "me haces precio", "me haces un precio", "me hacen precio", "me hacen un precio", "hacen precio", "que precio me haces", "me tiras un precio", "mejor precio", "me mejoras el precio", "mejorame el precio", "me lo dejas en", "es negociable", "se puede negociar", "hay descuento", "hacen descuento", "un descuento", "algo de descuento", "descuentito", "cuanto es lo menos", "lo menos que", "precio de contado", "pagando en efectivo"],
         instruccion:
             "Precios finales y oficiales con envio gratis incluido. Responde con firmeza y buena onda: 'Los precios publicados son finales y ya tienen el envio gratis incluido a todo el pais bro! Es el mejor precio que te podemos hacer. Si te interesa avisame y coordinamos!'. PROHIBIDO inventar descuentos."
     },

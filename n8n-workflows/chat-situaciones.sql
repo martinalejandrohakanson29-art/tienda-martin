@@ -42,8 +42,8 @@ INSERT INTO chat_situaciones (clave, titulo, disparadores, instruccion, orden) V
 
 ('descuento_unitario',
  'Pide descuento en compra unitaria',
- ARRAY['me haces descuento','algun descuento','en efectivo cuanto','me bajas el precio','ultimo precio','hay rebaja','se puede mejorar el precio'],
- 'Los precios son finales y oficiales, con envio gratis incluido. Respondele con firmeza y buena onda cordobesa: "Los precios publicados son finales y ya tienen el envio gratis incluido a todo el pais bro! Es el mejor precio que te podemos hacer. Si te interesa avisame y coordinamos!". PROHIBIDO inventar descuentos.',
+ ARRAY['me haces descuento','algun descuento','en efectivo cuanto','me bajas el precio','ultimo precio','hay rebaja','se puede mejorar el precio','haceme precio','haceme un precio','me haces precio','me haces un precio','me hacen precio','me hacen un precio','hacen precio','que precio me haces','me tiras un precio','mejor precio','me mejoras el precio','mejorame el precio','me lo dejas en','es negociable','se puede negociar','hay descuento','hacen descuento','un descuento','algo de descuento','descuentito','cuanto es lo menos','lo menos que','precio de contado','pagando en efectivo'],
+ 'Los precios son finales y oficiales, con envio gratis incluido. Respondele con firmeza y buena onda cordobesa: "Los precios publicados son finales y ya tienen el envio gratis incluido a todo el pais bro! Es el mejor precio que te podemos hacer. Si te interesa avisame y coordinamos!". PROHIBIDO inventar descuentos. Aplica aunque el embudo este a medias: el pedido de precio/descuento se contesta SIEMPRE en este mismo mensaje (nunca se ignora), y recien despues seguis con el dato que faltaba.',
  30),
 
 ('mayorista',
@@ -77,3 +77,16 @@ INSERT INTO chat_situaciones (clave, titulo, disparadores, instruccion, orden) V
  80)
 
 ON CONFLICT (clave) DO NOTHING;
+
+
+-- 2026-09-14 — "Haceme precio" es un pedido de descuento (conv 4068)
+-- El cliente escribio "Haceme precio" y el bot no lo leyo como regateo: no lo
+-- contesto ni lo derivo, repregunto la leva como si nada. Los disparadores solo
+-- cubrian la forma explicita ("me haces descuento"), no la forma corta de
+-- mostrador que es la que usa la gente. El seed de arriba ya va actualizado;
+-- este UPDATE lo aplica en las bases donde la fila ya existia.
+UPDATE chat_situaciones SET
+    disparadores = ARRAY['me haces descuento','algun descuento','en efectivo cuanto','me bajas el precio','ultimo precio','hay rebaja','se puede mejorar el precio','haceme precio','haceme un precio','me haces precio','me haces un precio','me hacen precio','me hacen un precio','hacen precio','que precio me haces','me tiras un precio','mejor precio','me mejoras el precio','mejorame el precio','me lo dejas en','es negociable','se puede negociar','hay descuento','hacen descuento','un descuento','algo de descuento','descuentito','cuanto es lo menos','lo menos que','precio de contado','pagando en efectivo'],
+    instruccion = 'Los precios son finales y oficiales, con envio gratis incluido. Respondele con firmeza y buena onda cordobesa: "Los precios publicados son finales y ya tienen el envio gratis incluido a todo el pais bro! Es el mejor precio que te podemos hacer. Si te interesa avisame y coordinamos!". PROHIBIDO inventar descuentos. Aplica aunque el embudo este a medias: el pedido de precio/descuento se contesta SIEMPRE en este mismo mensaje (nunca se ignora), y recien despues seguis con el dato que faltaba.',
+    actualizado_en = NOW()
+WHERE clave = 'descuento_unitario';

@@ -47,9 +47,16 @@ const FORM_VACIO: ChatPackInput = {
     atributoFijo: "",
     atributoFijoContradice: "",
     categoria: "",
+    cilindradasBase: "",
 }
 
 type ComponenteSeleccionado = { articuloId: number; nombre: string; precio: number | null; cantidad: number }
+
+/** Espejo liviano del parseo del servidor, para reflejar el cambio sin recargar. */
+function parseCilindradasUI(txt: string): number[] {
+    const nums = (txt || "").split(/[^\d]+/).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n < 2000)
+    return [...new Set(nums)].sort((a, b) => a - b)
+}
 
 function formatearPrecio(precio: number): string {
     return precio.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })
@@ -146,6 +153,7 @@ export function PacksTab({
             atributoFijo: pack.atributo_fijo || "",
             atributoFijoContradice: (pack.atributo_fijo_contradice || []).join(", "),
             categoria: pack.categoria || "",
+            cilindradasBase: (pack.cilindradas_base || []).join(", "),
         })
         setComponentes(
             pack.componentes.map((c) => ({ articuloId: c.articulo_id, nombre: c.nombre, precio: c.precio, cantidad: c.cantidad }))
@@ -235,6 +243,7 @@ export function PacksTab({
                     preguntaVarianteReintento: "",
                     fotoUrl: "",
                     categoria: nuevoGrupoCategoria,
+                    cilindradasBase: "",
                 })
                 grupoId = nuevoGrupo.id
                 gruposActualizados = [
@@ -250,6 +259,7 @@ export function PacksTab({
                         foto_url: null,
                         categoria: nuevoGrupoCategoria.trim() || null,
                         activo: true,
+                        cilindradas_base: [],
                     },
                 ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
                 setGrupos(gruposActualizados)
@@ -300,6 +310,7 @@ export function PacksTab({
                     ? form.atributoFijoContradice.split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean)
                     : [],
                 categoria: grupoId ? null : form.categoria.trim() || null,
+                cilindradas_base: grupoId ? [] : parseCilindradasUI(form.cilindradasBase),
                 componentes: componentes.map((c, i) => ({
                     articulo_id: c.articuloId,
                     nombre: c.nombre,
@@ -608,6 +619,21 @@ export function PacksTab({
                                     <p className="text-xs text-gray-400">
                                         Qué resuelve el combo en general — no identifica una pieza, es para cuando el bot
                                         sepa responder preguntas de exploración tipo &quot;qué tenés para potenciar mi 110&quot;.
+                                    </p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="cilindradas-base-pack">Para qué motor es (cilindradas)</Label>
+                                    <Input
+                                        id="cilindradas-base-pack"
+                                        placeholder="Ej: 110  /  125, 150, 190  —  vacío = no filtra"
+                                        value={form.cilindradasBase}
+                                        onChange={(e) => actualizarCampo("cilindradasBase", e.target.value)}
+                                        disabled={guardando}
+                                    />
+                                    <p className="text-xs text-gray-400">
+                                        Red contra el &quot;le va bien&quot; a una moto de otro motor: si el cliente tiene
+                                        una moto de una cilindrada que no está acá, ninguna fila positiva la confirma y el
+                                        bot deriva. Las filas de &quot;no compatible&quot; siguen valiendo igual.
                                     </p>
                                 </div>
                             </>

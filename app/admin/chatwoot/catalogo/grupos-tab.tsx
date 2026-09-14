@@ -33,6 +33,13 @@ const FORM_VACIO: ChatPackGrupoInput = {
     preguntaVarianteReintento: "",
     fotoUrl: "",
     categoria: "",
+    cilindradasBase: "",
+}
+
+/** Espejo liviano del parseo del servidor, para reflejar el cambio sin recargar. */
+function parseCilindradasUI(txt: string): number[] {
+    const nums = (txt || "").split(/[^\d]+/).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n < 2000)
+    return [...new Set(nums)].sort((a, b) => a - b)
 }
 
 export function GruposTab({
@@ -94,6 +101,7 @@ export function GruposTab({
             preguntaVarianteReintento: grupo.pregunta_variante_reintento || "",
             fotoUrl: grupo.foto_url || "",
             categoria: grupo.categoria || "",
+            cilindradasBase: (grupo.cilindradas_base || []).join(", "),
         })
         setFotoError(null)
         const propias = compatCombo.filter((c) => c.grupo_id === grupo.id)
@@ -168,6 +176,7 @@ export function GruposTab({
                 foto_url: form.fotoUrl.trim() || null,
                 categoria: form.categoria.trim() || null,
                 activo: grupos.find((g) => g.id === form.id)?.activo ?? true,
+                cilindradas_base: parseCilindradasUI(form.cilindradasBase),
             }
             setGrupos((prev) => {
                 const existe = prev.some((g) => g.id === actualizado.id)
@@ -260,6 +269,22 @@ export function GruposTab({
                             <p className="text-xs text-gray-400">
                                 Qué resuelve el combo en general — no identifica una pieza, es para cuando el bot sepa
                                 responder preguntas de exploración tipo &quot;qué tenés para potenciar mi 110&quot;.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="cilindradas-base-grupo">Para qué motor es (cilindradas)</Label>
+                            <Input
+                                id="cilindradas-base-grupo"
+                                placeholder="Ej: 110  /  125, 150, 190  —  vacío = no filtra"
+                                value={form.cilindradasBase}
+                                onChange={(e) => actualizarCampo("cilindradasBase", e.target.value)}
+                                disabled={guardando}
+                            />
+                            <p className="text-xs text-gray-400">
+                                Red contra el &quot;le va bien&quot; a una moto de otro motor: si el cliente tiene una moto
+                                de una cilindrada que no está acá, ninguna fila positiva la confirma y el bot deriva al
+                                equipo. Las filas de &quot;no compatible&quot; siguen valiendo igual.
                             </p>
                         </div>
 

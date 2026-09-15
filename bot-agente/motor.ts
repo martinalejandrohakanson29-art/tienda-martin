@@ -12,7 +12,7 @@ import {
     guiaCondicionSuperada,
     guiaNegativaYaEntregada
 } from "./nucleo/negativa-condicional"
-import { resolverMoto } from "./nucleo/motos"
+import { resolverMoto, cilindradaSinMarca } from "./nucleo/motos"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
@@ -1225,9 +1225,15 @@ export async function ejecutarTurnoAgente(
      * No reemplaza a `motoConfirmada`: esto no dice que le entre nada, dice que
      * hay una moto en juego y que no se puede afirmar sobre ella sin consultar.
      */
-    const motoVigenteDeLaCharla = motoDelMensajeTurno || estadoConv.motoMencionada || null
-    if (motoDelMensajeTurno && motoDelMensajeTurno !== estadoConv.motoMencionada) {
-        patchEstado.motoMencionada = motoDelMensajeTurno
+    // El cliente puede nombrar su moto sin que resuelva a un modelo cargado
+    // ("Una 110 DLX": DLX la usan todas las marcas y hay 12 motos de 110). Sigue
+    // siendo una moto en juego, y el turno tiene que saberlo. Ver
+    // `cilindradaSinMarca` — solo dispara con un marcador explícito, para no
+    // confundir el numero del KIT con la cilindrada de la moto.
+    const motoDelTurno = motoDelMensajeTurno || cilindradaSinMarca(mensajeUsuario)
+    const motoVigenteDeLaCharla = motoDelTurno || estadoConv.motoMencionada || null
+    if (motoDelTurno && motoDelTurno !== estadoConv.motoMencionada) {
+        patchEstado.motoMencionada = motoDelTurno
     }
 
     /**
@@ -1735,7 +1741,7 @@ export async function ejecutarTurnoAgente(
                         // un cupo, y si una ráfaga repregunta dos veces en el
                         // mismo turno tiene que verse ya en el segundo paso.
                         repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
-                        motoDelMensaje: motoDelMensajeTurno,
+                        motoDelMensaje: motoDelTurno,
                         motoMencionada: motoVigenteDeLaCharla
                     },
                     catalogoSinMatch: catalogoSinMatchEnTurno

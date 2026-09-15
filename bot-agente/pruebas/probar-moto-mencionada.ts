@@ -24,6 +24,7 @@ import {
 } from "../nucleo/estado-persistente"
 import { consultarCatalogoPrecios } from "../herramientas/catalogo-precios"
 import { ofreceProductosParaLaMoto, afirmaTenerParaSuMoto } from "../guardrails/sanitizador"
+import { cilindradaSinMarca } from "../nucleo/motos"
 
 const CLAVE = "prueba-moto-mencionada"
 
@@ -134,6 +135,28 @@ async function main() {
         "el número de la moto solo no la identifica",
         ofreceProductosParaLaMoto("Tenemos estas opciones: Kit 120 para 110.", "110") === false
     )
+
+    // ── Cilindrada sin marca ("Una 110 DLX") ─────────────────────────────────
+    // Es una moto en juego aunque no resuelva a ningún modelo cargado.
+    agregar("'Una 110 DLX' se reconoce como moto", cilindradaSinMarca("Una 110 DLX") === "110 DLX")
+    agregar("'110 dlx' sin artículo también", cilindradaSinMarca("110 dlx") === "110 DLX")
+    agregar("'tengo una 110' (dice que es suya)", cilindradaSinMarca("tengo una 110") === "110")
+    agregar("'mi moto es una 125 full'", cilindradaSinMarca("mi moto es una 125 full") === "125 FULL")
+
+    // Los falsos positivos que importan: el cliente hablando del KIT, no de su
+    // moto. Si estos disparan, el guardrail de la moto se aplica a la moto
+    // equivocada y el bot deja de contestar.
+    agregar("'el kit 120' NO es una moto", cilindradaSinMarca("el kit 120") === null)
+    agregar("'el 120' pelado NO es una moto", cilindradaSinMarca("el 120") === null)
+    agregar("'120' solo NO es una moto", cilindradaSinMarca("120") === null)
+    agregar("'cuanto sale el 200?' NO es una moto", cilindradaSinMarca("cuanto sale el 200?") === null)
+    agregar("'120 recorrido corto' NO es una moto", cilindradaSinMarca("120 recorrido corto") === null)
+    agregar("'el combo 110' NO es una moto", cilindradaSinMarca("el combo 110") === null)
+    // Con marca, resuelve el resolvedor de siempre: esto no se mete.
+    agregar("'zanella 110 dlx' lo resuelve el otro camino", cilindradaSinMarca("zanella 110 dlx") === null)
+    // Dos cilindradas no son una moto ("el 120 o el 170?").
+    agregar("dos cilindradas NO es una moto", cilindradaSinMarca("tengo una 110 o 125") === null)
+    agregar("texto vacío", cilindradaSinMarca("") === null)
 
     let fallaron = 0
     for (const c of casos) {

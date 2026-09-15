@@ -118,6 +118,61 @@ export function marcaSinModelo(texto: string): string | null {
 }
 
 /**
+ * Terminaciones con las que se vende una moto. No identifican el modelo (las
+ * usan todas las marcas), pero decir una es señal de que se está hablando de
+ * una moto y no de un kit.
+ */
+const TERMINACIONES_MOTO = new Set([
+    "dlx", "deluxe", "full", "base", "tuning", "std", "standard", "estandar",
+    "sport", "special", "especial", "classic", "clasica",
+])
+
+/** Palabras con las que el cliente dice que la moto es SUYA ("tengo una 110"). */
+const ES_SU_MOTO = new Set(["moto", "motito", "tengo", "ando", "mi", "mis"])
+
+/**
+ * ¿El cliente dijo la CILINDRADA pero no la marca? ("Una 110 DLX")
+ *
+ * El espejo de `marcaSinModelo`, y el caso que dejó pasar la conv 4206: "110
+ * DLX" no resuelve a ningún modelo —DLX es una terminación que usan todas las
+ * marcas, y hay 12 motos de 110 cargadas— así que `resolverMoto` devolvía
+ * `ninguna` y el motor no se enteraba de que había una moto en juego: no la
+ * guardaba, el aviso del catálogo no viajaba y el backstop no miraba.
+ *
+ * (`consultar_compatibilidad` sí la contesta, por la fila genérica de
+ * cilindrada. Lo que faltaba era registrarla, no responderla.)
+ *
+ * El disparo exige un MARCADOR explícito —una terminación, o que diga que la
+ * moto es suya— y no solo el número. Sin eso, "el 120" y "cuánto sale el 200?"
+ * entrarían como la moto del cliente cuando está hablando del kit, y a partir
+ * de ahí todo lo que diga el bot quedaría bajo el guardrail de la moto
+ * equivocada. Es la asimetría a propósito: se pierde "una 110" pelada.
+ */
+export function cilindradaSinMarca(texto: string): string | null {
+    const norm = normalizarTexto(texto || "")
+    if (!norm) return null
+
+    const cilindradas = cilindradasEn(norm)
+    if (cilindradas.length !== 1) return null
+
+    const tokens = norm.split(" ").filter(Boolean)
+    if (tokens.some((t) => MARCAS_MOTO.has(t))) return null
+
+    // Cualquier palabra que no sea relleno, número o terminación significa que
+    // está hablando de otra cosa ("el kit 120", "120 recorrido corto").
+    const contenido = tokens.filter(
+        (t) => !RELLENO.has(t) && !TERMINACIONES_MOTO.has(t) && isNaN(Number(t)) && !/^\d+cc$/.test(t)
+    )
+    if (contenido.length > 0) return null
+
+    const terminaciones = tokens.filter((t) => TERMINACIONES_MOTO.has(t))
+    const diceQueEsSuya = tokens.some((t) => ES_SU_MOTO.has(t))
+    if (terminaciones.length === 0 && !diceQueEsSuya) return null
+
+    return [String(cilindradas[0]), ...terminaciones.map((t) => t.toUpperCase())].join(" ")
+}
+
+/**
  * Cuantas veces se le puede repreguntar la moto a un cliente antes de derivar.
  * Dos: la primera es la pregunta legitima, la segunda una reformulacion. A la
  * tercera el cliente ya contesto dos veces sin precisar y seguir preguntando es

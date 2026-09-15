@@ -460,16 +460,68 @@ export default function VentasMostradorClient({
         ((metodoPago === "Cruzada" && metodoPago2 === "A Cuenta Corriente") ||
           (metodoPago === "A Cuenta Corriente" && metodoPago2 === "Cruzada"));
 
+      const requiereCruzadaLocal =
+        metodoPago === "Cruzada" || (isPagoMixto && metodoPago2 === "Cruzada");
+      const requiereCCLocal =
+        metodoPago === "A Cuenta Corriente" ||
+        (isPagoMixto && metodoPago2 === "A Cuenta Corriente");
+
+      if (requiereCruzadaLocal) {
+        if (!deCruzada.trim()) {
+          alert("Por favor ingrese quién envía el dinero (De) para el pago en Cruzada.");
+          return;
+        }
+
+        const provsCruzadaValidos = proveedoresCruzada.filter((p) => p.razonSocial.trim());
+
+        if (proveedoresCruzada.length > 1) {
+          if (provsCruzadaValidos.length !== proveedoresCruzada.length) {
+            alert("Hay proveedores de Cruzada sin razón social. Complete todos o elimine las filas vacías.");
+            return;
+          }
+          const suma = provsCruzadaValidos.reduce((acc, curr) => acc + (Number(curr.monto) || 0), 0);
+          const montoEsperado = isPagoMixto
+            ? (metodoPago === "Cruzada" ? final1 : final2)
+            : totalFinalCalculado;
+          if (Math.abs(suma - montoEsperado) > 1) {
+            alert(
+              `La suma de los montos en Cruzada ($${suma.toLocaleString("es-AR")}) no coincide con el total de Cruzada ($${montoEsperado.toLocaleString("es-AR")}). Por favor ajuste los montos.`
+            );
+            return;
+          }
+        } else if (provsCruzadaValidos.length === 0 && !paraCruzada.trim()) {
+          alert("Por favor indique al menos un proveedor para el pago en Cruzada.");
+          return;
+        }
+      }
+
+      if (requiereCCLocal && !paraCuentaCorriente.trim() && !paraCruzada.trim()) {
+        alert("Por favor seleccione el proveedor o cliente para la Cuenta Corriente.");
+        return;
+      }
+
       let paraFinal = paraCruzada;
-      if (metodoPago === "Cruzada" && !isPagoMixto) {
-        paraFinal = JSON.stringify(proveedoresCruzada);
-      } else if (esMixtoCruzadaCC) {
+      if (esMixtoCruzadaCC) {
         const montoCruzada = metodoPago === "Cruzada" ? final1 : final2;
         const montoCC = metodoPago === "A Cuenta Corriente" ? final1 : final2;
-        paraFinal = JSON.stringify([
-          { razonSocial: paraCruzada, monto: montoCruzada },
-          { razonSocial: paraCuentaCorriente, monto: montoCC },
-        ]);
+        const provsCruzadaValidos = proveedoresCruzada.filter((p) => p.razonSocial.trim());
+        const itemsCruzada = provsCruzadaValidos.length > 0
+          ? provsCruzadaValidos
+          : [{ razonSocial: paraCruzada.trim(), monto: montoCruzada }];
+        const itemCC = {
+          razonSocial: (paraCuentaCorriente || paraCruzada).trim(),
+          monto: montoCC,
+        };
+        paraFinal = JSON.stringify([...itemsCruzada, itemCC]);
+      } else if (requiereCruzadaLocal) {
+        const provsCruzadaValidos = proveedoresCruzada.filter((p) => p.razonSocial.trim());
+        if (provsCruzadaValidos.length > 0) {
+          paraFinal = JSON.stringify(provsCruzadaValidos);
+        } else {
+          paraFinal = paraCruzada.trim();
+        }
+      } else if (requiereCCLocal) {
+        paraFinal = (paraCuentaCorriente || paraCruzada).trim();
       }
 
       const docNroLimpio = (docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : "")).replace(/\D/g, "");

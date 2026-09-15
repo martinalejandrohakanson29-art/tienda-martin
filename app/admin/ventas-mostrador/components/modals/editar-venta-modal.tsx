@@ -307,6 +307,18 @@ export function EditarVentaModal({
     ((editMetodoPago === "Cruzada" && editMetodoPago2 === "A Cuenta Corriente") ||
       (editMetodoPago === "A Cuenta Corriente" && editMetodoPago2 === "Cruzada"));
 
+  const isCruzada1 = editMetodoPago === "Cruzada";
+  const isCruzada2 = isEditPagoMixto && editMetodoPago2 === "Cruzada";
+  const montoCruzadaEsperadoEdit = isEditPagoMixto
+    ? (isCruzada1 ? final1 : isCruzada2 ? final2 : 0)
+    : totalFinalCalculadoEdit;
+
+  const isCC1 = editMetodoPago === "A Cuenta Corriente";
+  const isCC2 = isEditPagoMixto && editMetodoPago2 === "A Cuenta Corriente";
+  const montoCCEsperadoEdit = isEditPagoMixto
+    ? (isCC1 ? final1 : isCC2 ? final2 : 0)
+    : totalFinalCalculadoEdit;
+
   const puntoVentaSeleccionado = useMemo(() => {
     return puntosVenta.find((p) => p.id === editPuntoVentaId) || null;
   }, [puntosVenta, editPuntoVentaId]);
@@ -464,17 +476,34 @@ export function EditarVentaModal({
 
   // Gestión de proveedores cruzada
   const agregarProveedorCruzada = () => {
-    setEditProveedoresCruzada((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), razonSocial: "", monto: 0 },
-    ]);
+    setEditProveedoresCruzada((prev) => {
+      const sumaActual = prev.reduce((acc, curr) => acc + (Number(curr.monto) || 0), 0);
+      const restante = Math.max(0, montoCruzadaEsperadoEdit - sumaActual);
+      return [
+        ...prev,
+        { id: crypto.randomUUID(), razonSocial: "", monto: restante },
+      ];
+    });
+  };
+
+  const dividirCruzada5050 = () => {
+    const mitad = redondearA50(montoCruzadaEsperadoEdit / 2);
+    const resto = montoCruzadaEsperadoEdit - mitad;
+    setEditProveedoresCruzada((prev) => {
+      if (prev.length < 2) return prev;
+      return [
+        { ...prev[0], monto: mitad },
+        { ...prev[1], monto: resto },
+        ...prev.slice(2),
+      ];
+    });
   };
 
   const eliminarProveedorCruzada = (idx: number) => {
     setEditProveedoresCruzada((prev) => {
       const nuevaLista = prev.filter((_, i) => i !== idx);
       if (nuevaLista.length === 1) {
-        return [{ ...nuevaLista[0], monto: totalFinalCalculadoEdit }];
+        return [{ ...nuevaLista[0], monto: montoCruzadaEsperadoEdit }];
       }
       return nuevaLista;
     });
@@ -486,6 +515,9 @@ export function EditarVentaModal({
       copia[idx] = { ...copia[idx], [campo]: valor };
       return copia;
     });
+    if (idx === 0 && campo === "razonSocial") {
+      setEditParaCruzada(valor);
+    }
   };
 
   // Guardar edición
@@ -517,18 +549,24 @@ export function EditarVentaModal({
       if (esMixtoCruzadaCC) {
         const montoCruzada = editMetodoPago === "Cruzada" ? final1 : final2;
         const montoCC = editMetodoPago === "A Cuenta Corriente" ? final1 : final2;
-        paraFinal = JSON.stringify([
-          { razonSocial: editParaCruzada, monto: montoCruzada },
-          { razonSocial: editParaCuentaCorriente, monto: montoCC },
-        ]);
-      } else if (requiereCruzada && !isEditPagoMixto) {
-        if (editProveedoresCruzada.length > 1) {
-          paraFinal = JSON.stringify(editProveedoresCruzada);
+        const provsCruzadaValidos = editProveedoresCruzada.filter((p) => p.razonSocial.trim());
+        const itemsCruzada = provsCruzadaValidos.length > 0
+          ? provsCruzadaValidos
+          : [{ razonSocial: (editParaCruzada || "").trim(), monto: montoCruzada }];
+        const itemCC = {
+          razonSocial: (editParaCuentaCorriente || editParaCruzada || "").trim(),
+          monto: montoCC,
+        };
+        paraFinal = JSON.stringify([...itemsCruzada, itemCC]);
+      } else if (requiereCruzada) {
+        const provsCruzadaValidos = editProveedoresCruzada.filter((p) => p.razonSocial.trim());
+        if (provsCruzadaValidos.length > 0) {
+          paraFinal = JSON.stringify(provsCruzadaValidos);
         } else {
-          paraFinal = editProveedoresCruzada[0]?.razonSocial || editParaCruzada || null;
+          paraFinal = (editParaCruzada || "").trim() || null;
         }
       } else if (requiereCuentaCorriente) {
-        paraFinal = editParaCuentaCorriente || editParaCruzada || null;
+        paraFinal = (editParaCuentaCorriente || editParaCruzada || "").trim() || null;
       }
 
       const res = await actualizarVentaMostrador(
@@ -1375,12 +1413,20 @@ export function EditarVentaModal({
                 </div>
               )}
 
-              {requiereCruzada && !isEditPagoMixto && (
+              {/* BLOQUE PAGO CRUZADA (Disponible tanto para pago simple como pago mixto) */}
+              {requiereCruzada && (
                 <div className="space-y-3 bg-teal-50/60 p-3.5 rounded-xl border border-teal-100 text-xs">
-                  <div className="flex justify-between items-center">
-                    <Label className="text-xs font-bold text-teal-800 uppercase">
-                      Pago Cruzada: Proveedores
-                    </Label>
+                  <div className="flex justify-between items-center flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-bold text-teal-800 uppercase">
+                        Pago Cruzada: Proveedores
+                      </Label>
+                      {isEditPagoMixto && (
+                        <span className="text-[11px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-md">
+                          Monto: $ {montoCruzadaEsperadoEdit.toLocaleString("es-AR")}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <Button
                         type="button"
@@ -1391,6 +1437,18 @@ export function EditarVentaModal({
                       >
                         <Plus className="h-3 w-3 mr-1" /> Nuevo Proveedor
                       </Button>
+                      {editProveedoresCruzada.length === 2 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-teal-300 text-teal-800 bg-teal-100/50 hover:bg-teal-100 rounded-lg font-bold"
+                          onClick={dividirCruzada5050}
+                          title="Dividir monto en partes iguales"
+                        >
+                          50% / 50%
+                        </Button>
+                      )}
                       {editProveedoresCruzada.length < 4 && (
                         <Button
                           type="button"
@@ -1408,7 +1466,7 @@ export function EditarVentaModal({
                   <div className="space-y-2">
                     <div className="space-y-1">
                       <Label className="text-[10px] font-bold text-teal-700 uppercase">
-                        Origen (De)
+                        Origen (De) *
                       </Label>
                       <Input
                         value={editDeCruzada}
@@ -1436,7 +1494,7 @@ export function EditarVentaModal({
                               }}
                               onFocus={() => setShowProvListMultiEdit(idx)}
                               className="h-8 bg-white border-teal-200 text-xs rounded-lg"
-                              placeholder="Buscar..."
+                              placeholder="Buscar proveedor..."
                             />
                             {showProvListMultiEdit === idx && proveedores.length > 0 && (
                               <div className="absolute z-[110] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-40 overflow-y-auto">
@@ -1468,7 +1526,7 @@ export function EditarVentaModal({
                           </div>
                         </div>
 
-                        <div className="w-24 space-y-1">
+                        <div className="w-28 space-y-1">
                           <Label className="text-[10px] font-bold text-slate-500 uppercase">
                             Monto
                           </Label>
@@ -1479,7 +1537,12 @@ export function EditarVentaModal({
                             onChange={(e) =>
                               actualizarProveedorCruzada(idx, "monto", Number(e.target.value))
                             }
-                            className="h-8 bg-white disabled:bg-teal-100/50 disabled:text-teal-950 border-teal-200 text-xs font-bold text-teal-900 rounded-lg"
+                            className="h-8 bg-white disabled:bg-teal-100/50 disabled:text-teal-950 disabled:cursor-not-allowed border-teal-200 text-xs font-bold text-teal-900 rounded-lg"
+                            title={
+                              editProveedoresCruzada.length === 1
+                                ? "El monto se ajusta automáticamente al total asignado a Cruzada"
+                                : undefined
+                            }
                           />
                         </div>
 
@@ -1488,7 +1551,7 @@ export function EditarVentaModal({
                             type="button"
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 mt-5 text-red-400 hover:text-red-600 rounded-lg"
+                            className="h-8 w-8 mt-5 text-red-400 hover:text-red-600 rounded-lg shrink-0"
                             onClick={() => eliminarProveedorCruzada(idx)}
                           >
                             <X className="h-4 w-4" />
@@ -1502,101 +1565,51 @@ export function EditarVentaModal({
                     <span className="text-[10px] font-bold text-teal-700 uppercase">
                       Suma Cruzada:
                     </span>
-                    <span className="text-xs font-bold text-teal-900">
-                      $ {editProveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0).toLocaleString("es-AR")} / $ {totalFinalCalculadoEdit.toLocaleString("es-AR")}
+                    <span
+                      className={`text-xs font-bold ${
+                        Math.abs(
+                          editProveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0) -
+                            montoCruzadaEsperadoEdit
+                        ) < 0.01
+                          ? "text-emerald-700"
+                          : "text-rose-600"
+                      }`}
+                    >
+                      $ {editProveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0).toLocaleString("es-AR")} / $ {montoCruzadaEsperadoEdit.toLocaleString("es-AR")}
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* MIXTO: Cruzada + Cuenta Corriente */}
-              {esMixtoCruzadaCC && (
-                <div className="space-y-3">
-                  <div className="bg-teal-50/70 p-3 rounded-xl border border-teal-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-teal-800 uppercase">
-                        1. Pago Cruzada
-                      </Label>
-                      <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-md">
-                        $ {(editMetodoPago === "Cruzada" ? final1 : final2).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-teal-700 uppercase">
-                          Quien Envía (De)
-                        </Label>
-                        <Input
-                          value={editDeCruzada}
-                          onChange={(e) => setEditDeCruzada(e.target.value)}
-                          className="bg-white border-teal-200 h-8 text-xs rounded-lg"
-                          placeholder="Nombre de quien envía..."
-                        />
-                      </div>
-                      <div className="space-y-1 relative">
-                        <Label className="text-[10px] font-bold text-teal-700 uppercase">
-                          Proveedor (Para)
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            value={editParaCruzada}
-                            onChange={(e) => {
-                              setEditParaCruzada(e.target.value);
-                              setShowProvListEdit(true);
-                            }}
-                            onFocus={() => setShowProvListEdit(true)}
-                            className="bg-white border-teal-200 h-8 text-xs rounded-lg"
-                            placeholder="Buscar proveedor..."
-                          />
-                          {showProvListEdit && proveedores.length > 0 && (
-                            <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto">
-                              {proveedores
-                                .filter(
-                                  (p) =>
-                                    p.razonSocial
-                                      .toLowerCase()
-                                      .includes(editParaCruzada.toLowerCase()) ||
-                                    p.cuit.includes(editParaCruzada)
-                                )
-                                .map((p) => (
-                                  <div
-                                    key={p.id}
-                                    className="p-2 hover:bg-teal-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault();
-                                      setEditParaCruzada(p.razonSocial);
-                                      setShowProvListEdit(false);
-                                    }}
-                                  >
-                                    <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                    <p className="text-[9px] text-slate-400">{p.cuit}</p>
-                                  </div>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-emerald-800 uppercase">
-                        2. Cuenta Corriente
-                      </Label>
+              {/* BLOQUE A CUENTA CORRIENTE (Disponible tanto para pago simple como pago mixto) */}
+              {requiereCuentaCorriente && (
+                <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-emerald-800 uppercase">
+                      A Cuenta Corriente
+                    </Label>
+                    {isEditPagoMixto && (
                       <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
-                        $ {(editMetodoPago === "A Cuenta Corriente" ? final1 : final2).toLocaleString("es-AR")}
+                        Monto: $ {montoCCEsperadoEdit.toLocaleString("es-AR")}
                       </span>
-                    </div>
-                    <div className="space-y-1 relative">
-                      <Label className="text-[10px] font-bold text-emerald-700 uppercase">
-                        Proveedor / Cuenta
-                      </Label>
-                      <div className="relative">
+                    )}
+                  </div>
+                  <div className="space-y-1 relative">
+                    <Label className="text-[10px] font-bold text-emerald-700 uppercase">
+                      Proveedor / Cuenta *
+                    </Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
                         <Input
-                          value={editParaCuentaCorriente}
+                          value={isEditPagoMixto ? editParaCuentaCorriente : (editParaCruzada || editParaCuentaCorriente)}
                           onChange={(e) => {
-                            setEditParaCuentaCorriente(e.target.value);
+                            const val = e.target.value;
+                            if (isEditPagoMixto) {
+                              setEditParaCuentaCorriente(val);
+                            } else {
+                              setEditParaCruzada(val);
+                              setEditParaCuentaCorriente(val);
+                            }
                             setShowProvListCCEdit(true);
                           }}
                           onFocus={() => setShowProvListCCEdit(true)}
@@ -1606,112 +1619,47 @@ export function EditarVentaModal({
                         {showProvListCCEdit && proveedores.length > 0 && (
                           <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto">
                             {proveedores
-                              .filter(
-                                (p) =>
-                                  p.razonSocial
-                                    .toLowerCase()
-                                    .includes(editParaCuentaCorriente.toLowerCase()) ||
-                                  p.cuit.includes(editParaCuentaCorriente)
-                              )
+                              .filter((p) => {
+                                const q = (isEditPagoMixto ? editParaCuentaCorriente : (editParaCruzada || editParaCuentaCorriente)).toLowerCase();
+                                return (
+                                  p.razonSocial.toLowerCase().includes(q) ||
+                                  p.cuit.includes(q)
+                                );
+                              })
                               .map((p) => (
                                 <div
                                   key={p.id}
                                   className="p-2 hover:bg-emerald-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
                                   onMouseDown={(e) => {
                                     e.preventDefault();
-                                    setEditParaCuentaCorriente(p.razonSocial);
+                                    if (isEditPagoMixto) {
+                                      setEditParaCuentaCorriente(p.razonSocial);
+                                    } else {
+                                      setEditParaCruzada(p.razonSocial);
+                                      setEditParaCuentaCorriente(p.razonSocial);
+                                    }
                                     setShowProvListCCEdit(false);
                                   }}
                                 >
-                                  <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                  <p className="text-[9px] text-slate-400">{p.cuit}</p>
-                                </div>
-                              ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Cuenta Corriente Simple o Mixto con CC */}
-              {((requiereCruzada && isEditPagoMixto && !esMixtoCruzadaCC) ||
-                (requiereCuentaCorriente && !esMixtoCruzadaCC)) && (
-                <div
-                  className={`p-3 rounded-xl border text-xs space-y-2 ${
-                    requiereCruzada
-                      ? "bg-teal-50/60 border-teal-100"
-                      : "bg-emerald-50/60 border-emerald-100"
-                  }`}
-                >
-                  {isEditPagoMixto && (
-                    <div className="flex items-center justify-between pb-1 border-b border-slate-200/50">
-                      <span className={`text-[11px] font-bold uppercase ${requiereCruzada ? "text-teal-800" : "text-emerald-800"}`}>
-                        {requiereCruzada ? "Pago Cruzada" : "A Cuenta Corriente"}
-                      </span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${requiereCruzada ? "bg-teal-100 text-teal-800" : "bg-emerald-100 text-emerald-800"}`}>
-                        $ {(editMetodoPago === (requiereCruzada ? "Cruzada" : "A Cuenta Corriente") ? final1 : final2).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                  )}
-                  {requiereCruzada && (
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-teal-700">De</Label>
-                      <Input
-                        value={editDeCruzada}
-                        onChange={(e) => setEditDeCruzada(e.target.value)}
-                        className="bg-white border-teal-200 h-8 text-xs rounded-lg"
-                        placeholder="Origen"
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-1 relative">
-                    <Label
-                      className={`text-xs font-bold ${
-                        requiereCruzada ? "text-teal-700" : "text-emerald-700"
-                      }`}
-                    >
-                      {requiereCuentaCorriente ? "Cuenta / Proveedor" : "Para"}
-                    </Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          value={editParaCruzada}
-                          onChange={(e) => {
-                            setEditParaCruzada(e.target.value);
-                            setShowProvListEdit(true);
-                          }}
-                          onFocus={() => setShowProvListEdit(true)}
-                          className={`h-8 text-xs rounded-lg ${
-                            requiereCruzada
-                              ? "bg-white border-teal-200"
-                              : "bg-white border-emerald-200"
-                          }`}
-                          placeholder="Buscar proveedor..."
-                        />
-                        {showProvListEdit && proveedores.length > 0 && (
-                          <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                            {proveedores
-                              .filter(
-                                (p) =>
-                                  p.razonSocial
-                                    .toLowerCase()
-                                    .includes(editParaCruzada.toLowerCase()) ||
-                                  p.cuit.includes(editParaCruzada)
-                              )
-                              .map((p) => (
-                                <div
-                                  key={p.id}
-                                  className="p-2 cursor-pointer text-xs border-b border-slate-50 last:border-0 hover:bg-slate-50"
-                                  onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    setEditParaCruzada(p.razonSocial);
-                                    setShowProvListEdit(false);
-                                  }}
-                                >
-                                  <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                  <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                      <p className="text-[9px] text-slate-400">{p.cuit}</p>
+                                    </div>
+                                    {p.total != null && (
+                                      <p
+                                        className={`text-xs font-bold ${
+                                          Number(p.total) < 0
+                                            ? "text-red-500"
+                                            : Number(p.total) > 0
+                                            ? "text-emerald-500"
+                                            : "text-slate-600"
+                                        }`}
+                                      >
+                                        $ {Number(p.total).toLocaleString("es-AR")}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                           </div>
@@ -1721,8 +1669,8 @@ export function EditarVentaModal({
                         type="button"
                         size="icon"
                         variant="outline"
+                        className="border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-8 w-8 rounded-lg shrink-0"
                         onClick={onAbrirNuevoProveedor}
-                        className="h-8 w-8 rounded-lg shrink-0 border-slate-200"
                         title="Nuevo Proveedor"
                       >
                         <Plus className="h-4 w-4" />

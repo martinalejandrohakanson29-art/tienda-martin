@@ -1,21 +1,25 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, TrendingUp, TrendingDown, Zap, SlidersHorizontal } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, TrendingUp, TrendingDown, Zap, SlidersHorizontal, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
 import { calcularAjustesRentabilidad } from "@/app/actions/ajuste-precios";
 import { getComposicionAgregados } from "@/app/actions/kits";
 import { getSnapshotsPrecios } from "@/app/actions/snapshots-precios";
+import { getMeliPlusData } from "@/app/actions/meli-plus";
 import RefreshButton from "./refresh-button";
 import ClearButton from "./clear-button";
 import RentabilidadClient from "./rentabilidad-client";
 import SnapshotsClient from "./snapshots/snapshots-client";
+import MeliPlusTable from "./meli-plus/meli-plus-table";
 
 export default async function RentabilidadPage() {
-  const [data, { ajustes }, agregados, snapshots] = await Promise.all([
+  const [data, { ajustes }, agregados, snapshots, meliPlusData] = await Promise.all([
     getRentabilidadData(),
     calcularAjustesRentabilidad(),
     getComposicionAgregados(),
     getSnapshotsPrecios(),
+    getMeliPlusData(),
   ]);
 
   const totalItems = data.length;
@@ -79,7 +83,21 @@ export default async function RentabilidadPage() {
       </div>
 
       <div className="flex-1 overflow-hidden px-6 pb-6 min-h-0">
-        <RentabilidadClient data={data} ajustes={ajustes} agregados={agregados} />
+        <Tabs defaultValue="general" className="flex flex-col h-full">
+          <TabsList className="flex-none w-fit">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="meli-plus" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Meli+ ({meliPlusData.length})
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="general" className="flex-1 min-h-0">
+            <RentabilidadClient data={data} ajustes={ajustes} agregados={agregados} />
+          </TabsContent>
+          <TabsContent value="meli-plus" className="flex-1 min-h-0">
+            <MeliPlusTable data={meliPlusData} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

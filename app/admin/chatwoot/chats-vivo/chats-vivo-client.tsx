@@ -959,7 +959,7 @@ export function ChatsVivoClient({
                                 ultimoMensajePropio: esPropio,
                                 horaEtiqueta: "ahora",
                                 ultimaActividad: new Date().toISOString(),
-                                noLeidos: esActiva ? 0 : 1,
+                                noLeidos: esActiva || esPropio ? 0 : 1,
                                 botPausado: Boolean(data.botPausado),
                                 destacado: Boolean(data.conversacion?.destacado),
                             }

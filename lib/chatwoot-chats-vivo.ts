@@ -231,7 +231,13 @@ export async function guardarConversacionesEnEspejo(items: any[]) {
                     ultimoMensaje = "(sin texto)"
                 }
             }
-            const noLeidos = Number(c?.unread_count || 0)
+            // Si el último mensaje es nuestro (nosotros o el bot), no hay nada
+            // pendiente de leer aunque el `unread_count` que mandó el webhook de
+            // Chatwoot todavía no se haya actualizado (llega en el mismo evento
+            // que dispara este guardado, antes de que el `update_last_seen` de
+            // registrarMensajeSalienteEnEspejo surta efecto del lado de Chatwoot).
+            // Sin este corte, cada mensaje saliente resucitaba el "1 sin leer".
+            const noLeidos = ultimoMensajePropio ? 0 : Number(c?.unread_count || 0)
             const epochActividad = Number(c?.last_activity_at ?? c?.timestamp ?? 0)
             const fechaActividad = epochActividad > 0 ? new Date(epochActividad * 1000) : new Date()
             const epochCreado = Number(c?.created_at ?? 0)

@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, Star, X, Zap, type LucideIcon } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mail, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, Star, X, Zap, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
@@ -652,7 +652,7 @@ export function ChatsVivoClient({
     const [periodoDias, setPeriodoDias] = useState(periodoInicialDias)
     const [cargandoLista, arrancarCargaLista] = useTransition()
 
-    type FiltroChats = "todas" | "destacadas" | "pendientes" | Categoria
+    type FiltroChats = "todas" | "destacadas" | "pendientes" | "sin_leer" | Categoria
     const [filtro, setFiltro] = useState<FiltroChats>("todas")
     const [busqueda, setBusqueda] = useState("")
     const [seleccionadaId, setSeleccionadaId] = useState<number | null>(null)
@@ -1063,6 +1063,8 @@ export function ChatsVivoClient({
                     ? c.destacado
                     : filtro === "pendientes"
                     ? c.categoria !== "sin_etiqueta"
+                    : filtro === "sin_leer"
+                    ? c.noLeidos > 0
                     : filtro === "sin_etiqueta"
                     ? c.categoria === "sin_etiqueta"
                     // Una conversación con pendientes en varias bandejas aparece
@@ -1081,6 +1083,10 @@ export function ChatsVivoClient({
 
     const totalPendientes = useMemo(() => {
         return conversaciones.filter((c) => c.categoria !== "sin_etiqueta").length
+    }, [conversaciones])
+
+    const totalSinLeer = useMemo(() => {
+        return conversaciones.filter((c) => c.noLeidos > 0).length
     }, [conversaciones])
 
     const conteoPorCategoria = useMemo(() => {
@@ -1205,7 +1211,7 @@ export function ChatsVivoClient({
         filtro === "sin_match"
 
     const mainChips: {
-        valor: "todas" | "destacadas" | "pendientes" | "sin_etiqueta"
+        valor: "todas" | "destacadas" | "pendientes" | "sin_leer" | "sin_etiqueta"
         texto: string
         icono?: React.ReactNode
         badge?: number
@@ -1224,6 +1230,13 @@ export function ChatsVivoClient({
             texto: "Pendientes",
             badge: totalPendientes > 0 ? totalPendientes : undefined,
             badgeClass: "bg-orange-100 text-orange-800 font-semibold",
+        },
+        {
+            valor: "sin_leer",
+            texto: "Sin leer",
+            icono: <Mail className="h-3.5 w-3.5 shrink-0" />,
+            badge: totalSinLeer > 0 ? totalSinLeer : undefined,
+            badgeClass: "bg-emerald-100 text-emerald-800 font-semibold",
         },
         { valor: "sin_etiqueta", texto: "Sin etiqueta" },
     ]

@@ -129,6 +129,91 @@ function normalizarFallback(): SituacionRegla[] {
 }
 
 /**
+ * PRODUCTO DIFERIDO QUE YA SE CARGO (regla fantasma)
+ * --------------------------------------------------
+ * Una situacion `producto_diferido_*` existe para tapar un hueco temporal: el
+ * producto se vende pero todavia no esta en el catalogo, asi que el bot escala
+ * en silencio en vez de improvisar precio. El dia que el producto SE CARGA,
+ * nadie se acuerda de apagar la fila, y la regla sigue mandando al bot a
+ * derivar en silencio una consulta que ya podia contestar solo.
+ *
+ * Paso de verdad: conv 4229 (15/09). El Kit 220 estaba completo en el catalogo
+ * desde el 08/09 (pack 13: precio, ficha, foto, piezas y 12 filas de compat) y
+ * la situacion `producto_diferido_kit_220`, creada el 07/09, seguia activa. El
+ * cliente pregunto el precio y quedo sin respuesta: el modelo obedecio la
+ * regla incluso en las corridas en que consulto el catalogo y lo encontro.
+ *
+ * Por eso el detector verifica por su cuenta: si el disparador que pego nombra
+ * algo que YA existe activo en el catalogo, la situacion se ignora y se avisa
+ * por consola. Cargar el producto alcanza para que el bot lo venda.
+ */
+const PREFIJO_PRODUCTO_DIFERIDO = "producto_diferido_"
+
+/** Palabras que no identifican a un producto: no sirven para reconocerlo. */
+const RELLENO_DISPARADOR = new Set(["kit", "combo", "el", "la", "los", "las", "de", "del", "para", "con", "cc", "solo", "sola"])
+
+let cacheCatalogo: { nombres: string[]; expira: number } | null = null
+
+/**
+ * Nombres normalizados de todo lo que el bot puede vender hoy: packs, grupos
+ * de variantes y piezas sueltas (con sus alias). Es una consulta barata y se
+ * cachea igual que las reglas, porque corre en cada turno que pega una
+ * situacion de producto diferido.
+ */
+async function nombresDelCatalogoActivo(): Promise<string[]> {
+    if (cacheCatalogo && cacheCatalogo.expira > Date.now()) return cacheCatalogo.nombres
+
+    const nombres: string[] = []
+    try {
+        const packs = await prisma.$queryRaw<{ nombre: string }[]>`
+            SELECT nombre FROM chat_packs WHERE activo = true
+        `
+        const grupos = await prisma.$queryRaw<{ nombre: string }[]>`
+            SELECT nombre FROM chat_pack_grupos WHERE activo = true
+        `
+        const articulos = await prisma.$queryRaw<{ titulo_comercial: string | null; categoria: string | null; alias: string | null }[]>`
+            SELECT titulo_comercial, categoria, alias FROM chat_articulos WHERE activo = true
+        `
+        for (const p of packs || []) nombres.push(normalizarTexto(p.nombre))
+        for (const g of grupos || []) nombres.push(normalizarTexto(g.nombre))
+        for (const a of articulos || []) {
+            nombres.push(normalizarTexto([a.titulo_comercial, a.categoria].filter(Boolean).join(" ")))
+            for (const alias of (a.alias || "").split(",")) nombres.push(normalizarTexto(alias))
+        }
+    } catch (err) {
+        // Sin catalogo a mano no se ignora nada: la situacion se aplica tal cual.
+        console.warn("[situaciones] no se pudo leer el catalogo para chequear productos diferidos:", (err as any)?.message)
+        return []
+    }
+
+    const data = nombres.filter(Boolean)
+    cacheCatalogo = { nombres: data, expira: Date.now() + TTL_CACHE_MS }
+    return data
+}
+
+/**
+ * ¿El disparador que pego nombra un producto que ya esta en el catalogo?
+ *
+ * Se exige que TODO lo que identifica al disparador (numeros y palabras, sin
+ * el relleno) aparezca en el mismo nombre del catalogo. El criterio es
+ * deliberadamente estricto porque el costo de los dos errores no es el mismo:
+ * de menos, el equipo sigue atendiendo a mano la consulta (como hasta hoy); de
+ * mas, el bot se pone a vender un producto que no tenemos cargado.
+ *
+ * Por eso no alcanza con el numero: "escape competicion 110" comparte el 110
+ * con el "Kit 120 para 110" y no son el mismo producto. Ni con una palabra:
+ * "escape dm" no se da por cargado porque exista el escape PWR.
+ */
+export function disparadorYaEnCatalogo(disparador: string, nombresCatalogo: string[]): boolean {
+    const claves = normalizarTexto(disparador)
+        .split(" ")
+        .filter((t) => t.length >= 2 && !RELLENO_DISPARADOR.has(t))
+
+    if (claves.length === 0) return false
+    return nombresCatalogo.some((nombre) => claves.every((c) => nombre.split(" ").includes(c)))
+}
+
+/**
  * Devuelve las situaciones cuyo disparador aparece en el mensaje del cliente.
  * Match por frase normalizada contenida en el texto normalizado del mensaje.
  */
@@ -138,12 +223,25 @@ export async function detectarSituaciones(mensajeUsuario: string): Promise<Situa
 
     const reglas = await cargarReglas()
     const detectadas: SituacionDetectada[] = []
+    let nombresCatalogo: string[] | null = null
 
     for (const regla of reglas) {
-        const pega = regla.disparadores.some((d) => d.length >= 3 && texto.includes(d))
-        if (pega) {
-            detectadas.push({ clave: regla.clave, titulo: regla.titulo, instruccion: regla.instruccion })
+        const pegaron = regla.disparadores.filter((d) => d.length >= 3 && texto.includes(d))
+        if (pegaron.length === 0) continue
+
+        if (regla.clave.startsWith(PREFIJO_PRODUCTO_DIFERIDO)) {
+            if (nombresCatalogo === null) nombresCatalogo = await nombresDelCatalogoActivo()
+            const yaCargado = pegaron.find((d) => disparadorYaEnCatalogo(d, nombresCatalogo!))
+            if (yaCargado) {
+                console.warn(
+                    `[situaciones] regla obsoleta: "${regla.clave}" manda a escalar por "${yaCargado}", ` +
+                    `pero ese producto ya esta cargado y activo en el catalogo. Se ignora (conviene desactivarla en /admin/chatwoot/situaciones).`
+                )
+                continue
+            }
         }
+
+        detectadas.push({ clave: regla.clave, titulo: regla.titulo, instruccion: regla.instruccion })
     }
 
     return detectadas
@@ -164,4 +262,5 @@ export function formatearBloqueSituaciones(situaciones: SituacionDetectada[]): s
 /** Invalida el cache (lo usa el panel de admin al guardar cambios). */
 export function invalidarCacheSituaciones(): void {
     cacheSituaciones = null
+    cacheCatalogo = null
 }

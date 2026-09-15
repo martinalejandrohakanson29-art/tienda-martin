@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { EstadoEmbudo } from "./index"
-import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
+import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR, STOP_WORDS_CATALOGO } from "../nucleo/texto"
 import { terminoEsSoloMoto } from "../nucleo/motos"
+import { categoriasNombradas, clasificarTerminoSinMatch } from "../nucleo/rubros"
 
 export interface ArgsCatalogoPrecios {
     termino_busqueda?: string
@@ -13,6 +14,11 @@ export interface ArgsCatalogoPrecios {
      * Ver `ContextoEjecucion.embudo` en herramientas/index.ts.
      */
     __embudo?: EstadoEmbudo
+    /**
+     * Lo inyecta el motor (no el LLM): en este mismo turno ya hubo una búsqueda
+     * sin match. Ver el guard del volcado sin término, más abajo.
+     */
+    __hubo_sin_match?: boolean
 }
 
 export interface PackInfo {
@@ -70,6 +76,11 @@ export interface ResultadoCatalogoPrecios {
     packs: PackInfo[]
     grupos: GrupoInfo[]
     mensaje_para_agente: string
+    /**
+     * El término pedido es de otro rubro (no vendemos eso). Lo lee el motor
+     * para derivar aunque el modelo no ejecute `escalar_a_humano`.
+     */
+    rubro_ajeno?: string
 }
 
 export const definicionCatalogoPrecios: DefinicionHerramienta = {
@@ -610,11 +621,12 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 foto_url: string | null
                 grupo_id: number | null
                 criterio_variante: string | null
+                categoria: string | null
                 plantillas_bienvenida: string | null
                 plantillas_referral: string | null
             }[]
         >`
-            SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, grupo_id, criterio_variante, plantillas_bienvenida, plantillas_referral
+            SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, grupo_id, criterio_variante, categoria, plantillas_bienvenida, plantillas_referral
             FROM chat_packs
             WHERE activo = true
             ORDER BY id ASC
@@ -629,11 +641,12 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 pregunta_variante: string | null
                 pregunta_variante_reintento: string | null
                 foto_url: string | null
+                categoria: string | null
                 plantillas_bienvenida: string | null
                 plantillas_referral: string | null
             }[]
         >`
-            SELECT id, nombre, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, plantillas_bienvenida, plantillas_referral
+            SELECT id, nombre, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, categoria, plantillas_bienvenida, plantillas_referral
             FROM chat_pack_grupos
             WHERE activo = true
             ORDER BY nombre ASC
@@ -693,7 +706,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             })
         }
 
-        const packs: (PackInfo & { plantillas_bienvenida?: string | null; plantillas_referral?: string | null })[] = (packsRaw || []).map((p) => ({
+        const packs: (PackInfo & { categoria?: string | null; plantillas_bienvenida?: string | null; plantillas_referral?: string | null })[] = (packsRaw || []).map((p) => ({
             id: p.id,
             nombre: p.nombre,
             precio: Number(p.precio) || 0,
@@ -702,12 +715,13 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
             foto_url: p.foto_url,
             grupo_id: p.grupo_id,
             criterio_variante: p.criterio_variante,
+            categoria: p.categoria,
             plantillas_bienvenida: p.plantillas_bienvenida,
             plantillas_referral: p.plantillas_referral,
             articulos_sueltos: articulosPorPack.get(p.id) || []
         }))
 
-        const grupos: (GrupoInfo & { plantillas_bienvenida?: string | null; plantillas_referral?: string | null })[] = (gruposRaw || []).map((g) => {
+        const grupos: (GrupoInfo & { categoria?: string | null; plantillas_bienvenida?: string | null; plantillas_referral?: string | null })[] = (gruposRaw || []).map((g) => {
             const variantes = packs
                 .filter((p) => p.grupo_id === g.id)
                 .map((v) => ({
@@ -737,12 +751,54 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                 pregunta_variante: g.pregunta_variante,
                 pregunta_variante_reintento: g.pregunta_variante_reintento,
                 foto_url: g.foto_url,
+                categoria: g.categoria,
                 plantillas_bienvenida: g.plantillas_bienvenida,
                 plantillas_referral: g.plantillas_referral,
                 variantes,
                 articulos_sueltos: articulosGrupo
             }
         })
+
+        /**
+         * Un término hecho solo de stop-words ("kit", "combo", "kit para") no
+         * filtra nada: el scorer lo limpia, queda la cadena vacía, y la cadena
+         * vacía está incluida en TODOS los nombres — le da 500 puntos a cada
+         * item y devuelve el catálogo entero.
+         *
+         * O sea que `termino_busqueda: "kit"` era la misma respuesta que no
+         * mandar término, pero esquivando el guard de abajo. Se lo trata como
+         * lo que es: un pedido genérico.
+         */
+        const terminoEfectivo = normalizarTexto(args.termino_busqueda || "")
+            .split(" ")
+            .some((w) => w && !STOP_WORDS_CATALOGO.has(w))
+            ? args.termino_busqueda
+            : undefined
+
+        /**
+         * GUARD DEL VOLCADO: no se lista el catálogo entero como plan B.
+         *
+         * La llamada sin `termino_busqueda` no pasa por el scorer: devuelve
+         * TODOS los kits activos. Es la respuesta correcta para un pedido
+         * genérico ("qué tenés?"), y la peor posible como reintento después de
+         * una búsqueda fallida — en la conv 4206 (15/09) el modelo no encontró
+         * "kit de electricidad", volvió a llamar sin término y le ofreció a una
+         * 110 DLX el kit dakar 200 y el 220.
+         *
+         * La guía de texto sola no alcanzaba: el modelo tiene que elegir entre
+         * dejar un tema sin contestar o buscar de nuevo, y elige buscar. Acá la
+         * puerta se cierra del lado del sistema.
+         */
+        if (args.__hubo_sin_match && !terminoEfectivo && !args.pack_id && !args.grupo_id) {
+            return {
+                encontrado: false,
+                packs: [],
+                grupos: [],
+                mensaje_para_agente: `⛔ NO se lista el catálogo completo después de una búsqueda sin resultado. Lo que el cliente pidió no apareció: listarle todo lo que vendemos no lo contesta, le ofrece kits que no pidió (y de cilindradas que no son las de su moto).
+Si te queda algo por resolver de ese punto, ejecutá escalar_a_humano ('producto_no_encontrado' o 'producto_no_catalogado') y guardá silencio sobre ÉL.
+Lo demás del mensaje que sí tengas resuelto, contestalo igual. NO respondas SIN_RESPUESTA por esto.`
+            }
+        }
 
         // Filtrar según argumentos si se envió término de búsqueda
         let packsFiltrados = packs.filter((p) => !p.grupo_id)
@@ -754,13 +810,13 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
         } else if (args.grupo_id) {
             gruposFiltrados = grupos.filter((g) => g.id === args.grupo_id)
             packsFiltrados = []
-        } else if (args.termino_busqueda) {
+        } else if (terminoEfectivo) {
             // GUARD: el término es la MOTO del cliente, no un producto.
             //
             // El catálogo no se busca por la moto: el scorer solo ve el número
             // y cruza la cilindrada de la moto con la del kit ("rouser ns200"
             // -> "kit dakar 200 economico", conv 4194). Ver `terminoEsSoloMoto`.
-            const comoMoto = await terminoEsSoloMoto(args.termino_busqueda).catch(() => ({ esMoto: false, moto: undefined }))
+            const comoMoto = await terminoEsSoloMoto(terminoEfectivo).catch(() => ({ esMoto: false, moto: undefined }))
             if (comoMoto.esMoto) {
                 const moto = comoMoto.moto || args.termino_busqueda
                 return {
@@ -796,8 +852,26 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
                 gruposFiltrados = scoredGrupos.filter((s) => s.score > 0 && s.score >= maxScore * 0.75).map((s) => s.item)
                 packsFiltrados = scoredPacks.filter((s) => s.score > 0 && s.score >= maxScore * 0.75).map((s) => s.item)
             } else {
-                gruposFiltrados = []
-                packsFiltrados = []
+                /**
+                 * RESCATE POR RUBRO: el cliente nombró una CATEGORÍA nuestra,
+                 * no un producto ("un kit de potenciación").
+                 *
+                 * El scorer no podía verlo: la categoría del grupo no entra en
+                 * su corpus y "kit" es stop-word, así que el rubro entero del
+                 * negocio daba cero. El modelo se quedaba sin nada que
+                 * contestar y salía a reintentar — y el reintento que encontró
+                 * fue volcar el catálogo (conv 4206).
+                 *
+                 * Va DESPUÉS del scorer a propósito: quien pide un producto
+                 * puntual tiene que caer en ese producto, no en su rubro.
+                 */
+                const categorias = await categoriasNombradas(terminoEfectivo).catch((): string[] => [])
+                const enCategorias = (cat: string | null | undefined) =>
+                    Boolean(cat && categorias.includes(cat.trim()))
+                gruposFiltrados = categorias.length ? grupos.filter((g) => enCategorias(g.categoria)) : []
+                packsFiltrados = categorias.length
+                    ? packs.filter((p) => !p.grupo_id && enCategorias(p.categoria))
+                    : []
             }
         }
 
@@ -813,12 +887,22 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
          * deriva, pero derivar cuesta trabajo del equipo: acá se le da al
          * modelo la chance de resolverlo solo, consultando la compatibilidad.
          */
-        const motoEnJuego = (args.__embudo?.motoDelMensaje || "").trim()
+        /**
+         * La moto puede venir de ESTE mensaje o de uno anterior de la charla
+         * (`motoMencionada`). Mirar solo el mensaje del turno era el hueco de
+         * la conv 4206: el cliente dijo "Una 110 DLX", preguntó otra cosa
+         * después, y el catálogo devolvió los kits sin una palabra de aviso —
+         * entre ellos el dakar 200 y el 220, que se le ofrecieron igual.
+         */
+        const motoEnJuego = (args.__embudo?.motoDelMensaje || args.__embudo?.motoMencionada || "").trim()
         const motoYaValidada = (args.__embudo?.motoConfirmada || "").trim()
+        const laDijoEnEsteMensaje = Boolean((args.__embudo?.motoDelMensaje || "").trim())
         const avisoMoto =
             motoEnJuego && motoEnJuego !== motoYaValidada
                 ? [
-                      `⚠️ EL CLIENTE NOMBRÓ SU MOTO EN ESTE MENSAJE: ${motoEnJuego}.`,
+                      laDijoEnEsteMensaje
+                          ? `⚠️ EL CLIENTE NOMBRÓ SU MOTO EN ESTE MENSAJE: ${motoEnJuego}.`
+                          : `⚠️ EL CLIENTE YA DIJO SU MOTO EN ESTA CHARLA: ${motoEnJuego}. Que no la haya repetido recién no la borra.`,
                       `El catálogo NO sabe si lo de abajo le entra a esa moto: acá figura qué vendemos, no para qué moto sirve.`,
                       `ANTES de decirle que tenemos algo para su moto, que le sirve o que le entra, consultá: consultar_compatibilidad(kit_nombre_o_id, modelo_moto: "${motoEnJuego}") — o resolver_variante si el combo tiene variantes.`,
                       `Si la compatibilidad no consta, ejecutá escalar_a_humano con motivo 'moto_no_registrada' y guardá silencio sobre ese punto. PROHIBIDO contestarle igual "sí, vendemos/tenemos" ni pedirle que te diga qué pieza busca: eso ya es afirmarle que le vendemos algo.`,
@@ -827,11 +911,34 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
                 : ""
 
         if (packsFiltrados.length === 0 && gruposFiltrados.length === 0) {
+            /**
+             * El término no matcheó nada. Antes de acá salía una sola guía, con
+             * dos salidas para el modelo ("probá otra búsqueda" o "escalá"), y
+             * en la conv 4206 el modelo eligió la primera pero la ejecutó sin
+             * `termino_busqueda`: el catálogo entero volcado a una 110 DLX.
+             *
+             * Ahora se clasifica el término: si es de otro rubro, la orden es
+             * una sola y no admite reintento. Ver `nucleo/rubros.ts`.
+             */
+            const clase = await clasificarTerminoSinMatch(args.termino_busqueda).catch(() => "indefinido" as const)
+            if (clase === "ajeno") {
+                return {
+                    encontrado: false,
+                    packs: [],
+                    grupos: [],
+                    rubro_ajeno: args.termino_busqueda || "",
+                    mensaje_para_agente: `'${args.termino_busqueda}' NO es de lo que vendemos: ninguna palabra de esa consulta existe en el catálogo ni en nuestros productos.
+Ejecutá escalar_a_humano con motivo 'producto_no_catalogado' y guardá SILENCIO sobre ese punto: no lo nombres, no ofrezcas nada a cambio, no preguntes por la moto por eso.
+⛔ PROHIBIDO volver a llamar a consultar_catalogo_y_precios por esto — ni con otro término ni sin término. Buscar de nuevo termina volcándole al cliente kits que no pidió.
+⛔ PROHIBIDO decirle "no lo tenemos", "no trabajamos eso" o "no figura": eso lo contesta el equipo, no vos.
+IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó resuelta, esa se la contestás igual, sin mencionar '${args.termino_busqueda}'. NO respondas SIN_RESPUESTA por esto.`
+                }
+            }
             return {
                 encontrado: false,
                 packs: [],
                 grupos: [],
-                mensaje_para_agente: `No hubo match en el catálogo para '${args.termino_busqueda || ""}'. OJO: esto NO significa que no lo vendamos — puede ser un problema de cómo se escribió la búsqueda o un producto real que todavía no está cargado. PROHIBIDO decirle al cliente "no lo tenemos", "no figura en el catálogo" o "no existe". Si tenés dudas de a qué producto se refiere, probá otra búsqueda más simple (ej: solo el número de cilindrada). Si sigue sin aparecer, ejecutá escalar_a_humano con motivo 'producto_no_encontrado' y guardá silencio.`
+                mensaje_para_agente: `No hubo match en el catálogo para '${args.termino_busqueda || ""}'. OJO: esto NO significa que no lo vendamos — puede ser un problema de cómo se escribió la búsqueda o un producto real que todavía no está cargado. PROHIBIDO decirle al cliente "no lo tenemos", "no figura en el catálogo" o "no existe". Si tenés dudas de a qué producto se refiere, probá otra búsqueda más simple (ej: solo el número de cilindrada) — pero SIEMPRE con un término: ⛔ PROHIBIDO llamar a esta herramienta sin \`termino_busqueda\` para "ver qué hay", porque eso le vuelca al cliente el catálogo entero. Si sigue sin aparecer, ejecutá escalar_a_humano con motivo 'producto_no_encontrado' y guardá silencio.`
             }
         }
 

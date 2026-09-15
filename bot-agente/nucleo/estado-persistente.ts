@@ -23,6 +23,22 @@ export interface EstadoConversacion {
     varianteResuelta?: { packId: number; etiqueta: string; precio: number } | null
     motoConfirmada?: string | null
     /**
+     * Moto que el cliente NOMBRÓ en esta charla, haya pasado o no por
+     * `consultar_compatibilidad`. No es lo mismo que `motoConfirmada`: esa dice
+     * "ya sabemos que le entra", esta solo dice "el cliente tiene una de estas".
+     *
+     * Conv 4206 (15/09): el cliente dijo "Una 110 DLX" y preguntó otra cosa en
+     * el turno siguiente. Los dos controles que impiden afirmar sobre la moto
+     * del cliente —el aviso de `catalogo-precios.ts` y el BACKSTOP DE LA MOTO
+     * del motor— miran SOLO el mensaje del turno actual, así que ninguno la vio
+     * y el bot ofreció "para la 110 DLX" el kit dakar 200 y el 220.
+     *
+     * A diferencia del resto del embudo, este dato NO se revierte cuando un
+     * turno se descarta (ver `EntregaRevertible`): lo puso el cliente, no es
+     * una afirmación nuestra de "esto ya se lo dijiste".
+     */
+    motoMencionada?: string | null
+    /**
      * Pack SUELTO (kit sin grupo de variantes) que ya se le presentó al cliente
      * con su ficha y su foto. Evita repetir la bienvenida y reenviar la imagen
      * en los turnos siguientes. Equivalente a `grupoPineado` pero para packs.
@@ -124,6 +140,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 variante_etiqueta: string | null
                 variante_precio: any
                 moto_confirmada: string | null
+                moto_mencionada: string | null
                 pack_presentado_id: number | null
                 pack_presentado_nombre: string | null
                 pack_presentado_precio: any
@@ -139,7 +156,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
-                   variante_etiqueta, variante_precio, moto_confirmada,
+                   variante_etiqueta, variante_precio, moto_confirmada, moto_mencionada,
                    pack_presentado_id, pack_presentado_nombre, pack_presentado_precio,
                    COALESCE(temas_respondidos, '{}') AS temas_respondidos,
                    escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en,
@@ -164,6 +181,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                   }
                 : null,
             motoConfirmada: f.moto_confirmada || null,
+            motoMencionada: f.moto_mencionada || null,
             packPresentado: f.pack_presentado_id
                 ? {
                       id: f.pack_presentado_id,
@@ -235,6 +253,11 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
  *
  * El escalado persistido es la excepcion y no se toca: ese no le promete nada al
  * cliente, le avisa al bot que el equipo ya tiene la consulta en la bandeja.
+ *
+ * `motoMencionada` es la otra excepcion, por el mismo motivo al reves: la moto
+ * la nombro el CLIENTE, no se la afirmamos nosotros. Que el turno no haya salido
+ * no borra que la dijo — su mensaje sigue en el historial — y revertirla
+ * reabriria justo el hueco que vino a tapar (conv 4206).
  */
 export interface EntregaRevertible {
     grupoPineado: EstadoConversacion["grupoPineado"]
@@ -344,6 +367,7 @@ export async function guardarEstadoConversacion(
         patch.grupoPineado === undefined &&
         patch.varianteResuelta === undefined &&
         patch.motoConfirmada === undefined &&
+        patch.motoMencionada === undefined &&
         patch.packPresentado === undefined &&
         patch.temasRespondidos === undefined &&
         patch.escaladoPendiente === undefined &&
@@ -361,6 +385,8 @@ export async function guardarEstadoConversacion(
                 patch.varianteResuelta !== undefined ? patch.varianteResuelta : actual.varianteResuelta,
             motoConfirmada:
                 patch.motoConfirmada !== undefined ? patch.motoConfirmada : actual.motoConfirmada,
+            motoMencionada:
+                patch.motoMencionada !== undefined ? patch.motoMencionada : actual.motoMencionada,
             packPresentado:
                 patch.packPresentado !== undefined ? patch.packPresentado : actual.packPresentado,
             // Los temas se ACUMULAN (nunca se pisan): lo que ya se contestó no
@@ -376,8 +402,8 @@ export async function guardarEstadoConversacion(
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, repreguntas_moto, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, moto_mencionada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, repreguntas_moto, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -385,6 +411,7 @@ export async function guardarEstadoConversacion(
                 variante_etiqueta = EXCLUDED.variante_etiqueta,
                 variante_precio = EXCLUDED.variante_precio,
                 moto_confirmada = EXCLUDED.moto_confirmada,
+                moto_mencionada = EXCLUDED.moto_mencionada,
                 pack_presentado_id = EXCLUDED.pack_presentado_id,
                 pack_presentado_nombre = EXCLUDED.pack_presentado_nombre,
                 pack_presentado_precio = EXCLUDED.pack_presentado_precio,
@@ -405,6 +432,7 @@ export async function guardarEstadoConversacion(
             merged.varianteResuelta?.etiqueta ?? null,
             merged.varianteResuelta?.precio ?? null,
             merged.motoConfirmada ?? null,
+            merged.motoMencionada ?? null,
             merged.packPresentado?.id ?? null,
             merged.packPresentado?.nombre ?? null,
             merged.packPresentado?.precio ?? null,

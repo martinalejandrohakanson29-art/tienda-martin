@@ -596,6 +596,48 @@ export function afirmaTenerParaSuMoto(texto: string | null | undefined): boolean
     return rx.some((r) => r.test(t))
 }
 
+/**
+ * ¿El texto le OFRECE productos nombrando la moto del cliente?
+ *
+ * El caso que los dos patrones de arriba no ven, porque esperan el orden
+ * "tenemos ... para tu moto" y el modelo escribe el inverso: "Para la Wave 110
+ * tenemos estas opciones de potenciación:" seguido de la lista — con el kit
+ * dakar 200 y el 220 adentro, a una 110 (conv 4206, 15/09).
+ *
+ * Por qué se ancla al NOMBRE de la moto en vez de ampliar la regex genérica:
+ * "Para el kit 120 tenemos dos opciones" tiene exactamente la misma forma y es
+ * correcto — habla del kit, no de la moto. El nombre lo aporta el motor, que ya
+ * resolvió qué moto es (de este mensaje o de la charla), así que el patrón solo
+ * puede dispararse cuando el sujeto ES la moto del cliente.
+ *
+ * `afirmaTenerParaSuMoto` queda intacta: esto se suma, no la reemplaza, para no
+ * mover el ratio que quedó medido contra los 800 turnos.
+ */
+export function ofreceProductosParaLaMoto(
+    texto: string | null | undefined,
+    nombreMoto: string | null | undefined
+): boolean {
+    const t = (texto || "").trim()
+    const moto = (nombreMoto || "").trim()
+    if (!t || !moto) return false
+
+    // El nombre puede venir completo ("Honda Wave 110") y el bot escribir solo
+    // el modelo ("Wave 110"): alcanza con que el texto nombre la parte
+    // distintiva. Las palabras de 3 letras o menos no discriminan nada, y el
+    // número suelto tampoco (la cilindrada aparece en los nombres de los kits).
+    const partes = normalizarTexto(moto)
+        .split(" ")
+        .filter((p) => p.length > 3 && !/^\d+$/.test(p))
+    if (partes.length === 0) return false
+
+    const normalizado = normalizarTexto(t)
+    if (!partes.some((p) => normalizado.includes(p))) return false
+
+    return /\b(tenemos|vendemos|manejamos|trabajamos|hay)\b[^.!?\n]{0,60}\b(opcion|opciones|kit|kits|combo|combos|estas|estos|varias|varios|repuesto|repuestos|cosas)\b/i.test(
+        t
+    )
+}
+
 export function sanitizarMensajeSalida(
     texto: string | null | undefined,
     opciones: OpcionesSanitizacion = {}

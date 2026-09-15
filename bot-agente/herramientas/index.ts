@@ -43,6 +43,12 @@ export interface ContextoEjecucion {
      * Ver conv 2763 (08/09).
      */
     embudo?: EstadoEmbudo
+    /**
+     * En este turno una búsqueda del catálogo ya volvió sin match. Lo lleva el
+     * motor: habilita el guard que impide volcar el catálogo entero como
+     * reintento. El LLM no lo ve ni lo puede falsear.
+     */
+    catalogoSinMatch?: boolean
 }
 
 /** Lo que ya quedó firme en la charla, para que las tools no re-presenten. */
@@ -57,6 +63,14 @@ export interface EstadoEmbudo {
      * compatibilidad no corre y la variante se resuelve a ciegas.
      */
     motoConfirmada?: string | null
+    /**
+     * Moto que el cliente nombró en esta charla, de ESTE mensaje o de uno
+     * anterior, esté confirmada o no. La usa el aviso del catálogo: sin ella el
+     * aviso solo miraba el mensaje del turno, y una moto dicha dos mensajes
+     * antes dejaba pasar "para tu 110 DLX tenemos..." sin chequear nada
+     * (conv 4206). No afirma compatibilidad: solo dice que hay moto en juego.
+     */
+    motoMencionada?: string | null
     /**
      * Cuántas veces ya se le repreguntó la moto al cliente en esta charla.
      * Lo lleva el motor (estado persistente): las tools lo usan para no
@@ -199,6 +213,13 @@ export async function ejecutarHerramienta(
         nombre === "consultar_compatibilidad"
     ) {
         argsParsed.__embudo = contexto.embudo || {}
+    }
+
+    // Si en ESTE turno ya hubo una búsqueda sin resultado, el catálogo no puede
+    // volver a listarse entero como plan B. Ver el guard del volcado en
+    // `catalogo-precios.ts` (conv 4206).
+    if (nombre === "consultar_catalogo_y_precios" && contexto.catalogoSinMatch) {
+        argsParsed.__hubo_sin_match = true
     }
 
     const resultado = await ejecutor.ejecutar(argsParsed)

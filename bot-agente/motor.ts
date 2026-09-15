@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad, afirmaTenerParaSuMoto } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto } from "./nucleo/texto"
@@ -1212,6 +1212,30 @@ export async function ejecutarTurnoAgente(
         )
         .catch(() => null)
 
+    /**
+     * La moto VIGENTE de la charla: la de este mensaje, o la que el cliente
+     * nombró en un turno anterior y quedó guardada.
+     *
+     * El hueco que tapa (conv 4206, 15/09): el cliente dice "Una 110 DLX",
+     * pregunta otra cosa en el turno siguiente y ahí ni el aviso del catálogo
+     * ni el backstop de abajo veían moto alguna —los dos leían solo el mensaje
+     * del turno— así que el bot afirmó "para la 110 DLX tenemos estas
+     * opciones" y le ofreció el kit dakar 200 y el 220.
+     *
+     * No reemplaza a `motoConfirmada`: esto no dice que le entre nada, dice que
+     * hay una moto en juego y que no se puede afirmar sobre ella sin consultar.
+     */
+    const motoVigenteDeLaCharla = motoDelMensajeTurno || estadoConv.motoMencionada || null
+    if (motoDelMensajeTurno && motoDelMensajeTurno !== estadoConv.motoMencionada) {
+        patchEstado.motoMencionada = motoDelMensajeTurno
+    }
+
+    /**
+     * Alguna búsqueda del catálogo de ESTE turno volvió sin match. Cierra la
+     * puerta al volcado del catálogo completo como reintento (conv 4206).
+     */
+    let catalogoSinMatchEnTurno = false
+
     while (paso < MAX_PASOS_REACT) {
         paso++
 
@@ -1532,19 +1556,40 @@ export async function ejecutarTurnoAgente(
              *
              * Exime `motoConfirmada`: si la moto ya quedó validada en un turno
              * anterior, repetir que le va no es afirmar de memoria.
+             *
+             * La moto no tiene que estar en el mensaje de ESTE turno: el cliente
+             * la dice una vez y sigue preguntando. Mientras esto miraba solo
+             * `mensajeUsuario`, un "Una 110 DLX" de dos mensajes antes dejaba
+             * pasar "Para la 110 DLX tenemos estas opciones" con el kit dakar
+             * 200 y el 220 adentro (conv 4206). Ver `motoMencionada`.
              */
             if (
                 mensajeFinalUnificado &&
                 !compatConfirmadaPorHerramienta &&
                 !estadoConv.motoConfirmada &&
-                (afirmaCompatibilidad(mensajeFinalUnificado) || afirmaTenerParaSuMoto(mensajeFinalUnificado))
+                // Los dos detectores de siempre, o —si hay una moto en juego en
+                // la charla— la forma invertida que ellos no ven ("Para la Wave
+                // 110 tenemos estas opciones"), que se chequea abajo con el
+                // nombre ya resuelto.
+                (afirmaCompatibilidad(mensajeFinalUnificado) ||
+                    afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
+                    Boolean(estadoConv.motoMencionada))
             ) {
+                // La moto puede venir de ESTE mensaje o de uno anterior: el
+                // cliente la dice una vez y sigue preguntando (conv 4206).
                 const motoDelCliente = await resolverMoto(mensajeUsuario).catch(() => null)
-                if (motoDelCliente && motoDelCliente.confianza !== "ninguna") {
-                    const nombreMoto =
-                        motoDelCliente.modelo?.nombre_completo ||
-                        motoDelCliente.candidatos.map((c) => c.nombre_completo).join(" / ") ||
-                        mensajeUsuario.slice(0, 60)
+                const nombreMotoDelTurno =
+                    motoDelCliente && motoDelCliente.confianza !== "ninguna"
+                        ? motoDelCliente.modelo?.nombre_completo ||
+                          motoDelCliente.candidatos.map((c) => c.nombre_completo).join(" / ") ||
+                          mensajeUsuario.slice(0, 60)
+                        : null
+                const nombreMoto = nombreMotoDelTurno || estadoConv.motoMencionada || null
+                const afirmaAlgoSobreSuMoto =
+                    afirmaCompatibilidad(mensajeFinalUnificado) ||
+                    afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
+                    ofreceProductosParaLaMoto(mensajeFinalUnificado, nombreMoto)
+                if (nombreMoto && afirmaAlgoSobreSuMoto) {
                     console.warn(`[motor] backstop de la moto: el mensaje afirmaba sobre "${nombreMoto}" sin compatibilidad confirmada`)
                     const motivo = "compatibilidad_dudosa"
                     const resumen = `El cliente nombró su ${nombreMoto} y el bot iba a afirmar sin dato de compatibilidad: "${mensajeFinalUnificado.replace(/\n/g, " ").slice(0, 200)}"`
@@ -1690,8 +1735,10 @@ export async function ejecutarTurnoAgente(
                         // un cupo, y si una ráfaga repregunta dos veces en el
                         // mismo turno tiene que verse ya en el segundo paso.
                         repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
-                        motoDelMensaje: motoDelMensajeTurno
-                    }
+                        motoDelMensaje: motoDelMensajeTurno,
+                        motoMencionada: motoVigenteDeLaCharla
+                    },
+                    catalogoSinMatch: catalogoSinMatchEnTurno
                 })
                 herramientasEjecutadas.push(ejecucion)
 
@@ -1760,6 +1807,43 @@ export async function ejecutarTurnoAgente(
                         kit: ejecucion.argumentos?.kit_nombre_o_id,
                         conversation_id: opciones.conversationId
                     }).catch((err) => console.error("[motor] fallo al persistir moto_no_registrada:", err))
+                }
+
+                // 2.b EL RUBRO QUE NO VENDEMOS SE DERIVA, NO SE CONTESTA.
+                //
+                //     Misma regla de oro que la de arriba, del lado del
+                //     catálogo: si el cliente pidió algo cuyo vocabulario no
+                //     existe en ninguno de nuestros productos ("un kit de
+                //     electricidad", conv 4206), esa consulta es del equipo.
+                //
+                //     La herramienta ya se lo ordena al modelo, pero la orden
+                //     es texto y en la 4206 el modelo prefirió buscar de nuevo.
+                //     Acá el escalado queda hecho aunque el modelo no lo pida.
+                //     Es PARCIAL a propósito: el resto de la ráfaga se contesta
+                //     igual (ahí mismo el cliente también pidió un kit de
+                //     potenciación, y esa sí la teníamos).
+                if (
+                    call.function.name === "consultar_catalogo_y_precios" &&
+                    ejecucion.resultado?.rubro_ajeno &&
+                    !escaladoPersistido
+                ) {
+                    const rubro = String(ejecucion.resultado.rubro_ajeno).slice(0, 80)
+                    motivoEscalado = "producto_no_catalogado"
+                    marcarEscalado("producto_no_catalogado")
+                    escaladoPersistido = true
+                    const resumen = `Pide "${rubro}", que no es de lo que vendemos (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
+                    anotarEscaladoPendiente("producto_no_catalogado", resumen)
+                    await escalarAHumano({
+                        motivo: "producto_no_catalogado",
+                        resumen_consulta: resumen,
+                        conversation_id: opciones.conversationId
+                    }).catch((err) => console.error("[motor] fallo al persistir producto_no_catalogado:", err))
+                }
+
+                // Una búsqueda de este turno ya volvió sin match: a partir de
+                // acá el catálogo no se puede listar entero como reintento.
+                if (call.function.name === "consultar_catalogo_y_precios" && ejecucion.resultado?.encontrado === false) {
+                    catalogoSinMatchEnTurno = true
                 }
 
                 // 3. LA NEGATIVA DE COMPATIBILIDAD NO SE SIRVE A CIEGAS.

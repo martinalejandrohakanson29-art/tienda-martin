@@ -22,6 +22,7 @@ import {
     EstadoConversacion
 } from "./nucleo/estado-persistente"
 import { debeCallarPorCierreSocial, esDespedidaDelBot, pareceNoTeEntendi } from "./nucleo/cierre-social"
+import { debeCallarPorAcuseDeRecibo, elBotDejoUnPedidoPendiente } from "./nucleo/acuse-de-recibo"
 import {
     pideAlternativaTrasNegativa,
     resumenAlternativaTrasNegativa
@@ -622,6 +623,30 @@ export async function ejecutarTurnoAgente(
                     resultado: {
                         mensaje_para_agente:
                             "La charla ya se cerró y el cliente solo saluda o agradece. Silencio: no hace falta tener la última palabra."
+                    }
+                }
+            ],
+            escaladoHumano: false,
+            latenciaMs: Date.now() - inicio,
+            tokensUsados: sinCostoLLM(modelo)
+        }
+    }
+
+    // 0.b.bis La pelota sigue del lado del cliente: le pedimos que vaya a medir
+    //     la leva y lo que vuelve es un "bueno", un "D1" o un "sale meta". No
+    //     hay nada que contestar; el bot venía improvisando un "no te entendí"
+    //     o repitiendo el sermón de la medida (convs 4172 y 4206, 14-15/09).
+    if (debeCallarPorAcuseDeRecibo(mensajeUsuario, ultimoMensajeDelBot, historialPrevio.length > 0)) {
+        return {
+            mensajeFinal: null,
+            mensajesFinales: [],
+            herramientasEjecutadas: [
+                {
+                    nombre: "acuse_de_recibo",
+                    argumentos: { mensaje: mensajeUsuario },
+                    resultado: {
+                        mensaje_para_agente:
+                            "El cliente solo acusó recibo de un pedido que sigue abierto de su lado. Silencio: se espera el dato."
                     }
                 }
             ],
@@ -1556,8 +1581,12 @@ export async function ejecutarTurnoAgente(
             // modelo salió con un "perdón, no te entendí, me lo repetís?" por
             // un mensaje suelto del cliente ("Metta", conv 3985). Si no hay
             // nada abierto, repreguntar solo alarga la charla: silencio.
-            if (mensajeFinalUnificado && pareceNoTeEntendi(mensajeFinalUnificado) && esDespedidaDelBot(ultimoMensajeDelBot)) {
-                console.warn("[motor] cierre social: se descarta un 'no te entendí' sobre una charla ya despedida")
+            if (
+                mensajeFinalUnificado &&
+                pareceNoTeEntendi(mensajeFinalUnificado) &&
+                (esDespedidaDelBot(ultimoMensajeDelBot) || elBotDejoUnPedidoPendiente(ultimoMensajeDelBot))
+            ) {
+                console.warn("[motor] se descarta un 'no te entendí' sobre una charla cerrada o con un pedido pendiente")
                 await persistirEstado()
                 return {
                     mensajeFinal: null,

@@ -1934,6 +1934,12 @@ export async function ejecutarTurnoAgente(
                         grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
                         packPresentadoId: estadoConv.packPresentado?.id ?? null,
                         varianteResuelta: estadoConv.varianteResuelta ?? null,
+                        // Excepción al "solo turnos anteriores": la variante que
+                        // se resolvió recién, en un paso previo de ESTE turno.
+                        // No cuenta como firme (el cliente todavía no la leyó),
+                        // pero el catálogo la necesita para armar la composición
+                        // con la pieza que de verdad se lleva (conv 4344).
+                        varianteResueltaEnTurno: patchEstado.varianteResuelta ?? null,
                         motoConfirmada: estadoConv.motoConfirmada ?? null,
                         // Cuántas veces ya se le repreguntó la moto. Excepción
                         // al "solo turnos anteriores" de arriba: acá el dato es

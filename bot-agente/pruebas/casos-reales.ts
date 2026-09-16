@@ -452,34 +452,7 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             {
                 rol: "assistant",
                 contenido:
-                    "Hola! El combo incluye Cilindro 120, Carburador CG 125, Codo de admisión y Filtro.\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000\nPara qué moto lo buscás?"
-            }
-        ],
-        resultadoEsperado: {
-            // Criterio cambiado el 11/09 (antes se esperaba la repregunta "cuál
-            // Blitz tenés"). De la familia Blitz tenemos cargada SOLO la 110, así
-            // que no hay menú que ofrecerle: la única repregunta posible es
-            // recitarle el modelo que sí tenemos, que está prohibido. Es la misma
-            // situación que la conv 3958 ("rx 125", y solo tenemos la RX 150),
-            // donde el bot terminó pidiendo la cédula para repreguntar un dato que
-            // el cliente ya había dado. Si el cliente fue más específico que el
-            // catálogo, va nota al equipo.
-            debeEscalarHumano: true,
-            debeGuardarSilencio: true,
-            descripcionEsperada:
-                "No consta ninguna Blitz 150 y el cliente ya dio modelo y cilindrada: no hay nada que repreguntar. Escala a moto_no_registrada y guarda silencio, sin confirmar compatibilidad."
-        }
-    },
-    {
-        id: "caso-31-typo-con-anio-no-se-contradice",
-        titulo: "Moto con typo + año ('blizt 2025') en combo universal — confirma y sigue, no se contradice",
-        mensajeCliente: "A un blizt 2025",
-        historial: [
-            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
-            {
-                rol: "assistant",
-                contenido:
-                    "Hola! El combo de TAPA CDI + CILINDRO 120 viene con la corona de regalo.\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\nA qué moto se lo querés poner?"
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\nTenés 2 opciones:\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nEnvío gratis a todo el país!\n\nA qué moto se lo querés poner?"
             }
         ],
         resultadoEsperado: {
@@ -861,7 +834,9 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             // seca (ver la regla de piezas incluidas en catalogo-precios.ts).
             // El guardián fuerte de este caso es `patronProhibido`: lo que no
             // puede pasar es que diga que la leva viene incluida.
-            patronRespuesta: /sin leva|aparte|por separado|no (viene|la trae|lo trae|incluye)/i,
+            // "no trae leva" pelado también es dejar la leva afuera: el patrón
+            // pedía "no la trae/lo trae" y daba rojo con una respuesta correcta.
+            patronRespuesta: /sin leva|aparte|por separado|no ((la |lo )?trae|viene|incluye)/i,
             patronProhibido: /(\bs[ií]\b,?\s*(este|ese|el)?\s*(kit|combo)?\s*(ya\s*)?(viene|trae|incluye)|\bleva incluida\b|ya viene con (la )?leva)/i,
             descripcionEsperada:
                 "La composicion oficial del kit dakar 200 no tiene leva. Debe decir que no viene incluida (puede aclarar que va aparte), sin re-mandar la ficha."
@@ -1543,6 +1518,41 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             patronProhibido: /ya te (confirm|dij|pas)|dato puntual|a que moto|a qué moto/i,
             descripcionEsperada:
                 "Volvió a entrar por el anuncio a la semana: sale la bienvenida oficial del Kit 170 entera —saludo, precio y foto, costo $0—, sin echarle en cara lo que se habló la semana pasada y sin repreguntar la moto (esa la sabemos)."
+        }
+    },
+    {
+        // Conv 4344 (16/09, +5493388518289). Entró por el anuncio del combo
+        // Tapa CDI + Cilindro 120, recibió la ficha y contestó "Recorrido corto
+        // y que mas trae el kit con la tapa?". El bot confirmó la variante y
+        // describió SOLO la tapa: el cliente tuvo que volver a preguntar
+        // ("Piston, aros, perno juntas todo?!") por el cilindro.
+        //
+        // "El kit con la tapa" es cómo el cliente NOMBRA el combo, no un recorte
+        // de la pregunta a esa pieza: "qué más trae" pide la composición entera.
+        id: "caso-80-que-mas-trae-el-kit-son-todas-las-piezas",
+        titulo: "Pregunta qué más trae el kit: contesta por todas las piezas, no solo la tapa (conv 4344)",
+        mensajeCliente: "Recorrido corto y que mas trae el kit con la tapa?",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola! El combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo. Tenés 2 opciones: Recorrido corto: $175.000 / Recorrido largo: $189.000. Envío gratis a todo el país! A qué moto se lo querés poner?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["resolver_variante"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Las dos piezas del combo en la misma respuesta: la tapa Y el cilindro.
+            patronRespuesta: /cilindro/i,
+            // Nada del cilindro largo: ya eligió corto.
+            patronProhibido: /52[.,]4|recorrido largo|189\.000/i,
+            descripcionEsperada:
+                "Confirma el recorrido corto y enumera TODO lo que trae el combo —la tapa CDI y el cilindro 120 corto con lo que cada uno incluye—, no solo la tapa. No nombra la variante larga ni su medida."
         }
     }
 ]

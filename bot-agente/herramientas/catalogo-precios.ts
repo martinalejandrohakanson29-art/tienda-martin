@@ -319,7 +319,12 @@ function bloqueComposicion(opciones: OpcionesComposicion): string[] {
         // el "No" arranca negando y el cliente volvió a preguntar si venía
         // (conv 4157). Si la respuesta es que SÍ viene, se dice en positivo.
         `   - Cuando la pieza SÍ viene incluida, contestá en positivo y arrancá por eso ("ya viene con...", "va incluido"), aunque el cliente lo haya preguntado en negativo ("hay que cambiarlo?", "lo tengo que comprar aparte?"). Nunca abras la respuesta con un "no" suelto: se lee como que no viene.`,
-        `   - Los textos de cada pieza son dato para que contestes con precisión, NO son un libreto: contestá SOLO lo que preguntó, con tus palabras, en 1 o 2 renglones. Nunca los recites enteros ni agregues milímetros, medidas o frases de venta que no te pidió.`
+        `   - Los textos de cada pieza son dato para que contestes con precisión, NO son un libreto: contestá SOLO lo que preguntó, con tus palabras, en 1 o 2 renglones. Nunca los recites enteros ni agregues milímetros, medidas o frases de venta que no te pidió.`,
+        // "Recorrido corto y qué más trae el kit con la tapa?": el bot contestó
+        // solo por la tapa y el cliente tuvo que volver a preguntar por el
+        // cilindro (conv 4344, 16/09). "El kit con la tapa" es cómo el cliente
+        // NOMBRA el producto, no un recorte de la pregunta a esa pieza.
+        `   - Si lo que pregunta es QUÉ TRAE el kit ("qué más trae", "qué incluye", "qué viene", "todo lo que trae"), la respuesta son TODAS las piezas de arriba, cada una con lo que la compone — no una sola. Que nombre una pieza para referirse al producto ("el kit con la tapa", "el combo de la tapa") NO achica la pregunta a esa pieza: sigue preguntando por el kit entero.`
     ]
 
     if (hayEjeDeVariante) {
@@ -328,7 +333,7 @@ function bloqueComposicion(opciones: OpcionesComposicion): string[] {
         // sí, en las dos) y el bot le abrió los dos diámetros y le pidió el
         // recorrido: convirtió una respuesta cerrada en una duda (conv 4157).
         reglas.push(
-            `   - Antes de abrir las dos variantes, fijate QUÉ preguntó: si preguntó si algo VIENE INCLUIDO y figura en la pieza de las dos opciones, la respuesta es una sola y no depende de la variante — se lo confirmás seco, sin nombrar medidas ni las dos opciones.`,
+            `   - Antes de abrir las dos variantes, fijate QUÉ preguntó: si preguntó si UNA pieza puntual VIENE INCLUIDA y figura en la pieza de las dos opciones, la respuesta es una sola y no depende de la variante — se lo confirmás seco, sin nombrar medidas ni las dos opciones. Ojo: esto NO vale cuando pregunta qué trae el kit entero; ahí van todas las piezas igual, la común y la de cada opción.`,
             `   - Solo si preguntó justo por el dato que DIFIERE entre las variantes (la medida, el diámetro, los mm): le das los dos valores, sin agregar medidas que no preguntó. PROHIBIDO contestar una sola de las dos al azar.`
         )
         // El recorrido lo define el motor de la moto, no el gusto del cliente:
@@ -1111,12 +1116,17 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                         etiqueta: v.criterio_variante || v.nombre,
                         articulos: v.articulos_sueltos || []
                     })),
-                    varianteResueltaPackId: embudo.varianteResuelta?.packId ?? null,
+                    // La variante resuelta recién, en este mismo turno, vale
+                    // igual para armar la composición: el cliente se lleva ESA
+                    // pieza, no "una de las dos" (conv 4344).
+                    varianteResueltaPackId:
+                        embudo.varianteResuelta?.packId ?? embudo.varianteResueltaEnTurno?.packId ?? null,
                     yaPresentado: grupoYaPresentado(g),
                     categoriasCatalogo,
                     // Sin moto y sin variante firme, la pregunta que falta es la
                     // moto: el recorrido lo deduce el motor a partir de ella.
-                    motoPendiente: !embudo.motoConfirmada && !embudo.varianteResuelta
+                    motoPendiente:
+                        !embudo.motoConfirmada && !embudo.varianteResuelta && !embudo.varianteResueltaEnTurno
                 })
             )
             if (g.articulos_sueltos && g.articulos_sueltos.length > 0) {

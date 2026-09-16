@@ -57,6 +57,17 @@ export interface EstadoEmbudo {
     packPresentadoId?: number | null
     varianteResuelta?: { packId: number; etiqueta: string; precio: number } | null
     /**
+     * Variante que `resolver_variante` resolvió en ESTE mismo turno (todavía no
+     * es estado firme: el cliente la lee recién en la respuesta que se está
+     * redactando). Sirve solo para armar la composición con el cilindro/pieza
+     * que de verdad se lleva; NO activa el "ya se lo dijiste" de la variante
+     * firme. Sin esto, "recorrido corto y qué más trae el kit?" llegaba al
+     * catálogo con la variante todavía sin definir, la composición se partía en
+     * "las 2 opciones" y la regla de no abrir variantes se comía el cilindro:
+     * el bot contestó solo por la tapa (conv 4344, 16/09).
+     */
+    varianteResueltaEnTurno?: { packId: number; etiqueta: string; precio: number } | null
+    /**
      * Moto que ya quedo confirmada compatible en turnos anteriores. La usa
      * `resolver_variante` cuando el modelo no vuelve a pasar `modelo_moto`
      * (el cliente la dijo hace 3 turnos): sin esto, el chequeo de

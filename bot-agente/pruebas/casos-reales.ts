@@ -1412,5 +1412,40 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Se baja por el pago por adelantado, no por el producto: un solo intento de rescate corto con la alternativa (Mercado Libre con compra protegida, o pasar por el local) y ahí se calla. Sin jerga interna, sin insistir y sin inventar descuentos."
         }
+    },
+    {
+        id: "caso-77-ficha-antes-de-derivar-la-tapa",
+        titulo: "'La tapa viene completa armada?': el dato está en la ficha, no se deriva (conv 4317)",
+        // La ráfaga real del turno #178: la variante que le faltaba al bot y,
+        // pegada, la duda técnica.
+        mensajeCliente: "Corto\nLa tapa viene completa armada",
+        historial: [
+            { rol: "user", contenido: "A una motomel blitz 110" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Perfecto, a la Blitz 110 le va bien el combo.\n\nSabés si tu moto es recorrido corto o largo?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" },
+            motoConfirmada: "Motomel Blitz 110"
+        },
+        resultadoEsperado: {
+            // En vivo derivó la pregunta al equipo EN SILENCIO y le contestó al
+            // cliente solo el "corto". El dato estaba cargado en la ficha de la
+            // Tapa CDI 125 ("completa, lista para colocar"): el modelo escaló
+            // sin haber ejecutado la herramienta que lo tenía.
+            debeLlamarHerramientas: ["consultar_catalogo_y_precios"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /completa|armada|lista para colocar|ya viene/i,
+            // El texto de la ficha que se le sirve incluye el mensaje de
+            // bienvenida del combo con los DOS precios. Ya eligió corto: si
+            // aparece el precio del largo es que re-volcó la presentación.
+            patronProhibido: /189\.000/,
+            descripcionEsperada:
+                "Confirma la variante corta Y contesta que la tapa viene completa, en dos renglones. No deriva al equipo (el dato está en la composición del kit) y no vuelve a mandar la bienvenida del combo ni el precio de la variante larga."
+        }
     }
 ]

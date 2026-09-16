@@ -1024,11 +1024,27 @@ export async function ejecutarTurnoAgente(
                     { ...opciones, referralAnuncio: undefined, globosYaEmitidos: [textoFinal] }
                 )
 
-                // El resto escaló ENTERO (dato que no tenemos): el pendiente ya está
-                // en la bandeja del equipo, pero el cliente igual tiene que recibir la
-                // bienvenida del anuncio que clickeó. Los escalados "duros"
-                // (pide humano, reclamo, insulto) ni llegan acá: los corta el
-                // detector determinista sobre la ráfaga completa, más arriba.
+                // El resto escaló ENTERO: no hay UN solo dato que contestarle, así
+                // que la ficha saldría SOLA. Y una ficha sola no es neutra: trae el
+                // precio y se lee como "esto es para vos".
+                //
+                // Conv 4351 (16/09, +5493534459906): el cliente entró por el anuncio
+                // del kit 200 varillero y escribió "que vale un kit 190 para xr 150"
+                // —otro producto y otra moto—. El resto escaló en silencio (el 190 no
+                // está en el catálogo; la XR 150 no tiene compat con ese kit) y el
+                // bot le mandó igual la ficha del 200 con su $167.000. El equipo tuvo
+                // que desdecirlo a mano 30 segundos después ("ese kit no le va a la
+                // XR 150").
+                //
+                // El contrato del 09/09 ([[fix-bot-plantilla-texto-acompanante]]) era
+                // "la ficha sale igual, pero el SEGUNDO globo aclara si no le entra".
+                // Cuando el resto escala entero ese segundo globo no existe, así que
+                // el contrato no se puede cumplir: el turno queda mudo y la consulta
+                // la contesta el equipo desde la bandeja. Decisión de Martín (16/09).
+                //
+                // Ojo con el alcance: esto NO toca el atajo $0 del caso normal —el
+                // cliente que llega por el anuncio y pregunta sobre ESE kit no escala,
+                // así que su ficha sale igual de rápido.
                 //
                 // Si el escalado es PARCIAL no se entra acá: el sub-turno derivó una
                 // consulta pero contestó las otras, y esa respuesta tiene que salir
@@ -1038,19 +1054,33 @@ export async function ejecutarTurnoAgente(
                 // `escaladoHumano` a secas y dejaba la rama de la plantilla afuera
                 // del escalado parcial que rige en el flujo normal.
                 if (turnoResto.escaladoHumano && !turnoResto.escaladoParcial) {
+                    const motivo = turnoResto.motivoEscalado || "otro"
                     if (!turnoResto.escaladoPersistido) {
                         await escalarAHumano({
-                            motivo: turnoResto.motivoEscalado || "otro",
+                            motivo,
                             resumen_consulta: `Consulta que vino junto con la plantilla del anuncio: ${resto.slice(0, 300)}`,
                             conversation_id: opciones.conversationId
                         }).catch((err) => console.error("[motor] fallo al persistir escalado del resto de la ráfaga:", err))
                     }
+
+                    // La ficha no salió, así que el kit NO quedó presentado: había
+                    // que anotarlo antes para que el sub-turno supiera de qué combo
+                    // se hablaba, pero dejarlo puesto le haría creer al turno
+                    // siguiente que el cliente ya vio una ficha que nunca recibió
+                    // (ver [[fix-bot-memoria-kit-presentado-falso]]).
+                    if (matchPlantilla.tipo === "pack") {
+                        await guardarEstadoConversacion(estadoKey, { packPresentado: null }).catch(() => {})
+                    } else if (matchPlantilla.tipo === "grupo") {
+                        await guardarEstadoConversacion(estadoKey, { grupoPineado: null }).catch(() => {})
+                    }
+
                     return {
-                        mensajeFinal: textoFinal,
-                        mensajesFinales: [textoFinal],
-                        fotoUrl: matchPlantilla.fotoUrl || undefined,
+                        mensajeFinal: null,
+                        mensajesFinales: [],
                         herramientasEjecutadas: [infoMatch, ...(turnoResto.herramientasEjecutadas || [])],
-                        escaladoHumano: false,
+                        escaladoHumano: true,
+                        motivoEscalado: motivo,
+                        escaladoPersistido: true,
                         latenciaMs: Date.now() - inicio,
                         tokensUsados: turnoResto.tokensUsados
                     }

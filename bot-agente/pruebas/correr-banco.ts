@@ -67,7 +67,8 @@ async function evaluarCaso(caso: CasoPrueba, opciones: OpcionesEjecucion): Promi
         }
         const resp = await ejecutarTurnoAgente(caso.mensajeCliente, historialToChat(caso.historial), {
             ...opciones,
-            estadoKey
+            estadoKey,
+            referralAnuncio: caso.referralAnuncio
         })
         const herramientas = (resp.herramientasEjecutadas || []).map((h) => h.nombre)
         const observado: ResultadoCaso["observado"] = {

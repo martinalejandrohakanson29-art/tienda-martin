@@ -10,6 +10,13 @@ export interface CasoPrueba {
     mensajeCliente: string
     historial?: { rol: "user" | "assistant"; contenido: string }[]
     /**
+     * Anuncio de Meta por el que entró el cliente (`content_attributes.referral`
+     * del mensaje de Chatwoot). Sin esto no se puede probar la rama
+     * `match_plantilla_publicidad` del camino referral, que es un flujo aparte
+     * del turno normal: el kit no viaja en el texto, solo en el aviso.
+     */
+    referralAnuncio?: { titulo?: string | null; cuerpo?: string | null }
+    /**
      * Estado persistente a sembrar antes de correr el caso (lo que el motor
      * habría guardado en turnos anteriores). Sin esto no se pueden probar las
      * reglas que dependen de la memoria — por ejemplo que un tema de negocio
@@ -1464,6 +1471,31 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             patronProhibido: /189\.000/,
             descripcionEsperada:
                 "Confirma la variante corta Y contesta que la tapa viene completa, en dos renglones. No deriva al equipo (el dato está en la composición del kit) y no vuelve a mandar la bienvenida del combo ni el precio de la variante larga."
+        }
+    },
+    {
+        // Conv 4351 (16/09, +5493534459906). Entró por el anuncio del kit 200
+        // varillero y su ÚNICO mensaje fue "que vale un kit 190 para xr 150":
+        // otro producto (el 190 no está en el catálogo) y otra moto (la XR 150
+        // no tiene compat con ese kit). El resto escaló entero en silencio, pero
+        // la rama de la plantilla mandaba igual la ficha del 200 con su
+        // $167.000. El equipo tuvo que desdecir al bot a mano.
+        //
+        // El contrato del 09/09 es "la ficha sale, el 2º globo aclara si no le
+        // entra". Cuando el resto escala ENTERO ese 2º globo no existe: la ficha
+        // sola se lee como "esto es para vos".
+        id: "caso-78-anuncio-con-consulta-ajena-no-manda-la-ficha",
+        titulo: "Entra por un anuncio y pregunta por otro kit y otra moto: no sale la ficha (conv 4351)",
+        mensajeCliente: "Hola quería saber que vale un kit 190 para xr 150",
+        referralAnuncio: {
+            titulo: "POTENCIA TU 150 A 200CC!!",
+            cuerpo: "Kit de potenciacion 200 para varilleros 150 con motor sin balanceador"
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "El kit 190 no está cargado y la XR 150 no tiene compat con el kit del anuncio: todo lo que preguntó se deriva al equipo. Silencio total — la ficha del kit 200, con su precio, NO puede salir sola."
         }
     }
 ]

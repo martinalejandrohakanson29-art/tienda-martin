@@ -272,7 +272,7 @@ export const definicionCompatibilidad: DefinicionHerramienta = {
                 },
                 kit_nombre_o_id: {
                     type: "string",
-                    description: "NOMBRE del kit consultado, como figura en el catálogo (ej: 'Kit 120 para 110', 'Kit 170 varillero', 'Tapa CDI'). No pases un número suelto: los ids de packs, grupos y artículos se pisan entre sí."
+                    description: "NOMBRE del kit consultado, como figura en el catálogo (ej: 'Combo 110 a 120 + Codo y carburador', 'Kit 170 varillero', 'Tapa CDI'). No pases un número suelto: los ids de packs, grupos y artículos se pisan entre sí."
                 },
                 variante_elegida: {
                     type: "string",

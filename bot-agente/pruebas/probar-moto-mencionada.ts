@@ -100,7 +100,7 @@ async function main() {
     const OFERTA_4206 = [
         "Para la Wave 110 tenemos estas opciones de potenciación:",
         "",
-        "👉🏼 Kit 120 para 110",
+        "👉🏼 Combo 110 a 120 + Codo y carburador",
         "👉🏼 kit dakar 220",
         "",
         "Cuál de estas estás buscando?"
@@ -133,7 +133,7 @@ async function main() {
     // La cilindrada sola no alcanza: "110" está en los nombres de los kits.
     agregar(
         "el número de la moto solo no la identifica",
-        ofreceProductosParaLaMoto("Tenemos estas opciones: Kit 120 para 110.", "110") === false
+        ofreceProductosParaLaMoto("Tenemos estas opciones: Combo 110 a 120 + Codo y carburador.", "110") === false
     )
 
     // ── Cilindrada sin marca ("Una 110 DLX") ─────────────────────────────────

@@ -1,8 +1,18 @@
 {
-  "_generado": "2026-09-16T13:05:57.257Z",
+  "_generado": "2026-09-16T14:18:29.491Z",
   "_leeme": "Generado por scripts/config-catalogo.ts. No editar a mano: cambiar en /admin/chatwoot y volver a exportar.",
   "datos": {
     "chat_pack_grupos": [
+      {
+        "nombre": "Combo 110 a 120 + Codo y carburador",
+        "categoria": "Potenciacion 110",
+        "cilindradas_base": [
+          105,
+          110
+        ],
+        "activo": true,
+        "compatibilidad_universal": true
+      },
       {
         "nombre": "Combo Escape pwr + Leva 6.40",
         "categoria": "Potenciacion 110",
@@ -32,16 +42,6 @@
         ],
         "activo": true,
         "compatibilidad_universal": false
-      },
-      {
-        "nombre": "Kit 120 para 110",
-        "categoria": "Potenciacion 110",
-        "cilindradas_base": [
-          105,
-          110
-        ],
-        "activo": true,
-        "compatibilidad_universal": true
       }
     ],
     "chat_packs": [

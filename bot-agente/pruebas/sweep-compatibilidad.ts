@@ -69,12 +69,18 @@ const SNAPSHOT = join(__dirname, "sweep-compatibilidad.esperado.txt")
  *    del cilindro 170: le salió "le entra directo". Tiene que dar `esc`.
  *  - "rouser" / "rouser 125" / "rouser 200": la fila `rouser 125` no tiene que
  *    hablar por la NS 200 (otra cilindrada), pero sí por su propia moto.
+ *  - "cg 190": conv 4386. La familia "cg" no resuelve a un modelo canónico
+ *    ("cg" pelado tiene 2 letras), así que la fila `cg titan 150` contestaba por
+ *    ella y salía "no le va a la CG Titan 150" — una moto que el cliente nunca
+ *    nombró. Tiene que dar `esc` en todas. "cg titan 150" es la contracara: esa
+ *    sí la tenemos y tiene que seguir contestando.
  */
 const GRAFIAS_EXTRA = [
     "biz", "wave", "wave nf", "NF 100", "wawe nf", "criptón", "viz 105",
     "weve nf", "wuave", "wave s", "wave s 2022", "110 wave",
     "110", "una 110", "tengo un 110", "Okinoi 110", "Gilera 110",
     "rouser", "rouser 125", "rouser 200",
+    "cg 190", "cg titan 150",
     "Ferrari 500", "Weber 150", "Jawa 150 Supernova", "mi moto",
 ]
 

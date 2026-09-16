@@ -899,9 +899,22 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
         const motoCanonicaResuelta = resolverMotoCanonica(args.modelo_moto, motosCanonicas)
         // Cilindradas del modelo que resolvió el cliente. Si están, una fila que
         // nombra OTRA cilindrada no puede hablar por esta moto (ver abajo).
+        //
+        // Cuando el texto NO resuelve a un modelo canónico pero el cliente dijo
+        // una cilindrada, vale la que dijo él. Sin esto el filtro se apagaba
+        // justo cuando más falta hace: el cliente nombró una moto que no
+        // tenemos, así que cualquier fila de la familia quedaba libre para
+        // contestar por ella. Real (conv 4386, 16/09): "CG 190" no resuelve
+        // —"cg" pelado tiene 2 letras y no llega al mínimo de alias—, la fila
+        // `cg titan 150` sumaba los 30 de palabra distintiva ("cg") y el bot
+        // contestó "Ese kit no le va a la CG Titan 150": una negativa sobre una
+        // moto que el cliente nunca nombró. Con la cilindrada dicha como
+        // referencia, esa fila se descarta y el turno termina derivado al
+        // equipo, que es lo correcto cuando la moto no nos consta
+        // ([[fix-bot-cilindrada-que-no-consta-escala]]).
         const ccModeloCliente = motoCanonicaResuelta
             ? cilindradasDelModelo(motoCanonicaResuelta)
-            : new Set<number>()
+            : new Set<number>(cilindradasEn(args.modelo_moto))
 
         // Qué piezas componen el kit preguntado. Con esto, una fila de artículo
         // que NO es parte del kit deja de poder contestar por él.

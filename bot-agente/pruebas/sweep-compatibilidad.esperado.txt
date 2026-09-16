@@ -1,4 +1,4 @@
-# grupos: Kit 120 para 110 | Combo Escape pwr + Leva 6.40 | Combo Tapa CDI + Cilindro 120 | Kit 120 corto + Leva 6.40
+# grupos: Combo 110 a 120 + Codo y carburador | Combo Escape pwr + Leva 6.40 | Combo Tapa CDI + Cilindro 120 | Kit 120 corto + Leva 6.40
 # packs sueltos: Kit 170 varillero + leva | kit dakar 200 economico | kit dakar 220
 # SI=confirma  NO=incompatible  esc=escala en silencio  ?=sigue la charla
 
@@ -19,7 +19,7 @@ Honda Biz 125            NO  NO  NO  NO  esc esc esc
 Honda CG 150 Titan       NO  esc esc NO  NO  NO  NO 
 Honda GLH 150            esc esc esc esc NO  NO  NO 
 Honda Wave 110           NO  NO  NO  NO  NO  esc esc
-Honda XR 150             esc esc esc esc esc esc esc
+Honda XR 150             esc esc esc esc esc NO  NO 
 Honda XR 250 Tornado     esc esc esc esc esc esc esc
 Keller Crono 110         SI  SI  SI  SI  esc esc esc
 Mondial LD 110           SI  SI  SI  SI  esc esc esc
@@ -53,6 +53,8 @@ Gilera 110               SI  SI  SI  SI  esc esc esc
 rouser                   esc esc esc esc esc esc esc
 rouser 125               esc esc esc esc esc esc esc
 rouser 200               esc esc esc esc esc esc esc
+cg 190                   NO  esc esc NO  esc esc esc
+cg titan 150             NO  esc esc NO  NO  NO  NO 
 Ferrari 500              esc esc esc esc esc esc esc
 Weber 150                esc esc esc esc esc esc esc
 Jawa 150 Supernova       esc esc esc esc esc esc esc

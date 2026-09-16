@@ -109,6 +109,59 @@ const CONTRATO_ESCALADO_PARCIAL = [
 const SUFIJO_SILENCIO_TOTAL =
     "\nRegla de oro: no envies NINGUN mensaje al cliente en este turno. El equipo humano continua la conversacion."
 
+/**
+ * LA FICHA DEL PRODUCTO SE MIRA ANTES DE DERIVAR.
+ *
+ * Preámbulo que reemplaza al resultado de `escalar_a_humano` cuando el modelo
+ * deriva una duda técnica del producto sin haber consultado el catálogo en el
+ * turno. No se derivó nada todavía: se le entrega la composición oficial y
+ * decide de nuevo. Si el dato no está, vuelve a escalar y esa vez sí se deriva.
+ */
+const PREAMBULO_FICHA_ANTES_DE_ESCALAR = [
+    "TODAVIA NO SE DERIVO NADA. Ibas a derivar una duda tecnica del producto sin haber mirado su ficha en este turno.",
+    "Estos son los datos oficiales del producto del que estan hablando:",
+    ""
+].join("\n")
+
+const CIERRE_FICHA_ANTES_DE_ESCALAR = [
+    "",
+    "--- QUE HACES CON ESTO ---",
+    "1. Si lo que pregunto el cliente esta contestado arriba, contestaselo con tus palabras, en 1 o 2 renglones, y NO derives.",
+    "2. Si el dato NO esta arriba, ejecuta escalar_a_humano de nuevo con el mismo motivo: esa vez si se deriva y guardas silencio sobre ese punto.",
+    "3. No le cuentes al cliente nada de esto.",
+    "4. Esto es material de consulta, NO un libreto: el cliente ya vio la presentacion del kit. PROHIBIDO volver a mandarle el texto de bienvenida, los precios, las dos variantes o la ficha entera. Contestas SOLO lo que pregunto."
+].join("\n")
+
+/**
+ * ¿Esta llamada a `escalar_a_humano` se contesta con la ficha en vez de
+ * derivarse? Solo la primera duda técnica del turno, y solo si el modelo no
+ * miró el catálogo y hay un kit en el embudo del que sacar la composición.
+ *
+ * Es el gate del fix de la conv 4317 (ver el bloque en `ejecutarTurnoAgente`),
+ * separado acá para poder probarlo sin levantar un turno entero.
+ */
+export function debeServirFichaAntesDeEscalar(datos: {
+    nombreHerramienta: string
+    argumentosCrudos: string | null | undefined
+    yaMiroElCatalogo: boolean
+    fichaYaServida: boolean
+    kitEmbudoId: number | null
+    packEmbudoId: number | null
+}): boolean {
+    if (datos.nombreHerramienta !== "escalar_a_humano") return false
+    if (datos.fichaYaServida || datos.yaMiroElCatalogo) return false
+    if (!datos.kitEmbudoId && !datos.packEmbudoId) return false
+
+    let motivoPedido = ""
+    try {
+        motivoPedido = String(JSON.parse(datos.argumentosCrudos || "{}")?.motivo || "")
+    } catch {
+        motivoPedido = ""
+    }
+    // El motivo puede venir como "consulta_tecnica: no se si la tapa...".
+    return motivoPedido.split(":")[0].trim() === "consulta_tecnica"
+}
+
 /** Centinela con el que el modelo pide silencio total en un escalado parcial. */
 const CENTINELA_SIN_RESPUESTA = /(^|\s)SIN[_ ]RESPUESTA(\s|$|\.)/i
 
@@ -1242,6 +1295,13 @@ export async function ejecutarTurnoAgente(
      */
     let catalogoSinMatchEnTurno = false
 
+    /**
+     * Ya se le entregó la ficha del kit en lugar de derivar una duda técnica.
+     * Pasa una sola vez por turno: si después de leerla el modelo insiste en
+     * derivar, es que el dato no está y la consulta es del equipo.
+     */
+    let fichaServidaAntesDeEscalar = false
+
     while (paso < MAX_PASOS_REACT) {
         paso++
 
@@ -1696,6 +1756,83 @@ export async function ejecutarTurnoAgente(
                 })
                 continue
             }
+
+            /**
+             * LA FICHA DEL PRODUCTO SE MIRA ANTES DE DERIVAR (conv 4317, 16/09).
+             *
+             * "La tapa viene completa armada?" sobre el combo que el cliente
+             * venía comprando: el modelo llamó `resolver_variante` (para el
+             * "corto" de la misma ráfaga) y `escalar_a_humano`, nunca consultó
+             * el catálogo, y esa pregunta se fue a la bandeja del equipo en
+             * silencio. El dato estaba cargado: el detalle de la Tapa CDI 125
+             * dice, textual, que viene completa y lista para colocar.
+             *
+             * El modelo escala cuando "no tiene el dato", pero el dato no está
+             * en su contexto: está en una herramienta que no ejecutó. Así que
+             * la primera derivación técnica del turno sin catálogo consultado
+             * no deriva: se le entrega la composición oficial del kit que ya
+             * está en el embudo y decide otra vez. Si el dato de verdad no
+             * está, vuelve a llamar a la tool y ahí sí se deriva (arriba, en el
+             * guard de `escaladoPersistido`, o en el flujo normal).
+             *
+             * Solo para `consulta_tecnica`: el resto de los motivos (precio,
+             * stock, envío, reclamo, moto no registrada) no se contestan con la
+             * ficha del producto y derivan derecho como siempre.
+             */
+            {
+                const kitEmbudoId = estadoConv.grupoPineado?.id ?? null
+                const packEmbudoId = estadoConv.packPresentado?.id ?? null
+                const sirveFicha = debeServirFichaAntesDeEscalar({
+                    nombreHerramienta: call.function.name,
+                    argumentosCrudos: call.function.arguments,
+                    yaMiroElCatalogo: herramientasEjecutadas.some(
+                        (ej) => ej.nombre === "consultar_catalogo_y_precios"
+                    ),
+                    fichaYaServida: fichaServidaAntesDeEscalar,
+                    kitEmbudoId,
+                    packEmbudoId
+                })
+
+                if (sirveFicha) {
+                    try {
+                        const ficha = await ejecutarHerramienta(
+                            "consultar_catalogo_y_precios",
+                            kitEmbudoId ? { grupo_id: kitEmbudoId } : { pack_id: packEmbudoId },
+                            {
+                                conversationId: opciones.conversationId,
+                                embudo: {
+                                    grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
+                                    packPresentadoId: estadoConv.packPresentado?.id ?? null,
+                                    varianteResuelta: estadoConv.varianteResuelta ?? null,
+                                    motoConfirmada: estadoConv.motoConfirmada ?? null,
+                                    repreguntasMoto:
+                                        patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
+                                    motoDelMensaje: motoDelTurno,
+                                    motoMencionada: motoVigenteDeLaCharla
+                                }
+                            }
+                        )
+                        // Sin ficha no hay nada mejor que derivar: sigue el flujo normal.
+                        if (ficha.resultado?.encontrado !== false && ficha.resultado?.mensaje_para_agente) {
+                            fichaServidaAntesDeEscalar = true
+                            herramientasEjecutadas.push(ficha)
+                            mensajes.push({
+                                role: "tool",
+                                tool_call_id: call.id,
+                                name: call.function.name,
+                                content:
+                                    PREAMBULO_FICHA_ANTES_DE_ESCALAR +
+                                    ficha.resultado.mensaje_para_agente +
+                                    CIERRE_FICHA_ANTES_DE_ESCALAR
+                            })
+                            continue
+                        }
+                    } catch (err) {
+                        console.error("[motor] fallo al servir la ficha antes de escalar:", err)
+                    }
+                }
+            }
+
             // ¿Alguna rama de ESTE call derivó algo al equipo? Define si al
             // resultado que ve el modelo se le pega el contrato de parcial.
             let escaloEnEsteCall = false

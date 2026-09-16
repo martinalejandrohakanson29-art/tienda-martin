@@ -599,7 +599,18 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeGuardarSilencio: false,
             // Tiene que aparecer la respuesta al cigüeñal / recorrido, que es la
             // parte que en producción se perdió.
-            patronRespuesta: /(cig[uü]e[nñ]al|recorrido|no (hace falta|precisa|necesit)|sin modificar)/i,
+            //
+            // El patrón mide que CONTESTÓ lo del cigüeñal, no cómo lo escribió:
+            // el bot (y el cliente, que lo escribió así) dicen "sigueñal" con
+            // s, y "no hay que modificar" tanto como "sin modificar". Pedir una
+            // sola grafía daba rojo con respuestas perfectas como "Va con el
+            // sigueñal original, no hay que modificar nada" — el mismo problema
+            // de patrón frágil que tenía el caso-41.
+            //
+            // Lo que NO puede pasar sigue quedando en rojo: "Si, al S2 150 le
+            // va directo" a secas (contesta la moto y se come la duda técnica)
+            // no matchea nada de esto.
+            patronRespuesta: /[cs]ig[uü]e[nñ]al|recorrido|no (hace falta|precisa|necesit|hay que)|sin modificar/i,
             descripcionEsperada:
                 "Debe confirmar la compatibilidad con la Motomel S2 Y contestar que no hay que modificar el cigüeñal. Perder la segunda pregunta es el fallo que se está cubriendo."
         }
@@ -668,7 +679,7 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         titulo: "Contesta la variante con la pista que el bot le dio (color del cilindro)",
         mensajeCliente: "Hola, el cilindro es color plateado",
         estadoInicial: {
-            grupoPineado: { id: 1, nombre: "Kit 120 para 110" },
+            grupoPineado: { id: 1, nombre: "Combo 110 a 120 + Codo y carburador" },
             motoConfirmada: "Zanella ZB 110"
         },
         historial: [
@@ -992,7 +1003,7 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         titulo: "Rafaga: dato que no tenemos + algo que si sabemos — solo se calla lo derivado",
         mensajeCliente: "Para una brava nevada 110\nQue marca es el cilindro",
         estadoInicial: {
-            grupoPineado: { id: 1, nombre: "Kit 120 para 110" }
+            grupoPineado: { id: 1, nombre: "Combo 110 a 120 + Codo y carburador" }
         },
         historial: [
             { rol: "user", contenido: "Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
@@ -1016,7 +1027,7 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         titulo: "Reclamo + otra pregunta en la misma rafaga: silencio total, sin respuesta parcial",
         mensajeCliente: "Me llego el kit roto, el cilindro viene rajado\nHacen envios a Misiones?",
         estadoInicial: {
-            grupoPineado: { id: 1, nombre: "Kit 120 para 110" }
+            grupoPineado: { id: 1, nombre: "Combo 110 a 120 + Codo y carburador" }
         },
         historial: [
             { rol: "user", contenido: "Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },

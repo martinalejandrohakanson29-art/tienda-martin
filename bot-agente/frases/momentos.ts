@@ -71,9 +71,17 @@ export const MOMENTOS: DefinicionMomento[] = [
     {
         momento: "info_negocio",
         titulo: "Envío, pago, garantía o ubicación",
-        cuando: "Cuando se contesta una condición de la venta con el dato oficial cargado.",
+        // OJO: es UN solo momento para los 7 temas de `info_negocio` (envíos,
+        // pago, garantía, ubicación, horarios, mayorista, otro). Una frase que
+        // nombre un tema puntual se le va a ofrecer igual cuando el cliente
+        // pregunte por otro, así que acá solo entra registro que sirva para
+        // cualquiera. Los hechos (plazos, montos, transportista, direccion) van
+        // en info_negocio y no se repiten acá: duplicarlos es como quedan dos
+        // verdades distintas cuando una cambia.
+        cuando:
+            "Cuando se contesta una condición de la venta. Es el mismo momento para envíos, pago, garantía, ubicación y horarios: la frase tiene que servir para cualquiera de esos temas. El dato en sí va en Info del Negocio.",
         placeholders: [],
-        ejemplo: "Te llega a domicilio por Andreani, sin cargo"
+        ejemplo: "Te cuento cómo lo manejamos nosotros"
     },
     {
         momento: "cierre",

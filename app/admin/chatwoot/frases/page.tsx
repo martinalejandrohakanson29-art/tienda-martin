@@ -21,6 +21,13 @@ export default async function FrasesPage() {
                     Esto es redacción, no reglas: lo que el bot tiene que <em>hacer</em> en un caso puntual se carga
                     en Situaciones. Los cambios entran en menos de un minuto, sin deploy.
                 </p>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 mt-3">
+                    <strong className="text-slate-800">Acá van palabras, no datos.</strong> Si la frase tiene un
+                    hecho adentro (un plazo, un monto, un transportista, la dirección, los meses de garantía), ese
+                    dato va en <em>Base de Conocimiento → Info del Negocio</em> o en el catálogo, no acá. Cargado
+                    en los dos lados, el día que cambie te quedan dos verdades distintas y el bot sigue diciendo la
+                    vieja. El precio y los links el bot siempre los saca del dato oficial, nunca de estas frases.
+                </div>
             </div>
 
             {!existeTabla && (

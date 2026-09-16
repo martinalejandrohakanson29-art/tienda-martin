@@ -1583,5 +1583,37 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Confirma el recorrido corto y contesta que el cilindro ya viene con el pistón, en dos renglones. No aprovecha para recitar la tapa CDI ni la composición entera del combo."
         }
+    },
+    {
+        // Conv 4337 (16/09). Venia de pedir pago contra entrega (o sea: todavia
+        // no nos conoce), el bot le contesto bien el "no" y el cliente escribio
+        // una sola palabra: "Referencia?". Le estaba pidiendo pruebas de que
+        // existimos. El bot contesto "Referencia de que, bro? Del repuesto o
+        // para hacer el pago?" — le devolvio la pelota al que dudaba, sin
+        // ejecutar una sola herramienta.
+        id: "caso-82-pide-referencias-es-desconfianza",
+        titulo: "'Referencia?' despues del pago por adelantado: se contesta con las pruebas, no con una pregunta (conv 4337)",
+        mensajeCliente: "Referencia?",
+        historial: [
+            { rol: "user", contenido: "Se lo paga cuando resien llegas?" },
+            {
+                rol: "assistant",
+                contenido:
+                    "No, el pago va siempre antes de despachar el pedido. No trabajamos con pago contra reembolso ni al recibir. Se abona por transferencia, efectivo en el local o tarjeta con link de Mercado Pago, y una vez acreditado te lo mandamos."
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_info_negocio"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /mercado\s*libre|maps\.app\.goo\.gl|instagram/i,
+            // Lo que hizo en vivo: repreguntar de que referencia hablaba.
+            patronProhibido: /referencia de qu[eé]|de qu[eé] referencia|del repuesto o/i,
+            descripcionEsperada:
+                "Entiende que pide referencias de que existimos y le pasa lo que devuelve consultar_info_negocio: local con Maps, Instagram y la pagina de Mercado Libre. No repregunta 'referencia de que?'."
+        }
     }
 ]

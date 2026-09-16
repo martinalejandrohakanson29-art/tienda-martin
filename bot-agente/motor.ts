@@ -2324,12 +2324,25 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                     guiaNegativa || escaloEnEsteCall
                         ? ""
                         : await bloqueLetraDeLaCasa(ejecucion.resultado?.momento, {
-                              moto: ejecucion.resultado?.moto_confirmada || ejecucion.resultado?.modelo_moto_detectado,
+                              // La moto del turno primero; si no la volvio a
+                              // decir, la que ya venia confirmada de la charla:
+                              // el cliente la dijo hace 3 turnos y la letra
+                              // ("para tu {moto}") igual le habla de SU moto.
+                              moto:
+                                  ejecucion.resultado?.moto_confirmada ||
+                                  ejecucion.resultado?.modelo_moto_detectado ||
+                                  estadoConv.motoConfirmada,
                               kit: ejecucion.resultado?.etiqueta || ejecucion.resultado?.kit,
                               precio:
                                   typeof ejecucion.resultado?.precio === "number"
                                       ? formatearPrecioAR(ejecucion.resultado.precio)
-                                      : null
+                                      : null,
+                              // La clausula de envio la decide la herramienta
+                              // leyendo la base (`nucleo/envio.ts`), no la
+                              // letra: una frase con {envio} sale sin la
+                              // clausula cuando ese producto no lo tiene
+                              // gratis, en vez de prometerlo igual.
+                              envio: ejecucion.resultado?.envio_frase
                           })
 
                 mensajes.push({

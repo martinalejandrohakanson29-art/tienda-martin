@@ -7,6 +7,7 @@ import { detectarRestoNoCubierto } from "../nucleo/resto-no-cubierto"
 import { consultarCompatibilidad } from "./compatibilidad"
 import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { MomentoFrase } from "../frases/momentos"
+import { clausulaEnvioPack } from "../nucleo/envio"
 
 /**
  * HERRAMIENTA `resolver_variante` — resolución de variante AGNÓSTICA AL EJE
@@ -76,6 +77,12 @@ export interface ResultadoResolverVariante {
      * hablan al cliente (escalar en silencio, repreguntar la moto).
      */
     momento?: MomentoFrase
+    /**
+     * Cláusula de envío que corresponde a ESTE producto según la base
+     * (`nucleo/envio.ts`). El motor la usa para rellenar `{envio}` en la letra
+     * de la casa. Ausente = la letra sale sin cláusula de envío.
+     */
+    envio_frase?: string | null
     mensaje_para_agente: string
 }
 
@@ -121,6 +128,12 @@ interface GrupoVariantes {
         etiqueta: string
         precio: number
         sinonimos: string[]
+        /**
+         * Qué decimos del envío de ESTA variante, según `chat_packs.envio`
+         * (lo resuelve `nucleo/envio.ts`). Null = no corresponde prometer
+         * nada: la letra sale sin la cláusula y la guía no la nombra.
+         */
+        envio: string | null
         /** Lo que este pack NO puede cambiar, ej. "recorrido corto". Ver `contradicen()`. */
         atributoFijo: string | null
         /** Sinónimos que DESMIENTEN el atributo fijo: si el cliente dice uno, este pack no le sirve. */
@@ -202,9 +215,16 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
     if (!elegido) return null
 
     const packs = await prisma.$queryRaw<
-        { id: number; nombre: string; criterio_variante: string | null; precio: any; sinonimos_variante: string[] | null }[]
+        {
+            id: number
+            nombre: string
+            criterio_variante: string | null
+            precio: any
+            sinonimos_variante: string[] | null
+            envio: string | null
+        }[]
     >`
-        SELECT id, nombre, criterio_variante, precio, sinonimos_variante
+        SELECT id, nombre, criterio_variante, precio, sinonimos_variante, envio
         FROM chat_packs
         WHERE grupo_id = ${elegido.id} AND activo = true
         ORDER BY precio ASC
@@ -223,6 +243,7 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
             etiqueta: p.criterio_variante || p.nombre,
             precio: Number(p.precio) || 0,
             sinonimos: (p.sinonimos_variante || []).map((s) => normalizarTexto(s)).filter(Boolean),
+            envio: clausulaEnvioPack(p.envio),
             atributoFijo: fijos.get(p.id)?.atributoFijo ?? null,
             contradice: fijos.get(p.id)?.contradice ?? []
         }))
@@ -235,13 +256,21 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
  */
 async function cargarPackSuelto(
     combo: string
-): Promise<{ id: number; nombre: string; precio: number; atributoFijo: string | null; contradice: string[] } | null> {
-    const conFijo = async (p: { id: number; nombre: string; precio: any }) => {
+): Promise<{
+    id: number
+    nombre: string
+    precio: number
+    envio: string | null
+    atributoFijo: string | null
+    contradice: string[]
+} | null> {
+    const conFijo = async (p: { id: number; nombre: string; precio: any; envio: string | null }) => {
         const fijo = (await cargarAtributosFijos([p.id])).get(p.id)
         return {
             id: p.id,
             nombre: p.nombre,
             precio: Number(p.precio) || 0,
+            envio: clausulaEnvioPack(p.envio),
             atributoFijo: fijo?.atributoFijo ?? null,
             contradice: fijo?.contradice ?? []
         }
@@ -250,8 +279,8 @@ async function cargarPackSuelto(
     const comboTrim = (combo || "").trim()
     if (!comboTrim) return null
 
-    const packs = await prisma.$queryRaw<{ id: number; nombre: string; precio: any }[]>`
-        SELECT id, nombre, precio
+    const packs = await prisma.$queryRaw<{ id: number; nombre: string; precio: any; envio: string | null }[]>`
+        SELECT id, nombre, precio, envio
         FROM chat_packs
         WHERE activo = true AND grupo_id IS NULL
     `
@@ -413,6 +442,11 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 }
             }
             if (suelto) {
+                // Del envío se dice lo que diga la base para ESTE kit, no un
+                // "con envío gratis" fijo: ver `nucleo/envio.ts`.
+                const envio = suelto.envio
+                    ? ` con ${suelto.envio}`
+                    : `. Del envío de este kit no tenés dato cargado: NO prometas envío gratis ni des un monto`
                 return {
                     encontrado: true,
                     resuelta: true,
@@ -420,7 +454,8 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     etiqueta: suelto.nombre,
                     precio: suelto.precio,
                     momento: "precio_presentado",
-                    mensaje_para_agente: `SIN VARIANTES: "${suelto.nombre}" es uno solo, ${formatearPrecio(suelto.precio)} con envío gratis. No hay ninguna variante que preguntar ni definir. NO vuelvas a consultar el catálogo por esto. Contestá directamente lo que el cliente preguntó.`
+                    envio_frase: suelto.envio,
+                    mensaje_para_agente: `SIN VARIANTES: "${suelto.nombre}" es uno solo, ${formatearPrecio(suelto.precio)}${envio}. No hay ninguna variante que preguntar ni definir. NO vuelvas a consultar el catálogo por esto. Contestá directamente lo que el cliente preguntó.`
                 }
             }
             return {
@@ -658,6 +693,13 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             const avisoFijo = v.atributoFijo
                 ? ` OJO: este combo es SIEMPRE ${v.atributoFijo} — NUNCA le digas ni le des a entender lo contrario.`
                 : ""
+            // Envío: lo que dice la base para ESTA variante. Cargado y gratis,
+            // entra en la confirmación; si no consta, el paso lo dice callado
+            // (el monto no lo tenemos y el precio del envío no se inventa).
+            const envioTexto = v.envio ? ` con ${v.envio}` : ""
+            const avisoEnvio = v.envio
+                ? ""
+                : ` DEL ENVÍO NO DIGAS NADA: para esta opción no hay envío gratis cargado, así que no lo prometas ni des un monto. Si el cliente pregunta por el envío, escalá ese punto.`
             return {
                 encontrado: true,
                 resuelta: true,
@@ -673,13 +715,14 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 // volver a confirmar nada, y ofrecerle una forma de decirlo
                 // sería empujarlo justo a lo que tiene prohibido.
                 momento: args.__embudo?.varianteResuelta?.packId === v.id ? undefined : "variante_resuelta",
+                envio_frase: v.envio,
                 mensaje_para_agente:
                     args.__embudo?.varianteResuelta?.packId === v.id
                         // Ya estaba resuelta de antes: el cliente ya escuchó esta
                         // opción con su precio. Re-confirmarla es el arranque de
                         // la respuesta larga que no venía a cuento (conv 2763).
-                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.${avisoFijo}${avisoResto}`
-                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)} con envío gratis a todo el país. Confirmá esta opción al cliente, seca. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también antes de cerrar.${avisoFijo}${avisoResto}`
+                        ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)}${envioTexto}. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.${avisoFijo}${avisoResto}`
+                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)}${envioTexto}.${avisoEnvio} Confirmá esta opción al cliente, seca, con el precio. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también. Y terminá ahí: sin cierre de relleno que le pase la pelota ("cuando quieras avanzar me avisás", "cualquier cosa me decís") — si quiere avanzar lo dice solo.${avisoFijo}${avisoResto}`
             }
         }
         // El "no sé" GANA sobre el ambiguo. Un cliente que no sabe qué variante

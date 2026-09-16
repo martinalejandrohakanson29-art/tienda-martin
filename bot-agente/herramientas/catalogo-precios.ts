@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { clausulaEnvioPack, clasificarEnvioPack } from "../nucleo/envio"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { MomentoFrase } from "../frases/momentos"
 import type { EstadoEmbudo } from "./index"
@@ -67,6 +68,10 @@ export interface GrupoInfo {
         nombre: string
         criterio_variante?: string | null
         precio: number
+        /** Texto libre de envío de ESA variante (`chat_packs.envio`). Lo
+         *  interpreta `nucleo/envio.ts`: nadie lo lee crudo para decidir si
+         *  decir "gratis". */
+        envio?: string | null
         articulos_sueltos?: ArticuloSueltoInfo[]
     }[]
     articulos_sueltos?: ArticuloSueltoInfo[]
@@ -742,6 +747,7 @@ export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promi
                     nombre: v.nombre,
                     criterio_variante: v.criterio_variante ?? null,
                     precio: v.precio,
+                    envio: v.envio,
                     articulos_sueltos: v.articulos_sueltos
                 }))
 
@@ -1049,7 +1055,11 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
 
         for (const p of packsFiltrados) {
             lineas.push(`• Kit Simple: "${p.nombre}" (ID: ${p.id})`)
-            lineas.push(`   - Precio: ${formatearPrecio(p.precio)}${p.envio ? ` - Envío: ${p.envio}` : " - Envío gratis a todo el país"}`)
+            // El texto cargado gana (lleva transportista y demora). Sin texto,
+            // `nucleo/envio.ts` decide qué se asume: el "Envío gratis a todo el
+            // país" que estaba fijo acá era esa asunción, escrita a mano.
+            const envioKit = p.envio?.trim() || clausulaEnvioPack(p.envio)
+            lineas.push(`   - Precio: ${formatearPrecio(p.precio)}${envioKit ? ` - Envío: ${envioKit}` : " - Envío: SIN DATO, no lo menciones"}`)
             if (packYaPresentado(p)) {
                 lineas.push(`   - YA PRESENTADO: el cliente ya recibió en esta charla la ficha completa, la foto y el precio de este kit.`)
                 lineas.push(`   - PROHIBIDO reenviar el mensaje de bienvenida, la lista de "qué incluye", la foto o repetir el precio que ya le diste.`)
@@ -1077,10 +1087,14 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
 
         for (const g of gruposFiltrados) {
             lineas.push(`• Combo: "${g.nombre}" (ID: ${g.id})`)
+            // El renglón del envío sale solo si TODAS las variantes lo tienen
+            // gratis: en un combo mitad y mitad, un "Envío gratis a todo el
+            // país!" al pie es falso para la mitad de las opciones.
+            const envioTodasGratis =
+                g.variantes.length > 0 && g.variantes.every((v) => clasificarEnvioPack(v.envio) === "gratis")
             const bloqueVariantes = [
                 ...g.variantes.map((v) => `👉🏼 ${v.criterio_variante || v.nombre}: ${formatearPrecio(v.precio)}`),
-                "",
-                "Envío gratis a todo el país!"
+                ...(envioTodasGratis ? ["", "Envío gratis a todo el país!"] : [])
             ].join("\n")
 
             if (grupoYaPresentado(g)) {
@@ -1091,7 +1105,10 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                 lineas.push(`   - YA PRESENTADO: el cliente ya recibió en esta charla la ficha, la foto y las opciones con precio de este combo.`)
                 lineas.push(`   - PROHIBIDO reenviar el mensaje de bienvenida, la lista de "qué incluye", la foto o volver a listar las variantes.`)
                 if (embudo.varianteResuelta) {
-                    lineas.push(`   - Variante YA definida: "${embudo.varianteResuelta.etiqueta}" ${formatearPrecio(embudo.varianteResuelta.precio)} con envío gratis. Ya se lo dijiste: NO se lo repitas salvo que él pregunte el precio de nuevo.`)
+                    const envioVarianteDefinida = clausulaEnvioPack(
+                        g.variantes.find((v) => v.id === embudo.varianteResuelta?.packId)?.envio
+                    )
+                    lineas.push(`   - Variante YA definida: "${embudo.varianteResuelta.etiqueta}" ${formatearPrecio(embudo.varianteResuelta.precio)}${envioVarianteDefinida ? ` con ${envioVarianteDefinida}` : ""}. Ya se lo dijiste: NO se lo repitas salvo que él pregunte el precio de nuevo.`)
                 } else {
                     lineas.push(`   - Precios de referencia (solo por si el cliente vuelve a preguntar el precio): ${g.variantes.map((v) => `${v.criterio_variante || v.nombre} ${formatearPrecio(v.precio)}`).join(" / ")}.`)
                 }

@@ -16,8 +16,14 @@
  * escribir mal. Se cae el artículo junto con el placeholder, o no se cae nada.
  */
 import { rellenarFrase, esMomentoValido, MOMENTOS, tituloMomento } from "../frases/momentos"
+import { clasificarEnvioPack, clausulaEnvioPack } from "../nucleo/envio"
 
-const TODO = { moto: "Gilera Smash 110", kit: "Combo 110 a 120 corto", precio: "$99.990" }
+const TODO = {
+    moto: "Gilera Smash 110",
+    kit: "Combo 110 a 120 corto",
+    precio: "$99.990",
+    envio: "envío gratis a todo el país"
+}
 
 interface Caso {
     titulo: string
@@ -102,7 +108,7 @@ const casos: Caso[] = [
     },
     {
         titulo: "los placeholders declarados por momento son los que sabemos rellenar",
-        ok: MOMENTOS.every((m) => m.placeholders.every((p) => ["{moto}", "{kit}", "{precio}"].includes(p)))
+        ok: MOMENTOS.every((m) => m.placeholders.every((p) => ["{moto}", "{kit}", "{precio}", "{envio}"].includes(p)))
     },
     {
         titulo: "el ejemplo de cada momento solo usa placeholders que ese momento declara",
@@ -110,6 +116,49 @@ const casos: Caso[] = [
             const usados = m.ejemplo.match(/\{[a-z]+\}/g) || []
             return usados.every((u) => m.placeholders.includes(u))
         })
+    },
+    // ── Envío: la cláusula sale del dato, no de la letra ─────────────────────
+    {
+        titulo: "el envío entra en la frase cuando corresponde",
+        ok:
+            rellenarFrase("El kit cuesta {precio} con {envio}", TODO) ===
+            "El kit cuesta $99.990 con envío gratis a todo el país"
+    },
+    {
+        // Es TODO el punto del placeholder: sin envío gratis cargado, la frase
+        // no puede quedar prometiéndolo ni cortada en "con".
+        titulo: "sin envío no queda 'con' colgando ni se promete gratis",
+        ok:
+            rellenarFrase("El kit cuesta {precio} con {envio}", { precio: "$99.990" }) ===
+            "El kit cuesta $99.990"
+    },
+    {
+        titulo: "un envío que no es gratis no lo rellena nadie",
+        ok: rellenarFrase("Te queda en {precio} con {envio}", { precio: "$99.990", envio: "" }) ===
+            "Te queda en $99.990"
+    },
+    {
+        titulo: "el texto de un kit gratis se clasifica gratis",
+        ok:
+            clasificarEnvioPack(
+                "Envío gratis a todo el país por Andreani a domicilio. Demora de 4 a 6 días hábiles."
+            ) === "gratis"
+    },
+    {
+        titulo: "un envío a cargo del cliente no es gratis",
+        ok: clasificarEnvioPack("El envío lo paga el cliente al recibir.") === "con_costo"
+    },
+    {
+        // Habla del transportista y la demora, del precio no dice nada: no se
+        // inventa ni gratis ni un monto.
+        titulo: "un texto que no habla del precio del envío queda sin dato",
+        ok: clasificarEnvioPack("Sale por Andreani a domicilio, 4 a 6 días hábiles.") === "sin_dato"
+    },
+    {
+        titulo: "un kit gratis da la cláusula y uno con costo no da ninguna",
+        ok:
+            clausulaEnvioPack("Envío gratis a todo el país") === "envío gratis a todo el país" &&
+            clausulaEnvioPack("El envío va aparte") === null
     },
     { titulo: "tituloMomento devuelve el título del catálogo", ok: tituloMomento("cierre") === "Cierre del mensaje" },
     { titulo: "tituloMomento de uno desconocido devuelve la clave", ok: tituloMomento("nada") === "nada" }

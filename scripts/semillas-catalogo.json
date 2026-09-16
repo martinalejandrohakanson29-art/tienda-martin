@@ -1,5 +1,5 @@
 {
-  "_generado": "2026-09-16T17:23:00.289Z",
+  "_generado": "2026-09-16T21:25:11.083Z",
   "_leeme": "Generado por scripts/config-catalogo.ts. No editar a mano: cambiar en /admin/chatwoot y volver a exportar.",
   "datos": {
     "chat_pack_grupos": [
@@ -650,6 +650,50 @@
           "que viene de regalo"
         ],
         "instruccion": "Si el combo ya tiene un regalo oficial cargado en el catalogo, recordaselo con orgullo. Si pide extras que no estan incluidos, rechazo simpatico sin inventar: \"Jaja viene tal cual la publicacion amigo, completito listo para armar con envio gratis!\". PROHIBIDO prometer regalos que no figuren en la base de datos."
+      }
+    ],
+    "chat_frases": [
+      {
+        "frase": "A la {moto} le entra perfecto sin modificar nada",
+        "momento": "compat_confirmada",
+        "activo": true,
+        "orden": 20
+      },
+      {
+        "frase": "Buenísimo, para tu {moto} el kit queda en {precio} con {envio}",
+        "momento": "variante_resuelta",
+        "activo": true,
+        "orden": 20
+      },
+      {
+        "frase": "Dale, para tu {moto} te queda en {precio} con {envio}",
+        "momento": "variante_resuelta",
+        "activo": true,
+        "orden": 40
+      },
+      {
+        "frase": "Este kit va perfecto a la {moto}",
+        "momento": "compat_confirmada",
+        "activo": true,
+        "orden": 10
+      },
+      {
+        "frase": "Genial, el kit para tu {moto} cuesta {precio} con {envio}",
+        "momento": "variante_resuelta",
+        "activo": true,
+        "orden": 10
+      },
+      {
+        "frase": "Perfecto, ese kit sale {precio} con {envio}",
+        "momento": "variante_resuelta",
+        "activo": true,
+        "orden": 30
+      },
+      {
+        "frase": "si, va perfecto en la {moto}",
+        "momento": "compat_confirmada",
+        "activo": true,
+        "orden": 30
       }
     ],
     "motos_modelos": [

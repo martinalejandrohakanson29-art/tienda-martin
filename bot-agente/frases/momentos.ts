@@ -51,21 +51,21 @@ export const MOMENTOS: DefinicionMomento[] = [
         momento: "variante_resuelta",
         titulo: "Se definió la variante",
         cuando: "Cuando ya se sabe qué opción lleva (recorrido, leva, color) y se confirma con su precio.",
-        placeholders: ["{kit}", "{precio}", "{moto}"],
-        ejemplo: "Entonces vas con {kit}, te queda en {precio} con el envío incluido"
+        placeholders: ["{kit}", "{precio}", "{moto}", "{envio}"],
+        ejemplo: "Entonces vas con {kit}, te queda en {precio} con {envio}"
     },
     {
         momento: "precio_presentado",
         titulo: "Se presenta el kit con su precio",
         cuando: "Cuando se le pasan las opciones del combo y los precios por primera vez.",
-        placeholders: ["{kit}", "{precio}"],
-        ejemplo: "Mirá, el {kit} te sale {precio} con envío gratis a todo el país"
+        placeholders: ["{kit}", "{precio}", "{envio}"],
+        ejemplo: "Mirá, el {kit} te sale {precio} con {envio}"
     },
     {
         momento: "pieza_suelta",
         titulo: "Precio de una pieza sola",
         cuando: "Cuando el cliente pide una pieza por separado y se le cotiza.",
-        placeholders: ["{kit}", "{precio}"],
+        placeholders: ["{kit}", "{precio}", "{envio}"],
         ejemplo: "La {kit} sola te queda en {precio}"
     },
     {
@@ -97,6 +97,13 @@ export interface DatosFrase {
     moto?: string | null
     kit?: string | null
     precio?: string | null
+    /**
+     * La clausula de envio que corresponde a ESE producto, segun lo cargado en
+     * la base (la resuelve `nucleo/envio.ts`, la pasa la herramienta). Vacia
+     * cuando el envio no es gratis o no hay dato: ahi la frase sale sin la
+     * clausula en vez de prometer algo que no consta.
+     */
+    envio?: string | null
 }
 
 /**
@@ -115,11 +122,12 @@ export function rellenarFrase(frase: string, datos: DatosFrase): string {
     const valores: Record<string, string | undefined> = {
         moto: datos.moto?.trim() || undefined,
         kit: datos.kit?.trim() || undefined,
-        precio: datos.precio?.trim() || undefined
+        precio: datos.precio?.trim() || undefined,
+        envio: datos.envio?.trim() || undefined
     }
 
     let texto = frase
-    for (const clave of ["moto", "kit", "precio"] as const) {
+    for (const clave of ["moto", "kit", "precio", "envio"] as const) {
         const soloLlave = new RegExp(`\\{${clave}\\}`, "g")
         const valor = valores[clave]
         if (valor) {

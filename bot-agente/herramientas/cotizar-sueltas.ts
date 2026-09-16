@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { MomentoFrase } from "../frases/momentos"
 import { formatearPrecioAR } from "../nucleo/texto"
+import { clausulaEnvioPack } from "../nucleo/envio"
 import { obtenerCostoEnvioSueltas, type ArticuloSueltoInfo } from "./catalogo-precios"
 
 /**
@@ -50,6 +51,13 @@ export interface ResultadoCotizarSueltas {
     packs_que_cubren: PackQueCubre[]
     /** Momento del embudo resuelto, para la letra de la casa (`bot-agente/frases`). */
     momento?: MomentoFrase
+    /**
+     * Cláusula de envío para rellenar `{envio}` en la letra de la casa. El
+     * envío gratis del kit NO se hereda a la pieza suelta: acá sale de
+     * `chat_articulos.envio_gratis` del conjunto pedido, y es null cuando lo
+     * paga el cliente o falta el dato.
+     */
+    envio_frase?: string | null
     mensaje_para_agente: string
 }
 
@@ -238,7 +246,7 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
             lineas.push("")
             lineas.push(
                 `PACK ARMADO QUE YA CUBRE LO QUE PIDIÓ: "${mejor.nombre}" a ${formatearPrecioAR(mejor.precio)}${
-                    mejor.envio ? " con envío gratis" : ""
+                    clausulaEnvioPack(mejor.envio) ? ` con ${clausulaEnvioPack(mejor.envio)}` : ""
                 }.`
             )
             if (mejor.agrega.length > 0) {
@@ -273,6 +281,15 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
             total_con_envio: totalConEnvio,
             packs_que_cubren: packsQueCubren,
             momento: "pieza_suelta",
+            envio_frase:
+                envio === "gratis"
+                    ? "envío gratis"
+                    : // Lo paga el cliente pero el costo ya está cargado y
+                      // sumado al total: ahí "incluido" es literal, no un
+                      // regalo. Sin monto cargado, la letra no habla de envío.
+                      envio === "lo_paga_el_cliente" && costoEnvio != null
+                      ? "el envío ya incluido en ese total"
+                      : null,
             mensaje_para_agente: lineas.join("\n")
         }
     } catch (error: any) {

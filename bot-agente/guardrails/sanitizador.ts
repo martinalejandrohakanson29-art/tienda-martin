@@ -1,4 +1,4 @@
-import { normalizarTexto } from "../nucleo/texto"
+import { normalizarTexto, STOP_WORDS_CATALOGO } from "../nucleo/texto"
 /**
  * Guardrail y sanitizador determinista de salida.
  * Se ejecuta en código puro sobre cualquier texto generado por la IA
@@ -542,6 +542,73 @@ export function quitarDerivacionAnunciada(texto: string | null | undefined): str
     for (const linea of lineas) {
         const oraciones = linea.split(/(?<=[.!?])\s+/)
         const conservadas = oraciones.filter((o) => !FRASES_DERIVACION_ANUNCIADA.some((rx) => rx.test(o)))
+        salida.push(conservadas.join(" ").trim())
+    }
+
+    return salida.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+}
+
+/**
+ * Oraciones donde el bot NIEGA que algo venga incluido, que vaya con el kit o
+ * que lo tengamos.
+ *
+ * Por qué existe: con el escalado parcial el bot sigue hablando después de
+ * derivar un producto que el catálogo no encontró — y el reflejo del modelo es
+ * cerrar ese tema él mismo con un "no viene incluido" / "va aparte". Es
+ * exactamente lo que acaba de derivar porque NO lo sabe: la búsqueda sin match
+ * no significa que no lo vendamos (conv 4301, 16/09: el cliente pidió "el combo
+ * y aparte todo el kit con carbu y todos los chinches", el catálogo todavía no
+ * encontraba el combo que trae el carburador, se escaló bien... y el mismo
+ * mensaje le contestó "El carburador y esos chiches van aparte, no vienen
+ * incluidos").
+ */
+const FRASES_NIEGAN_PRODUCTO = [
+    /\bno\s+(vienen?|van|trae[n]?|incluye[n]?|inclu[ií]d[oa]s?)\b/i,
+    /\bno\s+(est[áa]n?|viene[n]?)\s+inclu/i,
+    /\b(va|van|viene[n]?|ir[íi]a[n]?)\s+(aparte|a\s+parte|por\s+separado|por\s+su\s+cuenta)\b/i,
+    /\bse\s+(vende[n]?|compra[n]?|cotiza[n]?)\s+(aparte|por\s+separado)\b/i,
+    /\bno\s+(lo|la|los|las|le)?\s*(tenemos|manejamos|vendemos|trabajamos|armamos|hacemos)\b/i,
+    /\bno\s+(contamos|disponemos)\s+con\b/i,
+]
+
+/** Tokens con los que se decide si una oración habla del producto derivado. */
+function tokensDeProducto(texto: string | null | undefined): string[] {
+    return normalizarTexto(texto || "")
+        .split(" ")
+        .filter((w) => w.length >= 3 && !STOP_WORDS_CATALOGO.has(w))
+}
+
+/**
+ * Saca las oraciones que NIEGAN justo el producto que este turno derivó al
+ * equipo. Devuelve el texto sin ellas (puede quedar vacío: ahí el turno se
+ * resuelve en silencio, que es la salida segura).
+ *
+ * `terminosDerivados` son las búsquedas del turno que volvieron sin match: lo
+ * que no encontramos y por eso se escaló. La oración solo se cae si NOMBRA algo
+ * de eso — una negativa sobre otra cosa ("el combo no trae la leva", con el kit
+ * 250 derivado) es una respuesta legítima al resto de la ráfaga y se conserva.
+ */
+export function quitarNegativaSobreLoDerivado(
+    texto: string | null | undefined,
+    terminosDerivados: string[]
+): string {
+    const t = (texto || "").trim()
+    if (!t) return ""
+
+    const tokensDerivados = new Set<string>()
+    for (const termino of terminosDerivados || []) {
+        for (const tok of tokensDeProducto(termino)) tokensDerivados.add(tok)
+    }
+    if (tokensDerivados.size === 0) return t
+
+    const lineas = t.split(/\n/)
+    const salida: string[] = []
+    for (const linea of lineas) {
+        const oraciones = linea.split(/(?<=[.!?])\s+/)
+        const conservadas = oraciones.filter((o) => {
+            if (!FRASES_NIEGAN_PRODUCTO.some((rx) => rx.test(o))) return true
+            return !tokensDeProducto(o).some((tok) => tokensDerivados.has(tok))
+        })
         salida.push(conservadas.join(" ").trim())
     }
 

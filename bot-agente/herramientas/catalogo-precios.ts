@@ -306,6 +306,11 @@ function bloqueComposicion(opciones: OpcionesComposicion): string[] {
         // Nivel 1: lo que el catálogo vende suelto. Si no está vinculado al kit,
         // NO viene, y eso es dato duro (el fix del kit dakar 200 que "traía" leva).
         `   - Si el cliente pregunta por una PIEZA ENTERA que no figura arriba (${listaCategorias}: cosas que vendemos por separado), la respuesta es que NO viene incluida. PROHIBIDO afirmar que la incluye porque otro kit del catálogo la traiga o porque el nombre del kit suene parecido. Si figura abajo como artículo suelto, podés decirle que va aparte.`,
+        // Nivel 1.b: "quiero el combo Y APARTE el kit con carbu" no es una
+        // pregunta de composición, es el pedido de OTRO producto. Contestarlo
+        // con la negativa de arriba cierra una venta que sí tenemos armada
+        // (conv 4301, 16/09: el combo con codo y carburador existe).
+        `   - OJO: lo de arriba vale cuando PREGUNTA si la pieza viene en este kit ("trae carburador?"). Si lo que hace es PEDIR ese otro producto ("y aparte el kit con carbu", "tenés el completo con todo"), NO le contestes que no viene: eso es otro producto, buscalo en el catálogo por el nombre de esa pieza. Si aun así no aparece, ejecutá escalar_a_humano y guardá silencio sobre ESE punto — nunca le digas que no lo tenemos.`,
         // Nivel 2: sub-piezas. La lista NO es exhaustiva hacia adentro: nadie
         // escribió "no trae seguros". Negar acá es inventar (conv 3707: el bot
         // dijo que el cilindro no traía pistón; el detalle dice que sí).

@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto } from "./nucleo/texto"
@@ -1340,6 +1340,14 @@ export async function ejecutarTurnoAgente(
     let catalogoSinMatchEnTurno = false
 
     /**
+     * Qué buscó el modelo en el catálogo y volvió sin nada. Es la lista de lo
+     * que NO sabemos de este turno: si además se derivó al equipo, el bot no
+     * puede cerrar esos temas él mismo con un "no viene incluido" / "va aparte"
+     * (conv 4301, 16/09). Ver `quitarNegativaSobreLoDerivado`.
+     */
+    const terminosSinMatchEnTurno: string[] = []
+
+    /**
      * Ya se le entregó la ficha del kit en lugar de derivar una duda técnica.
      * Pasa una sola vez por turno: si después de leerla el modelo insiste en
      * derivar, es que el dato no está y la consulta es del equipo.
@@ -1592,8 +1600,18 @@ export async function ejecutarTurnoAgente(
                 const sinAnuncioDeDerivacion = escaladoParcial
                     ? quitarDerivacionAnunciada(sinHechosRepetidos)
                     : sinHechosRepetidos
-                if (sinAnuncioDeDerivacion && !pareceRespuestaNoConfiable(sinAnuncioDeDerivacion)) {
-                    mensajesFinalesSanitizados.push(sinAnuncioDeDerivacion)
+                /**
+                 * El producto derivado no se cierra con una negativa propia:
+                 * justo eso es lo que el catálogo no encontró y por lo que se
+                 * escaló. Una búsqueda sin match NO prueba que no lo vendamos
+                 * (conv 4301: se le dijo "el carburador y esos chiches van
+                 * aparte" cuando el combo que los trae existe).
+                 */
+                const sinNegativaDeLoDerivado = escaladoParcial
+                    ? quitarNegativaSobreLoDerivado(sinAnuncioDeDerivacion, terminosSinMatchEnTurno)
+                    : sinAnuncioDeDerivacion
+                if (sinNegativaDeLoDerivado && !pareceRespuestaNoConfiable(sinNegativaDeLoDerivado)) {
+                    mensajesFinalesSanitizados.push(sinNegativaDeLoDerivado)
                 }
             }
 
@@ -2031,6 +2049,8 @@ export async function ejecutarTurnoAgente(
                 // acá el catálogo no se puede listar entero como reintento.
                 if (call.function.name === "consultar_catalogo_y_precios" && ejecucion.resultado?.encontrado === false) {
                     catalogoSinMatchEnTurno = true
+                    const termino = (ejecucion.argumentos?.termino_busqueda || "").trim()
+                    if (termino) terminosSinMatchEnTurno.push(termino)
                 }
 
                 // 3. LA NEGATIVA DE COMPATIBILIDAD NO SE SIRVE A CIEGAS.

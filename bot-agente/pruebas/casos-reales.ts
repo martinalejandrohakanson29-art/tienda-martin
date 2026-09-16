@@ -1536,12 +1536,13 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeLlamarHerramientas: ["match_plantilla_publicidad"],
             debeEscalarHumano: false,
             debeGuardarSilencio: false,
-            // La ficha oficial del kit, con su precio.
-            patronRespuesta: /99\.990/,
+            // La ficha oficial del kit, entera: con su saludo de arranque (vuelve
+            // de otra charla, no es un globo a mitad de conversación) y su precio.
+            patronRespuesta: /^hola[\s\S]*99\.990/i,
             // Ni el reproche ni la repregunta de la moto (esa ya la sabemos).
             patronProhibido: /ya te (confirm|dij|pas)|dato puntual|a que moto|a qué moto/i,
             descripcionEsperada:
-                "Volvió a entrar por el anuncio a la semana: sale la bienvenida oficial del Kit 170 con su precio (costo $0), sin echarle en cara lo que se habló la semana pasada y sin repreguntar la moto."
+                "Volvió a entrar por el anuncio a la semana: sale la bienvenida oficial del Kit 170 entera —saludo, precio y foto, costo $0—, sin echarle en cara lo que se habló la semana pasada y sin repreguntar la moto (esa la sabemos)."
         }
     }
 ]

@@ -924,8 +924,10 @@ export async function ejecutarTurnoAgente(
                 palabrasProhibidas: config.palabrasProhibidas,
                 permitirBro: config.permitirBro,
                 // Mid-charla: sacar el saludo inicial de la plantilla, pero el
-                // cuerpo (kit, precio, pregunta) sale igual.
-                esConversacionEnCurso: historialPrevio.length > 0
+                // cuerpo (kit, precio, pregunta) sale igual. Salvo que el cliente
+                // esté volviendo de otra charla (`esCharlaNueva`): ahí la ficha
+                // sale entera, con su "Hola amigo!", igual que la primera vez.
+                esConversacionEnCurso: historialPrevio.length > 0 && !esCharlaNueva(estadoConv)
             })
 
             // El cliente casi nunca manda SOLO la plantilla: uno o dos segundos

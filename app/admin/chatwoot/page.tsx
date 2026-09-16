@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes, MessagesSquare, ListChecks } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes, MessagesSquare, ListChecks, MessageSquareQuote } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -78,6 +78,13 @@ export default async function ChatwootPage() {
             icon: <ListChecks className="h-8 w-8 text-orange-600" />,
             href: "/admin/chatwoot/situaciones",
             color: "border-l-4 border-l-orange-500"
+        },
+        {
+            title: "Letra de la Casa (nuevo)",
+            description: "Cómo querés que el bot diga cada momento de la venta (que el kit le va, el precio, el cierre). Cargás la frase y él la usa como registro. Un momento sin frases lo redacta con su voz.",
+            icon: <MessageSquareQuote className="h-8 w-8 text-teal-600" />,
+            href: "/admin/chatwoot/frases",
+            color: "border-l-4 border-l-teal-500"
         },
         {
             title: "Prueba de Mensajes (n8n viejo)",

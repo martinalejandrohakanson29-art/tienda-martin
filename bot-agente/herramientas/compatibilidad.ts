@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import { normalizarTexto, distanciaOSA, puntuarItemCatalogo } from "../nucleo/texto"
+import type { MomentoFrase } from "../frases/momentos"
 import {
     resolverMoto,
     listarCandidatos,
@@ -255,6 +256,13 @@ export interface ResultadoCompatibilidad {
     coincidencia_moto?: "exacta" | "aproximada"
     candidatos?: string[]
     detalle?: string | null
+    /**
+     * Momento del embudo que este paso resolvió, para que el motor le pegue la
+     * letra de la casa (ver `bot-agente/frases`). Solo lo llevan los veredictos
+     * POSITIVOS: la negativa ya tiene su texto editable propio
+     * (`chat_config.mensaje_incompatibilidad`) y los escalados van en silencio.
+     */
+    momento?: MomentoFrase
     mensaje_para_agente: string
 }
 
@@ -747,6 +755,7 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                     kit: args.kit_nombre_o_id,
                     compatible,
                     detalle: detalleUnanime || undefined,
+                    momento: compatible ? "compat_confirmada" : undefined,
                     mensaje_para_agente: compatible
                         ? [
                               `CONFIRMADO: Es COMPATIBLE con la ${args.modelo_moto}. Todas las versiones de esa familia que tengo cargadas le van a este kit, así que no hace falta que le preguntes cuál tiene.`,
@@ -1245,13 +1254,14 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
                     kit: args.kit_nombre_o_id,
                     compatible: true,
                     detalle: mejorMatch.detalle,
+                    momento: "compat_confirmada",
                     mensaje_para_agente: `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}
 ⚠️ ATENCIÓN VENDEDOR (MÚLTIPLES COMBOS ENCONTRADOS PARA ESTA CONSULTA):
 Para '${args.kit_nombre_o_id}' existen ${gruposCoincidentes.length} combos o kits diferentes en el catálogo:
 ${listaOpciones}
 
 REGLA DE MOSTRADOR (PASO 1 DEL EMBUDO - IDENTIFICAR EL COMBO):
-- Confirmale al cliente con buena onda que le va de diez a su ${mejorMatch.modelo_moto}.
+- Confirmale al cliente que es compatible con su ${mejorMatch.modelo_moto}.
 - Presentale las ${gruposCoincidentes.length} opciones disponibles y preguntale: "Cuál de las opciones estás buscando?" (o "Cuál de los dos estás buscando?").
 - ⛔ PROHIBIDO preguntar por recorrido corto/largo, levas o variantes todavía: primero el cliente debe elegir cuál de los combos busca armar.`
                 }
@@ -1274,8 +1284,9 @@ REGLA DE MOSTRADOR (PASO 1 DEL EMBUDO - IDENTIFICAR EL COMBO):
                         kit: mejorMatch.kit,
                         compatible: true,
                         detalle: mejorMatch.detalle,
+                        momento: "compat_confirmada",
                         mensaje_para_agente: `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""}
-VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirmale directamente que le va perfecto en ${args.variante_elegida}. Si preguntó algo más en el mismo mensaje, respondé eso también antes de cerrar.`
+VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirmáselo directamente para esa opción. Si preguntó algo más en el mismo mensaje, respondé eso también antes de cerrar.`
                     }
                 }
 
@@ -1306,6 +1317,7 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
                     kit: mejorMatch.kit,
                     compatible: true,
                     detalle: mejorMatch.detalle,
+                    momento: "compat_confirmada",
                     mensaje_para_agente: lineasGuia.join("\n")
                 }
             }
@@ -1317,6 +1329,7 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirma
                 kit: mejorMatch.kit,
                 compatible: mejorMatch.compatible,
                 detalle: mejorMatch.detalle,
+                momento: mejorMatch.compatible ? "compat_confirmada" : undefined,
                 mensaje_para_agente: mejorMatch.compatible
                     ? `CONFIRMADO: Es COMPATIBLE con ${mejorMatch.modelo_moto}.${mejorMatch.detalle ? ` Detalle técnico: ${mejorMatch.detalle}` : ""} Confirmáselo corto al cliente, con tu voz. Si preguntó algo más en el mismo mensaje (envío, demora, pago...), respondé eso también antes de cerrar.`
                     : await guiaIncompatibilidad({

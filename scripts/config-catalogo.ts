@@ -71,6 +71,18 @@ const TABLAS: Tabla[] = [
         campos: ["activo", "orden", "titulo", "disparadores", "instruccion"]
     },
     {
+        // La letra de la casa es el mismo caso que las situaciones: config que
+        // se escribe a mano desde el panel y que un restore se lleva. Perderla
+        // no rompe nada (el bot vuelve a redactar con su voz), pero se nota en
+        // como habla y nadie se acuerda de por que cambio.
+        //
+        // La clave natural es la frase: los id se renumeran y el `momento` se
+        // repite por diseno (varias frases por momento).
+        tabla: "chat_frases",
+        clave: "frase",
+        campos: ["momento", "activo", "orden"]
+    },
+    {
         // Los alias se editan a mano y el sweep de compatibilidad depende de
         // ellos: un alias perdido cambia veredictos sin tocar una linea de codigo.
         tabla: "motos_modelos",

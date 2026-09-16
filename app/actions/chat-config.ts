@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth-guard"
 
 import {
     MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+    MENSAJE_COMPATIBLE_DEFAULT,
     MENSAJE_VARIOS_KITS_DEFAULT,
     COSTO_ENVIO_SUELTAS_DEFAULT,
     type ChatConfig,
@@ -22,6 +23,7 @@ export async function getChatConfig(): Promise<ChatConfig> {
     const mapa = new Map(filas.map((f) => [f.clave, f.valor]))
     return {
         mensajeIncompatibilidad: mapa.get("mensaje_incompatibilidad") ?? MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+        mensajeCompatible: mapa.get("mensaje_compatible") ?? MENSAJE_COMPATIBLE_DEFAULT,
         mensajeVariosKits: mapa.get("mensaje_varios_kits") ?? MENSAJE_VARIOS_KITS_DEFAULT,
         costoEnvioSueltas: parsearCostoEnvio(mapa.get("costo_envio_sueltas")),
     }
@@ -68,6 +70,27 @@ export async function guardarMensajeIncompatibilidad(texto: string) {
     await prisma.$executeRaw`
         INSERT INTO chat_config (clave, valor, actualizado_por, actualizado_en)
         VALUES ('mensaje_incompatibilidad', ${valor}, ${autor}, now())
+        ON CONFLICT (clave)
+        DO UPDATE SET valor = EXCLUDED.valor, actualizado_por = EXCLUDED.actualizado_por, actualizado_en = now()
+    `
+    revalidatePath(RUTA)
+    return { ok: true, valor }
+}
+
+/**
+ * La contracara de la negativa: lo que el equipo manda cuando carga una
+ * compatibilidad POSITIVA desde el panel de escalados.
+ */
+export async function guardarMensajeCompatible(texto: string) {
+    const session = await requireAdmin()
+    const valor = texto.trim()
+    if (!valor) throw new Error("El mensaje no puede quedar vacío.")
+    if (valor.length > 500) throw new Error("El mensaje es demasiado largo (máx. 500 caracteres).")
+
+    const autor = session.user?.email ?? session.user?.name ?? "admin"
+    await prisma.$executeRaw`
+        INSERT INTO chat_config (clave, valor, actualizado_por, actualizado_en)
+        VALUES ('mensaje_compatible', ${valor}, ${autor}, now())
         ON CONFLICT (clave)
         DO UPDATE SET valor = EXCLUDED.valor, actualizado_por = EXCLUDED.actualizado_por, actualizado_en = now()
     `

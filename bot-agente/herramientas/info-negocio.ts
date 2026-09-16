@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import type { MomentoFrase } from "../frases/momentos"
 import { normalizarTexto } from "../nucleo/texto"
 import { contieneUrl } from "../guardrails/sanitizador"
 import { SINONIMOS_CONFIANZA } from "@/lib/temas-negocio"
@@ -45,6 +46,8 @@ export interface ResultadoInfoNegocio {
     hechos?: string[]
     /** true si este tema ya se le había contestado antes en esta charla. */
     ya_respondido?: boolean
+    /** Momento del embudo resuelto, para la letra de la casa (`bot-agente/frases`). */
+    momento?: MomentoFrase
     mensaje_para_agente: string
 }
 
@@ -290,6 +293,7 @@ INSTRUCCIÓN VITAL PARA EL VENDEDOR (UBICARSE EN TIEMPO Y ESPACIO ACTUAL):
                 respuesta_oficial: candidato.respuesta,
                 hechos,
                 ya_respondido: yaRespondido,
+                momento: "info_negocio",
                 mensaje_para_agente: mensajeAgente
             }
         }

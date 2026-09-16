@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
-import { MENSAJE_INCOMPATIBILIDAD_DEFAULT } from "@/lib/chat-config-constants"
+import { MENSAJE_INCOMPATIBILIDAD_DEFAULT, MENSAJE_COMPATIBLE_DEFAULT } from "@/lib/chat-config-constants"
 import {
     actualizarBotPausadoEnEspejo,
     actualizarDestacadoEnEspejo,
@@ -699,6 +699,7 @@ export type EscaladoChatVivo = {
 export type OpcionesAprendizaje = {
     destinos: DestinoCompat[]
     mensajeIncompatibilidad: string
+    mensajeCompatible: string
 }
 
 /** Escalados abiertos de una conversación, los 4 tipos, más nuevo primero. */
@@ -839,6 +840,7 @@ export async function opcionesAprendizajeChatVivo(): Promise<OpcionesAprendizaje
     return {
         destinos,
         mensajeIncompatibilidad: config?.mensajeIncompatibilidad?.trim() || MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+        mensajeCompatible: config?.mensajeCompatible?.trim() || MENSAJE_COMPATIBLE_DEFAULT,
     }
 }
 

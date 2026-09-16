@@ -11,6 +11,7 @@ import { Save, Loader2, Check, AlertTriangle, Trash2, Link2, Plus } from "lucide
 
 import {
     guardarMensajeIncompatibilidad,
+    guardarMensajeCompatible,
     guardarMensajeVariosKits,
     guardarCostoEnvioSueltas,
 } from "@/app/actions/chat-config"
@@ -21,11 +22,12 @@ import {
 } from "@/app/actions/info-negocio"
 import {
     MENSAJE_INCOMPATIBILIDAD_DEFAULT,
+    MENSAJE_COMPATIBLE_DEFAULT,
     MENSAJE_VARIOS_KITS_DEFAULT,
     type ChatConfig,
 } from "@/lib/chat-config-constants"
 import { FICHAS_TEMAS_NEGOCIO, SINONIMOS_CONFIANZA, type FichaTemaNegocio } from "@/lib/temas-negocio"
-import { textoIncompatibleSugerido } from "@/lib/compat-mensaje"
+import { textoIncompatibleSugerido, textoCompatibleSugerido } from "@/lib/compat-mensaje"
 
 /** Motivo de ejemplo para la vista previa: sale de una fila real de compatibilidad. */
 const DETALLE_EJEMPLO = "Para que entre hay que hacerle modificaciones al motor (alesar los cárteres)."
@@ -478,6 +480,8 @@ function RespuestasFijasBloque({
                 </CardContent>
             </Card>
 
+            <CompatibleCard valorInicial={configInicial.mensajeCompatible} onError={setError} />
+
             <VariosKitsCard valorInicial={configInicial.mensajeVariosKits} onError={setError} />
 
             <CostoEnvioCard valorInicial={configInicial.costoEnvioSueltas} onError={setError} />
@@ -488,6 +492,120 @@ function RespuestasFijasBloque({
                 de lo que escribió la persona — no usa este mensaje.
             </p>
         </section>
+    )
+}
+
+/**
+ * La contracara de la incompatibilidad: el "sí le va" que manda el equipo
+ * cuando carga una compatibilidad positiva desde el panel de escalados.
+ *
+ * Ojo con no confundirla con la letra del BOT: cuando el bot confirma una
+ * compatibilidad por su cuenta, la redacción sale de /admin/chatwoot/frases
+ * (momento "El kit le va a su moto"), porque ahí el que escribe es el modelo.
+ * Este texto se manda tal cual, sin pasar por la IA.
+ */
+function CompatibleCard({
+    valorInicial,
+    onError,
+}: {
+    valorInicial: string
+    onError: (mensaje: string | null) => void
+}) {
+    const [texto, setTexto] = useState(valorInicial)
+    const [guardado, setGuardado] = useState(valorInicial)
+    const [guardando, setGuardando] = useState(false)
+    const [ok, setOk] = useState(false)
+
+    const sinCambios = texto.trim() === guardado.trim()
+
+    async function guardar() {
+        setGuardando(true)
+        onError(null)
+        setOk(false)
+        try {
+            const res = await guardarMensajeCompatible(texto)
+            setGuardado(res.valor)
+            setTexto(res.valor)
+            setOk(true)
+            setTimeout(() => setOk(false), 2500)
+        } catch (e) {
+            onError(e instanceof Error ? e.message : "No se pudo guardar")
+        } finally {
+            setGuardando(false)
+        }
+    }
+
+    return (
+        <Card className="border-t-4 border-t-emerald-500 shadow-md">
+            <CardHeader>
+                <CardTitle className="text-xl">Mensaje de compatibilidad confirmada</CardTitle>
+                <CardDescription>
+                    Lo que se le manda al cliente cuando el equipo carga, desde los escalados, que el kit SÍ le va
+                    a su moto. Se manda tal cual, sin pasar por la IA. Podés escribir{" "}
+                    <code className="px-1 rounded bg-gray-100 text-[11px]">{"{kit}"}</code> y{" "}
+                    <code className="px-1 rounded bg-gray-100 text-[11px]">{"{moto}"}</code>. Atrás se le pega el
+                    motivo cargado en la compatibilidad, si tiene uno.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="msg-compat">Texto</Label>
+                    <Textarea
+                        id="msg-compat"
+                        value={texto}
+                        onChange={(e) => setTexto(e.target.value)}
+                        rows={2}
+                        maxLength={500}
+                        placeholder={MENSAJE_COMPATIBLE_DEFAULT}
+                    />
+                    <p className="text-xs text-gray-400">{texto.trim().length}/500</p>
+                </div>
+
+                <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">Vista previa (ejemplo con kit, moto y motivo)</Label>
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-gray-800 whitespace-pre-wrap">
+                        {textoCompatibleSugerido(texto, "Kit 120 para 110", "gilera smash 110", DETALLE_EJEMPLO) || (
+                            <span className="text-gray-400">…</span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <Button
+                        onClick={guardar}
+                        disabled={guardando || sinCambios || !texto.trim()}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    >
+                        {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Guardar
+                    </Button>
+                    {ok && (
+                        <span className="text-sm text-emerald-600 flex items-center gap-1">
+                            <Check className="h-4 w-4" /> Guardado
+                        </span>
+                    )}
+                    {!sinCambios && !ok && (
+                        <button
+                            type="button"
+                            onClick={() => setTexto(guardado)}
+                            className="text-sm text-gray-400 hover:text-gray-600 underline"
+                        >
+                            deshacer cambios
+                        </button>
+                    )}
+                </div>
+
+                {guardado.trim() !== MENSAJE_COMPATIBLE_DEFAULT.trim() && (
+                    <button
+                        type="button"
+                        onClick={() => setTexto(MENSAJE_COMPATIBLE_DEFAULT)}
+                        className="text-xs text-gray-400 hover:text-gray-600 underline"
+                    >
+                        volver al texto original
+                    </button>
+                )}
+            </CardContent>
+        </Card>
     )
 }
 

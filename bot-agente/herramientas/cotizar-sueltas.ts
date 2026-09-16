@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import type { MomentoFrase } from "../frases/momentos"
 import { formatearPrecioAR } from "../nucleo/texto"
 import { obtenerCostoEnvioSueltas, type ArticuloSueltoInfo } from "./catalogo-precios"
 
@@ -47,6 +48,8 @@ export interface ResultadoCotizarSueltas {
     /** El número que se le dice al cliente: piezas + envío cuando corresponde. */
     total_con_envio: number
     packs_que_cubren: PackQueCubre[]
+    /** Momento del embudo resuelto, para la letra de la casa (`bot-agente/frases`). */
+    momento?: MomentoFrase
     mensaje_para_agente: string
 }
 
@@ -269,6 +272,7 @@ export async function cotizarPiezasSueltas(args: ArgsCotizarSueltas): Promise<Re
             costo_envio: costoEnvio,
             total_con_envio: totalConEnvio,
             packs_que_cubren: packsQueCubren,
+            momento: "pieza_suelta",
             mensaje_para_agente: lineas.join("\n")
         }
     } catch (error: any) {

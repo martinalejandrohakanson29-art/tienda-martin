@@ -4,6 +4,21 @@
 // preámbulo ("te soy sincero") y sin adornos del modelo.
 export const MENSAJE_INCOMPATIBILIDAD_DEFAULT = 'Ese kit no le va a la {moto}.'
 
+// La contracara: la confirmacion que sale cuando el equipo carga una
+// compatibilidad POSITIVA desde el panel de escalados. Tambien es letra fija
+// (no la redacta la IA), y hasta ahora estaba cableada en dos archivos, con lo
+// cual no habia forma de cambiarla sin tocar codigo. `{kit}` y `{moto}` se
+// reemplazan por el kit cargado y la moto que dijo el cliente; atras se le
+// pega el motivo de la fila, si tiene.
+//
+// El default es el texto que venia saliendo, para que nada cambie de solo. La
+// letra propia se escribe en /admin/chatwoot/catalogo.
+//
+// OJO: esto es lo que manda el equipo desde el panel. Lo que el BOT dice al
+// confirmar una compatibilidad por su cuenta se carga en `chat_frases`
+// (momento `compat_confirmada`), porque ahi la redaccion la hace el modelo.
+export const MENSAJE_COMPATIBLE_DEFAULT = 'Sí, el {kit} le va bien a tu {moto}.'
+
 /**
  * Costo del envío cuando la pieza suelta NO va con envío gratis. Uno solo para
  * todo el catálogo: es lo que se cobra por el paquete, no por pieza. `null` =
@@ -26,6 +41,7 @@ export const MENSAJE_VARIOS_KITS_DEFAULT = 'Hola bro! Veo que estás consultando
 
 export type ChatConfig = {
     mensajeIncompatibilidad: string
+    mensajeCompatible: string
     mensajeVariosKits: string
     costoEnvioSueltas: number | null
 }

@@ -126,14 +126,15 @@ export async function armarMensajeCompatibilidad(params: {
     const detalle = (params.detalle || "").trim()
     const moto = params.modeloMoto.trim()
 
+    // Los dos textos ("sí le va" y "no le va") son editables por el equipo en
+    // /admin/chatwoot/catalogo: se usan los mismos que manda el bot, para no
+    // tener dos redacciones distintas para lo mismo.
+    const config = await obtenerConfiguracionAgente().catch(() => null)
+
     if (params.compatible) {
-        return textoCompatibleSugerido(params.kitNombre, moto, detalle)
+        return textoCompatibleSugerido(config?.mensajeCompatible || "", params.kitNombre, moto, detalle)
     }
 
-    // El texto de "no es compatible" es editable por el equipo en
-    // /admin/chatwoot/catalogo (chat_config.mensaje_incompatibilidad): se usa el
-    // mismo que manda el bot, para no tener dos redacciones distintas para lo mismo.
-    const config = await obtenerConfiguracionAgente().catch(() => null)
     return textoIncompatibleSugerido(config?.mensajeIncompatibilidad || "", moto, detalle)
 }
 

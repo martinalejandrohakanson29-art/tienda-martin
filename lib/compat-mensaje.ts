@@ -22,10 +22,26 @@ export function unirMensajeYDetalle(base: string, detalle: string): string {
     return /[.!?]$/.test(limpio) ? `${limpio} ${extra}` : `${limpio}. ${extra}`
 }
 
-/** "Sí, el Kit 120 para 110 le va bien a tu Gilera Smash." */
-export function textoCompatibleSugerido(kitNombre: string, modeloMoto: string, detalle = ""): string {
-    return unirMensajeYDetalle(`Sí, el ${kitNombre} le va bien a tu ${modeloMoto.trim()}.`, detalle)
+/**
+ * La confirmacion de compatibilidad que manda el EQUIPO desde el panel de
+ * escalados (no la que redacta el bot: esa sale de `chat_frases`).
+ *
+ * `base` es el texto editable del equipo (chat_config.mensaje_compatible), con
+ * `{kit}` y `{moto}` opcionales. Es simetrica a `textoIncompatibleSugerido`:
+ * antes la afirmativa estaba cableada en codigo — y duplicada en el panel —
+ * asi que la negativa se podia editar y la positiva no.
+ */
+export function textoCompatibleSugerido(base: string, kitNombre: string, modeloMoto: string, detalle = ""): string {
+    const moto = nombreMotoParaCliente(modeloMoto)
+    const plantilla = (base || "").trim() || MENSAJE_COMPATIBLE_SIN_DATOS
+    const texto = plantilla
+        .replace(/\{kit\}/g, (kitNombre || "").trim() || "ese kit")
+        .replace(/\{moto\}/g, moto || "esa moto")
+    return unirMensajeYDetalle(texto, detalle)
 }
+
+/** Fallback cuando el equipo dejo el texto vacio. */
+const MENSAJE_COMPATIBLE_SIN_DATOS = "Sí, el {kit} le va bien a tu {moto}."
 
 /**
  * La negativa de compatibilidad, redactada por la casa (no por la IA).

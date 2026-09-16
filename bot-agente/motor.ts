@@ -6,7 +6,8 @@ import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
 import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
-import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto } from "./nucleo/texto"
+import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
+import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
     condicionSuperada,
     guiaCondicionSuperada,
@@ -1224,12 +1225,18 @@ export async function ejecutarTurnoAgente(
         ? `${PROMPT_SISTEMA_AGENTE}\n\n### PAUTA DE ESTILO CONFIGURADA POR EL DUEÑO:\n${config.tonoEstilo}`
         : PROMPT_SISTEMA_AGENTE
 
+    // Cierres de la casa: el unico momento que no resuelve ninguna herramienta
+    // (cerrar no es un paso del embudo), asi que viaja en el contexto del turno.
+    // Sin frases cargadas devuelve "" y el bloque sale igual que antes.
+    const bloqueCierres = await bloqueCierresDeLaCasa()
+
     // Contexto de ESTE turno: cambia siempre, por eso va después del historial.
     const bloqueVariable = [
         `### CONTEXTO TEMPORAL ACTUAL EN EL LOCAL (Córdoba Capital):\nHoy es ${fechaHoraCordoba} hs.`,
         bloqueAnuncio,
         bloqueEstado,
-        bloqueSituaciones
+        bloqueSituaciones,
+        bloqueCierres ? `### CIERRES DE LA CASA${bloqueCierres}` : ""
     ].filter(Boolean).join("\n\n")
 
     // Construir los mensajes para la API
@@ -2165,6 +2172,30 @@ export async function ejecutarTurnoAgente(
                         ? ejecucion.resultado.mensaje_para_agente
                         : JSON.stringify(ejecucion.resultado))
 
+                /**
+                 * LETRA DE LA CASA (`bot-agente/frases`)
+                 * Va pegada a la guia del paso, que es donde el modelo ya esta
+                 * leyendo que hacer, y solo para el momento que esta
+                 * herramienta acaba de resolver: un turno que no llega a un
+                 * momento no paga por su letra.
+                 *
+                 * Nunca sobre una negativa ni sobre un call que escalo: esos
+                 * textos ya estan decididos (la negativa tiene su propio
+                 * `mensaje_incompatibilidad` editable, el escalado va mudo) y
+                 * ofrecerle una forma de decirlos seria empujarlo a hablar.
+                 */
+                const letraDeLaCasa =
+                    guiaNegativa || escaloEnEsteCall
+                        ? ""
+                        : await bloqueLetraDeLaCasa(ejecucion.resultado?.momento, {
+                              moto: ejecucion.resultado?.moto_confirmada || ejecucion.resultado?.modelo_moto_detectado,
+                              kit: ejecucion.resultado?.etiqueta || ejecucion.resultado?.kit,
+                              precio:
+                                  typeof ejecucion.resultado?.precio === "number"
+                                      ? formatearPrecioAR(ejecucion.resultado.precio)
+                                      : null
+                          })
+
                 mensajes.push({
                     role: "tool",
                     tool_call_id: call.id,
@@ -2173,7 +2204,7 @@ export async function ejecutarTurnoAgente(
                     // viaja pegado al resultado: es lo que le dice al modelo que
                     // calle ESE punto y siga con el resto de la ráfaga.
                     content: !escaloEnEsteCall
-                        ? contenidoParaModelo
+                        ? contenidoParaModelo + letraDeLaCasa
                         : escaladoParcial
                           ? contenidoParaModelo + CONTRATO_ESCALADO_PARCIAL
                           : contenidoParaModelo + SUFIJO_SILENCIO_TOTAL

@@ -10,7 +10,7 @@ import {
     type OpcionesAprendizaje,
     type TipoEscalado,
 } from "@/app/actions/chats-vivo"
-import { textoIncompatibleSugerido, unirMensajeYDetalle, type DestinoCompat } from "@/lib/compat-mensaje"
+import { textoIncompatibleSugerido, textoCompatibleSugerido, type DestinoCompat } from "@/lib/compat-mensaje"
 
 /**
  * Escalados del bot dentro del chat, en dos formatos según cuánto pidan del equipo:
@@ -46,12 +46,16 @@ function mensajeSugerido(params: {
     kitNombre: string
     detalle: string
     mensajeIncompatibilidad: string
+    mensajeCompatible: string
 }): string {
     if (params.compatible === null) return ""
     if (!params.compatible) {
         return textoIncompatibleSugerido(params.mensajeIncompatibilidad, params.modeloMoto, params.detalle)
     }
-    return unirMensajeYDetalle(`Sí, el ${params.kitNombre} le va bien a tu ${params.modeloMoto.trim()}.`, params.detalle)
+    // Antes la afirmativa estaba escrita de nuevo acá, así que el panel y el
+    // servidor podían mostrar textos distintos para lo mismo. Las dos salen
+    // de `lib/compat-mensaje`, con la letra que cargó el equipo.
+    return textoCompatibleSugerido(params.mensajeCompatible, params.kitNombre, params.modeloMoto, params.detalle)
 }
 
 type FormTecnica = {
@@ -131,6 +135,7 @@ export function EscaladosPanel({
                     kitNombre: destino?.nombre || item.kit || "kit",
                     detalle: siguiente.detalle,
                     mensajeIncompatibilidad: opciones?.mensajeIncompatibilidad || "",
+                    mensajeCompatible: opciones?.mensajeCompatible || "",
                 })
             }
             return { ...prev, [item.id]: siguiente }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
+import type { MomentoFrase } from "../frases/momentos"
 import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR, STOP_WORDS_CATALOGO } from "../nucleo/texto"
 import { terminoEsSoloMoto } from "../nucleo/motos"
@@ -75,6 +76,8 @@ export interface ResultadoCatalogoPrecios {
     encontrado: boolean
     packs: PackInfo[]
     grupos: GrupoInfo[]
+    /** Momento del embudo resuelto, para la letra de la casa (`bot-agente/frases`). */
+    momento?: MomentoFrase
     mensaje_para_agente: string
     /**
      * El término pedido es de otro rubro (no vendemos eso). Lo lee el motor
@@ -1166,6 +1169,7 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
             encontrado: true,
             packs: packsFiltrados,
             grupos: gruposFiltrados,
+            momento: "precio_presentado",
             mensaje_para_agente: avisoMoto + lineas.join("\n")
         }
     } catch (error: any) {

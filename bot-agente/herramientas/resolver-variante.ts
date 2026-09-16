@@ -6,6 +6,7 @@ import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucl
 import { detectarRestoNoCubierto } from "../nucleo/resto-no-cubierto"
 import { consultarCompatibilidad } from "./compatibilidad"
 import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
+import type { MomentoFrase } from "../frases/momentos"
 
 /**
  * HERRAMIENTA `resolver_variante` — resolución de variante AGNÓSTICA AL EJE
@@ -68,6 +69,13 @@ export interface ResultadoResolverVariante {
      * estado para no pasar de `TOPE_REPREGUNTAS_MOTO` (conv 3947).
      */
     repregunta_moto?: boolean
+    /**
+     * Momento del embudo que este paso acaba de resolver. El motor le pega la
+     * "letra de la casa" cargada para ese momento (ver `bot-agente/frases`).
+     * Sin momento, el paso sale sin letra: es lo normal para los que no le
+     * hablan al cliente (escalar en silencio, repreguntar la moto).
+     */
+    momento?: MomentoFrase
     mensaje_para_agente: string
 }
 
@@ -411,6 +419,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     variante_pack_id: suelto.id,
                     etiqueta: suelto.nombre,
                     precio: suelto.precio,
+                    momento: "precio_presentado",
                     mensaje_para_agente: `SIN VARIANTES: "${suelto.nombre}" es uno solo, ${formatearPrecio(suelto.precio)} con envío gratis. No hay ninguna variante que preguntar ni definir. NO vuelvas a consultar el catálogo por esto. Contestá directamente lo que el cliente preguntó.`
                 }
             }
@@ -660,6 +669,10 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 // registrada acá: antes, un turno que resolvía moto + variante
                 // juntas no guardaba la moto en el estado.
                 moto_confirmada: motoDelMensaje ? motoConfirmadaOk : undefined,
+                // "YA RESUELTA DE ANTES" no lleva letra: ese paso pide NO
+                // volver a confirmar nada, y ofrecerle una forma de decirlo
+                // sería empujarlo justo a lo que tiene prohibido.
+                momento: args.__embudo?.varianteResuelta?.packId === v.id ? undefined : "variante_resuelta",
                 mensaje_para_agente:
                     args.__embudo?.varianteResuelta?.packId === v.id
                         // Ya estaba resuelta de antes: el cliente ya escuchó esta
@@ -708,7 +721,14 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 grupo_id: grupo.id,
                 moto_confirmada: motoConfirmadaOk,
                 pregunta_directa: guiaMoto,
-                mensaje_para_agente: `Le va bien a ${motoDelMensaje}. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
+                momento: "compat_confirmada",
+                // El hecho va seco ("COMPATIBLE con X"), no redactado. Cuando
+                // esta línea arrancaba con "Le va bien a X", el modelo la
+                // copiaba tal cual y ese terminó siendo el tic de la casa:
+                // todas las confirmaciones salían con esa misma frase. La
+                // redacción la decide la letra de `chat_frases`, o el modelo
+                // con su voz si no hay ninguna cargada.
+                mensaje_para_agente: `COMPATIBLE con ${motoDelMensaje}: confirmáselo al cliente. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
             }
         }
 

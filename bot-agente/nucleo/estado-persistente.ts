@@ -84,6 +84,38 @@ export interface EstadoConversacion {
      * freno, que es el riesgo que trae permitirla (conv 3947).
      */
     repreguntasMoto?: number
+    /**
+     * Cuándo se escribió por última vez este estado, o sea cuándo fue el último
+     * turno de la charla. Es de SOLO LECTURA (lo pone la base en cada guardado):
+     * sirve para saber si lo que hay acá adentro es de la charla de ahora o de
+     * una anterior — ver `esCharlaNueva`.
+     */
+    ultimoTurnoEn?: string | null
+}
+
+/**
+ * Silencio a partir del cual lo anterior se considera otra charla (el cliente
+ * volvió a los días). Mismo umbral con el que `armarHistorialPrevio`
+ * (`lib/bot-agente-tiempo-real.ts`) corta el historial: si ahí el tramo viejo se
+ * marca como "charla anterior", acá la memoria de ese tramo tampoco puede
+ * pasar por memoria de hoy.
+ */
+export const GAP_NUEVA_SESION_MS = 6 * 60 * 60 * 1000
+
+/**
+ * ¿El cliente está volviendo después de un silencio largo? Entonces lo que dice
+ * la memoria de ENTREGA ("esto ya se lo mostraste") es de otra charla.
+ *
+ * Conv 3726 (16/09): el 09/09 entró por el anuncio del Kit 170, recibió la ficha
+ * y dijo "te confirmo esta semana". El 16/09 volvió a clickear el MISMO anuncio
+ * y, como `packPresentado` seguía puesto, la bienvenida oficial no salió y el
+ * bot le contestó "Para la Sapucai 150 ya te confirmé que entra... decime qué
+ * dato puntual querés saber": un cliente que entra de cero por una publicidad se
+ * quedó sin precio y con un reproche.
+ */
+export function esCharlaNueva(estado: EstadoConversacion): boolean {
+    if (!estado.ultimoTurnoEn) return false
+    return Date.now() - new Date(estado.ultimoTurnoEn).getTime() > GAP_NUEVA_SESION_MS
 }
 
 const VACIO: EstadoConversacion = {}
@@ -141,6 +173,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 variante_precio: any
                 moto_confirmada: string | null
                 moto_mencionada: string | null
+                actualizado_en: Date | null
                 pack_presentado_id: number | null
                 pack_presentado_nombre: string | null
                 pack_presentado_precio: any
@@ -156,7 +189,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
-                   variante_etiqueta, variante_precio, moto_confirmada, moto_mencionada,
+                   variante_etiqueta, variante_precio, moto_confirmada, moto_mencionada, actualizado_en,
                    pack_presentado_id, pack_presentado_nombre, pack_presentado_precio,
                    COALESCE(temas_respondidos, '{}') AS temas_respondidos,
                    escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en,
@@ -182,6 +215,7 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 : null,
             motoConfirmada: f.moto_confirmada || null,
             motoMencionada: f.moto_mencionada || null,
+            ultimoTurnoEn: f.actualizado_en ? new Date(f.actualizado_en).toISOString() : null,
             packPresentado: f.pack_presentado_id
                 ? {
                       id: f.pack_presentado_id,
@@ -512,6 +546,25 @@ export async function limpiarEstadoConversacion(clave?: string): Promise<void> {
     if (!clave) return
     try {
         await prisma.$executeRawUnsafe(`DELETE FROM chat_conversacion_estado WHERE clave = $1`, clave)
+    } catch {
+        /* no-op */
+    }
+}
+
+/**
+ * Atrasa el reloj del estado (solo para el banco de pruebas): deja la memoria
+ * como si el último turno de la charla hubiera sido hace N días. Es la única
+ * forma de probar las reglas que distinguen "se lo dijimos recién" de "se lo
+ * dijimos la semana pasada" — ver `esCharlaNueva`.
+ */
+export async function envejecerEstadoParaPruebas(clave: string | undefined, dias: number): Promise<void> {
+    if (!clave || !dias) return
+    try {
+        await prisma.$executeRawUnsafe(
+            `UPDATE chat_conversacion_estado SET actualizado_en = NOW() - ($2 || ' days')::interval WHERE clave = $1`,
+            clave,
+            String(dias)
+        )
     } catch {
         /* no-op */
     }

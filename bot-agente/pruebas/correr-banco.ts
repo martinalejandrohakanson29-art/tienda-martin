@@ -1,6 +1,10 @@
 import { ejecutarTurnoAgente, OpcionesEjecucion } from "../motor"
 import { MensajeChat } from "../tipos"
-import { limpiarEstadoConversacion, guardarEstadoConversacion } from "../nucleo/estado-persistente"
+import {
+    limpiarEstadoConversacion,
+    guardarEstadoConversacion,
+    envejecerEstadoParaPruebas
+} from "../nucleo/estado-persistente"
 import { CASOS_PRUEBA_REALES, CasoPrueba } from "./casos-reales"
 
 /**
@@ -64,6 +68,9 @@ async function evaluarCaso(caso: CasoPrueba, opciones: OpcionesEjecucion): Promi
         await limpiarEstadoConversacion(estadoKey)
         if (caso.estadoInicial) {
             await guardarEstadoConversacion(estadoKey, caso.estadoInicial)
+            if (caso.estadoInicialDiasAtras) {
+                await envejecerEstadoParaPruebas(estadoKey, caso.estadoInicialDiasAtras)
+            }
         }
         const resp = await ejecutarTurnoAgente(caso.mensajeCliente, historialToChat(caso.historial), {
             ...opciones,

@@ -19,6 +19,7 @@ import {
     formatearMemoriaEstado,
     unirTemas,
     esInsistenciaSinContenido,
+    esCharlaNueva,
     EstadoConversacion
 } from "./nucleo/estado-persistente"
 import { debeCallarPorCierreSocial, esDespedidaDelBot, pareceNoTeEntendi } from "./nucleo/cierre-social"
@@ -898,8 +899,19 @@ export async function ejecutarTurnoAgente(
         }
         const matchPlantilla = matchTexto || (matchRef && !matchRef.ambiguo ? matchRef : null)
 
+        // ...y la excepcion (a) tiene a su vez su propia excepcion (conv 3726,
+        // 16/09): "ya se lo presentamos" vale para ESTA charla, no para siempre.
+        // El cliente entro por el anuncio del Kit 170 el 09/09, quedo en
+        // confirmar "cuando cobre" y volvio a clickear el MISMO anuncio una
+        // semana despues: como `packPresentado` seguia puesto, la ficha no salio
+        // y el modelo le contesto "Para la Sapucai 150 ya te confirme que entra,
+        // decime que dato puntual queres saber". Un cliente que entra de cero por
+        // una publicidad se quedo sin precio y con un reproche. Pasado el silencio
+        // de sesion es una charla nueva: la ficha vuelve a salir entera (el resto
+        // del estado —su moto— sigue valiendo y le saca la repregunta del final).
         const esElMismoKitYaPresentado =
             !!matchPlantilla &&
+            !esCharlaNueva(estadoConv) &&
             ((matchPlantilla.tipo === "pack" && estadoConv.packPresentado?.id === matchPlantilla.id) ||
                 (matchPlantilla.tipo === "grupo" && estadoConv.grupoPineado?.id === matchPlantilla.id))
 

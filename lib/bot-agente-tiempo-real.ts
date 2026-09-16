@@ -17,6 +17,7 @@ import { MensajeChat, RespuestaAgente } from "@/bot-agente/tipos"
 import { obtenerConfiguracionAgente } from "@/bot-agente/configuracion"
 import {
     cargarEstadoConversacion,
+    GAP_NUEVA_SESION_MS,
     cerrarEscaladoPendienteSiRespondioHumano,
     fotoEntrega,
     revertirEntregaNoEnviada,
@@ -336,12 +337,6 @@ async function persistirEscaladoSiFalta(
 function referralDelTramo(mensajes: MensajeRaw[]): { titulo: string | null; cuerpo: string | null } | undefined {
     return [...mensajes].reverse().find((m) => !m.saliente && m.referral)?.referral
 }
-
-/**
- * Silencio a partir del cual el tramo anterior del hilo se considera una charla
- * distinta (el cliente volvio dias/semanas despues).
- */
-const GAP_NUEVA_SESION_MS = 6 * 60 * 60 * 1000
 
 /**
  * Arma el historial para el motor a partir del hilo previo (ya sin los mensajes

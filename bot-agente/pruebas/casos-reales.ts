@@ -31,6 +31,12 @@ export interface CasoPrueba {
         /** Negativa de compatibilidad que ya se le dio en un turno anterior. */
         negativaEntregada?: { moto: string; kit: string; detalle: string; en: string }
     }
+    /**
+     * Envejece el `estadoInicial`: lo deja como si el último turno de la charla
+     * hubiera sido hace N días. Sirve para los casos donde importa que la
+     * memoria sea de OTRA charla y no de la de ahora (conv 3726).
+     */
+    estadoInicialDiasAtras?: number
     resultadoEsperado: {
         debeLlamarHerramientas?: string[]
         debeEscalarHumano?: boolean
@@ -1496,6 +1502,46 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeGuardarSilencio: true,
             descripcionEsperada:
                 "El kit 190 no está cargado y la XR 150 no tiene compat con el kit del anuncio: todo lo que preguntó se deriva al equipo. Silencio total — la ficha del kit 200, con su precio, NO puede salir sola."
+        }
+    },
+    {
+        // Conv 3726 (16/09, +5491166949021). El 09/09 entró por el anuncio del
+        // Kit 170, recibió la ficha, confirmó su Sapucai 150 y cerró con "te
+        // confirmo esta semana que todavía no me pagaron". El 16/09 volvió a
+        // clickear el MISMO anuncio y, como `packPresentado` seguía puesto de la
+        // charla vieja, la bienvenida no salió: el modelo contestó "Para la
+        // Sapucai 150 ya te confirmé que entra sin modificar nada. Decime qué
+        // dato puntual querés saber". Un cliente que entra de cero por una
+        // publicidad se quedó sin precio y con un reproche.
+        //
+        // Pasado el silencio de sesión la ficha vuelve a salir entera. Su moto
+        // sigue siendo dato (por eso no se le repregunta al final).
+        id: "caso-79-vuelve-a-entrar-por-el-anuncio-a-la-semana",
+        titulo: "Re-clickea el mismo anuncio una semana después: la ficha sale de nuevo (conv 3726)",
+        mensajeCliente: "¡Hola! Quiero más información del kit170cc",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información del kit170cc" },
+            { rol: "assistant", contenido: "Hola amigo! Cuesta $99.990 envio gratis. A que moto se lo queres poner?" },
+            { rol: "user", contenido: "Sapucai 150!" },
+            { rol: "assistant", contenido: "Si, el kit 170 varillero le va directo a la Sapucai 150, sin modificar nada." },
+            { rol: "user", contenido: "Bueno te confirmo está semana que todavía no me pagaron" },
+            { rol: "assistant", contenido: "Dale, quedamos atentos! Cuando estés listo nos escribís y lo coordinamos." }
+        ],
+        estadoInicial: {
+            motoConfirmada: "sapucai 150",
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        estadoInicialDiasAtras: 7,
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["match_plantilla_publicidad"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // La ficha oficial del kit, con su precio.
+            patronRespuesta: /99\.990/,
+            // Ni el reproche ni la repregunta de la moto (esa ya la sabemos).
+            patronProhibido: /ya te (confirm|dij|pas)|dato puntual|a que moto|a qué moto/i,
+            descripcionEsperada:
+                "Volvió a entrar por el anuncio a la semana: sale la bienvenida oficial del Kit 170 con su precio (costo $0), sin echarle en cara lo que se habló la semana pasada y sin repreguntar la moto."
         }
     }
 ]

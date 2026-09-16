@@ -956,14 +956,46 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                 cierrePregunta
             ].join("\n")
 
+            /**
+             * EL MENÚ NO SE COME LA PREGUNTA DEL CLIENTE (caso-3 del banco).
+             *
+             * "Le va el kit 120 a una Zanella ZB 110?" es una pregunta de sí o
+             * no, y "kit 120" pega con tres combos. En 2 de cada 4 corridas el
+             * bot contestaba SOLO el menú de los tres nombres, sin decirle si
+             * le va — que era lo único que había preguntado.
+             *
+             * La causa eran dos instrucciones de este mismo mensaje peleándose:
+             * `avisoMoto` (arriba) le manda consultar compatibilidad antes de
+             * afirmar nada, y el paso 1 le decía que su ÚNICO objetivo era que
+             * el cliente eligiera, con un texto para mandar TAL CUAL. Cuando
+             * ganaba el segundo, la pregunta se perdía.
+             *
+             * Con la moto ya en juego el orden pasa a ser explícito: primero se
+             * contesta si le va, después el menú, todo en el mismo mensaje. Sin
+             * moto no cambia nada — ahí identificar el kit sí es lo único que
+             * hay para hacer.
+             */
+            const hayMotoEnJuego = Boolean(avisoMoto)
+
             const lineasOpciones: string[] = [
                 `CATÁLOGO OFICIAL — PASO 1: IDENTIFICAR EL KIT.`,
-                `El cliente todavía no eligió. Tu único objetivo es que elija cuál opción quiere.`,
+                hayMotoEnJuego
+                    ? `El cliente todavía no eligió cuál de estas opciones quiere, pero YA NOMBRÓ SU MOTO: antes del menú va la respuesta a lo que preguntó.`
+                    : `El cliente todavía no eligió. Tu único objetivo es que elija cuál opción quiere.`,
                 ``,
-                `TEXTO PARA ENVIAR AL CLIENTE (mandalo TAL CUAL, respetando cada 👉🏼 en su renglón; solo podés ajustar el saludo inicial):`,
+                hayMotoEnJuego
+                    ? `TEXTO PARA ENVIAR AL CLIENTE (va DESPUÉS de contestarle, en el mismo mensaje; respetá cada 👉🏼 en su renglón):`
+                    : `TEXTO PARA ENVIAR AL CLIENTE (mandalo TAL CUAL, respetando cada 👉🏼 en su renglón; solo podés ajustar el saludo inicial):`,
                 bloqueParaCliente,
                 ``,
                 `REGLAS:`,
+                ...(hayMotoEnJuego
+                    ? [
+                          `- PRIMERO lo que preguntó, DESPUÉS el menú. Si preguntó si le entra a su moto, resolvé la compatibilidad (consultar_compatibilidad, o resolver_variante si el combo tiene variantes) y arrancá el mensaje con esa respuesta.`,
+                          `- ⛔ PROHIBIDO mandar el menú solo, sin contestar lo que preguntó: para el cliente es no haberle respondido.`,
+                          `- Si la compatibilidad no consta, seguí lo que dice el aviso de la moto (escalar y silencio sobre ese punto): tampoco ahí el menú reemplaza la respuesta.`
+                      ]
+                    : []),
                 `- PROHIBIDO dar precios o variantes todavía.`,
                 `- Si el cliente NO mencionó su moto: NO preguntes por la moto todavía.`,
                 `- No agregues descripciones de lo que incluye cada kit: solo los nombres.`

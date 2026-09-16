@@ -475,7 +475,14 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         //    resueltas por el match, 25 traían moto y ninguna se validó. 23 de
         //    esas 25 ya estaban confirmadas (no cambia nada), 1 pasa a repreguntar
         //    el modelo y 1 pasa a escalar.
-        const motoDelMensaje = (args.modelo_moto || "").trim()
+        //    El embudo trae la moto de ESTE mensaje cuando el modelo no la pasa
+        //    como argumento: "Para una moto 150" no es marca ni modelo, así que
+        //    el LLM deja `modelo_moto` vacío, pero el motor sí la resolvió y la
+        //    dejó en `motoDelMensaje`. Sin leerla acá, el chequeo no corría y el
+        //    bot le preguntaba la medida de la leva de un combo que es para 110
+        //    (conv 4342, 16/09). Cuenta como moto del mensaje —no del embudo—
+        //    porque es del turno actual: puede escalar y repreguntar.
+        const motoDelMensaje = (args.modelo_moto || args.__embudo?.motoDelMensaje || "").trim()
         // Fallback: la moto que ya quedó confirmada en turnos anteriores. Sin
         // esto el chequeo no corre cuando el cliente dijo la moto hace 3 turnos
         // y el modelo no la vuelve a pasar (10 de esas 35 veces).

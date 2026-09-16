@@ -829,8 +829,15 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         resultadoEsperado: {
             debeEscalarHumano: false,
             debeGuardarSilencio: false,
-            // El kit no incluye leva: la respuesta tiene que ser negativa.
-            patronRespuesta: /\bno\b/i,
+            // El kit no incluye leva: la respuesta tiene que dejar afuera la
+            // leva. Lo que se mide es ESO, no la palabra "no": pedir un "no"
+            // literal daba falsos rojos con respuestas perfectas como "Claro,
+            // este kit va sin leva. La leva se compra aparte" — que además es
+            // la forma en que contesta la casa, sin abrir con una negación
+            // seca (ver la regla de piezas incluidas en catalogo-precios.ts).
+            // El guardián fuerte de este caso es `patronProhibido`: lo que no
+            // puede pasar es que diga que la leva viene incluida.
+            patronRespuesta: /sin leva|aparte|por separado|no (viene|la trae|lo trae|incluye)/i,
             patronProhibido: /(\bs[ií]\b,?\s*(este|ese|el)?\s*(kit|combo)?\s*(ya\s*)?(viene|trae|incluye)|\bleva incluida\b|ya viene con (la )?leva)/i,
             descripcionEsperada:
                 "La composicion oficial del kit dakar 200 no tiene leva. Debe decir que no viene incluida (puede aclarar que va aparte), sin re-mandar la ficha."

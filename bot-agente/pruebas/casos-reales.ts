@@ -1554,5 +1554,34 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Confirma el recorrido corto y enumera TODO lo que trae el combo —la tapa CDI y el cilindro 120 corto con lo que cada uno incluye—, no solo la tapa. No nombra la variante larga ni su medida."
         }
+    },
+    {
+        // Contracara del caso 80: la regla de "qué trae el kit = todas las
+        // piezas" no puede convertir una pregunta puntual en un volcado. Mismo
+        // escenario (combo presentado, variante que se resuelve en ESTE turno),
+        // pero acá pregunta por UNA pieza: la respuesta es esa pieza y nada más.
+        id: "caso-81-pregunta-puntual-de-una-pieza-no-vuelca-el-kit",
+        titulo: "Pregunta puntual por el cilindro: contesta solo el cilindro, no la composición entera",
+        mensajeCliente: "Recorrido corto. El cilindro viene con el piston?",
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola! El combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo. Tenés 2 opciones: Recorrido corto: $175.000 / Recorrido largo: $189.000. Envío gratis a todo el país! A qué moto se lo querés poner?"
+            }
+        ],
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /pist[oó]n/i,
+            // Ni la ficha de la tapa (no la preguntó) ni la variante larga.
+            patronProhibido: /v[aá]lvulas|cielo|conductos|wave nf|52[.,]4|recorrido largo|189\.000/i,
+            descripcionEsperada:
+                "Confirma el recorrido corto y contesta que el cilindro ya viene con el pistón, en dos renglones. No aprovecha para recitar la tapa CDI ni la composición entera del combo."
+        }
     }
 ]

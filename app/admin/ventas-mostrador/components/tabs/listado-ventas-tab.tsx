@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   Search,
   RefreshCcw,
@@ -19,6 +20,7 @@ import {
   History,
   CheckCircle,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +48,10 @@ interface Props {
     isLoadingVentas: boolean;
     isLoadingML: boolean;
     isSearchingGlobal: boolean;
+    avisoPendienteML?: string | null;
+    busquedaGlobalTerm?: string | null;
+    busquedaGlobalRealizada?: boolean;
+    sinResultadosGlobales?: boolean;
     mostrarSoloOffline: boolean;
     setMostrarSoloOffline: (val: boolean) => void;
     filtroPuntoVenta: string[];
@@ -67,7 +73,7 @@ interface Props {
     mostrandoGlobal: boolean;
     esBusquedaGlobal: boolean;
     handleCargar: () => Promise<void>;
-    handleBuscarGlobal: () => Promise<void>;
+    handleBuscarGlobal: (terminoManual?: string) => Promise<void>;
   };
   puntosVenta: PuntoVenta[];
   onAbrirExportModal: () => void;
@@ -110,6 +116,10 @@ export function ListadoVentasTab({
     isLoadingVentas,
     isLoadingML,
     isSearchingGlobal,
+    avisoPendienteML,
+    busquedaGlobalTerm,
+    busquedaGlobalRealizada,
+    sinResultadosGlobales,
     mostrarSoloOffline,
     setMostrarSoloOffline,
     filtroPuntoVenta,
@@ -288,9 +298,15 @@ export function ListadoVentasTab({
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
-                    placeholder="Escribe para buscar..."
+                    placeholder={esBusquedaGlobal ? "Escribe para buscar... (Enter busca en BD)" : "Escribe para buscar..."}
                     value={filtroBusquedaTexto}
                     onChange={(e) => setFiltroBusquedaTexto(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && esBusquedaGlobal && filtroBusquedaTexto.trim()) {
+                        e.preventDefault();
+                        handleBuscarGlobal();
+                      }
+                    }}
                     className="h-10 border-none focus-visible:ring-0 pl-9 text-xs w-44 sm:w-56 shadow-none"
                   />
                 </div>
@@ -301,9 +317,10 @@ export function ListadoVentasTab({
             {esBusquedaGlobal && filtroBusquedaTexto.trim() && (
               <Button
                 variant="secondary"
-                onClick={handleBuscarGlobal}
+                onClick={() => handleBuscarGlobal()}
                 disabled={isSearchingGlobal}
                 className="h-10 px-3.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold gap-1.5"
+                title="Buscar en toda la base de datos (Enter)"
               >
                 <Search className="h-3.5 w-3.5" />
                 {isSearchingGlobal ? "Buscando en BD..." : "Búsqueda Global"}
@@ -389,6 +406,22 @@ export function ListadoVentasTab({
           </div>
         )}
 
+        {/* Aviso de venta pendiente en cola de Mercado Libre */}
+        {avisoPendienteML && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center justify-between text-xs text-amber-900 font-semibold shrink-0 gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>{avisoPendienteML}</span>
+            </div>
+            <Link
+              href="/admin/mercadolibre/envios"
+              className="text-xs font-bold text-amber-800 underline hover:text-amber-950 shrink-0"
+            >
+              Ir a Envíos ML →
+            </Link>
+          </div>
+        )}
+
         {/* Tabla paginada de ventas */}
         <div className="flex-grow bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden flex flex-col">
           <div className="overflow-y-auto flex-grow h-full">
@@ -405,16 +438,43 @@ export function ListadoVentasTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoadingVentas ? (
+                {isLoadingVentas || isSearchingGlobal ? (
                   <TableRow>
                     <TableCell colSpan={7} className="py-20 text-center text-slate-400 text-xs font-medium">
-                      Cargando ventas del período...
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                        <span className="font-semibold text-slate-600">
+                          {isSearchingGlobal ? "Buscando en toda la base de datos..." : "Cargando ventas del período..."}
+                        </span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : ventasPaginadas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-20 text-center text-slate-400 text-xs italic">
-                      No hay ventas registradas que coincidan con los filtros seleccionados.
+                    <TableCell colSpan={7} className="py-20 text-center text-slate-500 text-xs">
+                      {sinResultadosGlobales ? (
+                        <div className="space-y-1.5 max-w-md mx-auto">
+                          <p className="font-bold text-slate-700 text-sm">
+                            No se encontró ninguna venta con el ID "{busquedaGlobalTerm}" en toda la base de datos.
+                          </p>
+                          <p className="text-slate-400 text-[11px]">
+                            Si es una venta reciente de Mercado Libre, verificá que el pedido haya sido procesado en la sección Envíos ML o no haya sido cancelado por el comprador.
+                          </p>
+                        </div>
+                      ) : esBusquedaGlobal && filtroBusquedaTexto.trim() ? (
+                        <div className="space-y-1.5 max-w-md mx-auto">
+                          <p className="font-semibold text-slate-600">
+                            No hay ventas en el rango de fechas seleccionado ({fechaDesde} al {fechaHasta}).
+                          </p>
+                          <p className="text-blue-600 font-bold">
+                            Presioná <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded text-[10px] font-mono">Enter</kbd> o clic en "Búsqueda Global" para buscar en todo el historial.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="italic text-slate-400">
+                          No hay ventas registradas que coincidan con los filtros seleccionados.
+                        </p>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (

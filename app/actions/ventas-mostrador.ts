@@ -2655,14 +2655,16 @@ export async function buscarVentaGlobalPorMLId(mlId: string) {
     const term = mlId.trim();
     if (term.length < 4) return { success: false, error: "Ingresá al menos 4 caracteres" };
 
-    const ventas = await prisma.venta.findMany({
+    let ventas = await prisma.venta.findMany({
       where: {
-        tipoVenta: { not: "PEDIDO" },
         OR: [
           { mlIdVenta: { contains: term } },
           { mlIdEnvio: { contains: term } },
+          { transaccionId: { contains: term } },
+          { para: { contains: term } },
           { mlPackId: { contains: term } },
           { cupon: { contains: term } },
+          { info: { contains: term } },
         ],
       },
       include: { items: true, puntoVenta: true },
@@ -2670,8 +2672,37 @@ export async function buscarVentaGlobalPorMLId(mlId: string) {
       take: 20,
     });
 
+    let avisoPendiente: string | null = null;
+    if (ventas.length === 0) {
+      const regMatches = await prisma.ventaMLRegistracion.findMany({
+        where: {
+          OR: [
+            { shippingId: { contains: term } },
+            { orderId: { contains: term } },
+            { packId: { contains: term } },
+          ],
+        },
+        take: 5,
+      });
+
+      if (regMatches.length > 0) {
+        const ventaIds = regMatches.map((r) => r.ventaId).filter(Boolean) as string[];
+        if (ventaIds.length > 0) {
+          ventas = await prisma.venta.findMany({
+            where: { id: { in: ventaIds } },
+            include: { items: true, puntoVenta: true },
+            orderBy: { createdAt: "desc" },
+          });
+        } else {
+          const primer = regMatches[0];
+          avisoPendiente = `El envío #${primer.shippingId} (Orden #${primer.orderId}) se encuentra en la cola de Mercado Libre con estado ${primer.estado}. Podés registrarlo desde la sección Envíos ML.`;
+        }
+      }
+    }
+
     return {
       success: true,
+      avisoPendiente,
       data: ventas.map(v => ({
         ...v,
         puntoVenta: v.puntoVenta || null,

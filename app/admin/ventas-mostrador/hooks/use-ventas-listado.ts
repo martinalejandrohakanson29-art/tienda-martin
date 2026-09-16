@@ -24,6 +24,8 @@ export function useVentasListado() {
   const [ventasRealizadas, setVentasRealizadas] = useState<any[]>([]);
   const [ventasML, setVentasML] = useState<any[]>([]);
   const [ventasGlobales, setVentasGlobales] = useState<any[] | null>(null);
+  const [avisoPendienteML, setAvisoPendienteML] = useState<string | null>(null);
+  const [busquedaGlobalTerm, setBusquedaGlobalTerm] = useState<string | null>(null);
 
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
   const [isLoadingML, setIsLoadingML] = useState(false);
@@ -52,6 +54,8 @@ export function useVentasListado() {
   // Limpiar ventas globales al cambiar búsqueda
   useEffect(() => {
     setVentasGlobales(null);
+    setAvisoPendienteML(null);
+    setBusquedaGlobalTerm(null);
   }, [filtroBusquedaTexto, tipoBusqueda]);
 
   const cargarVentas = useCallback(async (desde: string, hasta: string) => {
@@ -91,20 +95,26 @@ export function useVentasListado() {
     ]);
   }, [fechaDesde, fechaHasta, cargarVentas, cargarVentasML]);
 
-  const handleBuscarGlobal = useCallback(async () => {
-    if (!filtroBusquedaTexto.trim()) return;
+  const handleBuscarGlobal = useCallback(async (terminoManual?: string) => {
+    const term = (terminoManual ?? filtroBusquedaTexto).trim();
+    if (!term) return;
     setIsSearchingGlobal(true);
+    setAvisoPendienteML(null);
+    setBusquedaGlobalTerm(term);
     try {
       if (tipoBusqueda === "articulo") {
-        const res = await buscarVentaGlobalPorArticulo(filtroBusquedaTexto.trim());
+        const res = await buscarVentaGlobalPorArticulo(term);
         if (res.success) {
           setVentasGlobales(res.data || []);
           setPaginaActual(1);
         }
       } else {
-        const res = await buscarVentaGlobalPorMLId(filtroBusquedaTexto.trim());
+        const res = await buscarVentaGlobalPorMLId(term);
         if (res.success) {
           setVentasGlobales(res.data || []);
+          if (res.avisoPendiente) {
+            setAvisoPendienteML(res.avisoPendiente);
+          }
           setPaginaActual(1);
         }
       }
@@ -174,11 +184,30 @@ export function useVentasListado() {
             if (tipoBusqueda === "mla_venta") {
               const mlIdNorm = normalizeText(v.mlIdVenta);
               const mlPackNorm = normalizeText(v.mlPackId);
-              return queryWords.every((w) => mlIdNorm.includes(w) || mlPackNorm.includes(w));
+              const transaccionNorm = normalizeText(v.transaccionId);
+              const cuponNorm = normalizeText(v.cupon);
+              const deNorm = normalizeText(v.de);
+              return queryWords.every(
+                (w) =>
+                  mlIdNorm.includes(w) ||
+                  mlPackNorm.includes(w) ||
+                  transaccionNorm.includes(w) ||
+                  cuponNorm.includes(w) ||
+                  deNorm.includes(w)
+              );
             }
             if (tipoBusqueda === "mla_envio") {
               const mlEnvioNorm = normalizeText(v.mlIdEnvio);
-              return queryWords.every((w) => mlEnvioNorm.includes(w));
+              const transaccionNorm = normalizeText(v.transaccionId);
+              const paraNorm = normalizeText(v.para);
+              const cuponNorm = normalizeText(v.cupon);
+              return queryWords.every(
+                (w) =>
+                  mlEnvioNorm.includes(w) ||
+                  transaccionNorm.includes(w) ||
+                  paraNorm.includes(w) ||
+                  cuponNorm.includes(w)
+              );
             }
             return true;
           })()
@@ -203,8 +232,34 @@ export function useVentasListado() {
 
   const esBusquedaML = tipoBusqueda === "mla_venta" || tipoBusqueda === "mla_envio";
   const esBusquedaGlobal = esBusquedaML || tipoBusqueda === "articulo";
+
+  // Disparo automático de búsqueda global cuando se busca un ID de ML (>= 4 caracteres)
+  // y no se encuentra en las ventas del día actual cargadas.
+  useEffect(() => {
+    const term = debouncedBusquedaTexto.trim();
+    if (
+      esBusquedaML &&
+      term.length >= 4 &&
+      ventasFiltradas.length === 0 &&
+      ventasGlobales === null &&
+      !isSearchingGlobal
+    ) {
+      handleBuscarGlobal(term);
+    }
+  }, [
+    debouncedBusquedaTexto,
+    esBusquedaML,
+    ventasFiltradas.length,
+    ventasGlobales,
+    isSearchingGlobal,
+    handleBuscarGlobal,
+  ]);
+
   const mostrandoGlobal =
     ventasFiltradas.length === 0 && ventasGlobales !== null && ventasGlobales.length > 0;
+  const sinResultadosGlobales =
+    ventasFiltradas.length === 0 && ventasGlobales !== null && ventasGlobales.length === 0;
+  const busquedaGlobalRealizada = busquedaGlobalTerm !== null && !isSearchingGlobal;
   const ventasParaTabla = mostrandoGlobal ? ventasGlobales! : ventasFiltradas;
 
   const totalItems = ventasParaTabla.length;
@@ -225,6 +280,10 @@ export function useVentasListado() {
     ventasML,
     setVentasML,
     ventasGlobales,
+    avisoPendienteML,
+    busquedaGlobalTerm,
+    busquedaGlobalRealizada,
+    sinResultadosGlobales,
     isLoadingVentas,
     isLoadingML,
     isSearchingGlobal,

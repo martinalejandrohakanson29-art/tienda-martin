@@ -44,7 +44,10 @@ interface Props {
     ventasParaTabla: any[];
     mostrandoGlobal: boolean;
     ventasGlobales: any[] | null;
+    isSearchingGlobal?: boolean;
+    esBusquedaGlobal?: boolean;
     handleCargar: () => Promise<void>;
+    handleBuscarGlobal?: (terminoManual?: string) => Promise<void>;
   };
   puntosVenta: PuntoVenta[];
   onCopiarTexto: (texto: string) => void;
@@ -81,7 +84,10 @@ export function GestionEdicionTab({
     ventasParaTabla,
     mostrandoGlobal,
     ventasGlobales,
+    isSearchingGlobal,
+    esBusquedaGlobal,
     handleCargar,
+    handleBuscarGlobal,
   } = listado;
 
   const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
@@ -236,14 +242,34 @@ export function GestionEdicionTab({
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
                   <Input
-                    placeholder="Buscar para modificar..."
+                    placeholder={esBusquedaGlobal ? "Buscar para modificar... (Enter busca en BD)" : "Buscar para modificar..."}
                     value={filtroBusquedaTexto}
                     onChange={(e) => setFiltroBusquedaTexto(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && esBusquedaGlobal && filtroBusquedaTexto.trim() && handleBuscarGlobal) {
+                        e.preventDefault();
+                        handleBuscarGlobal();
+                      }
+                    }}
                     className="h-10 border-none focus-visible:ring-0 pl-9 text-xs w-48 shadow-none"
                   />
                 </div>
               </div>
             </div>
+
+            {/* Búsqueda global si aplica */}
+            {esBusquedaGlobal && filtroBusquedaTexto.trim() && handleBuscarGlobal && (
+              <Button
+                variant="secondary"
+                onClick={() => handleBuscarGlobal()}
+                disabled={isSearchingGlobal}
+                className="h-10 px-3.5 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 text-xs font-bold gap-1.5 border border-amber-300 shadow-xs"
+                title="Buscar en toda la base de datos (Enter)"
+              >
+                <Search className="h-3.5 w-3.5" />
+                {isSearchingGlobal ? "Buscando..." : "Búsqueda Global"}
+              </Button>
+            )}
           </div>
 
           <div className="text-right">

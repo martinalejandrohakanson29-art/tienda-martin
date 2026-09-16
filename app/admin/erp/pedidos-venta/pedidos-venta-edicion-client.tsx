@@ -283,6 +283,11 @@ export default function PedidosVentaEdicionClient({
           .map((i) => `${i.nombre} ${i.productoId || ""}`)
           .join(" ")
           .toLowerCase();
+        const mlEnvioStr = (v.mlIdEnvio || "").toLowerCase();
+        const mlVentaStr = (v.mlIdVenta || "").toLowerCase();
+        const transaccionStr = (v.transaccionId || "").toLowerCase();
+        const mlPackStr = (v.mlPackId || "").toLowerCase();
+        const infoStr = (v.info || "").toLowerCase();
 
         const match =
           nroStr.includes(term) ||
@@ -290,7 +295,12 @@ export default function PedidosVentaEdicionClient({
           clienteStr.includes(term) ||
           dniStr.includes(term) ||
           vendedorStr.includes(term) ||
-          itemsStr.includes(term);
+          itemsStr.includes(term) ||
+          mlEnvioStr.includes(term) ||
+          mlVentaStr.includes(term) ||
+          transaccionStr.includes(term) ||
+          mlPackStr.includes(term) ||
+          infoStr.includes(term);
 
         if (!match) return false;
       }
@@ -841,7 +851,7 @@ export default function PedidosVentaEdicionClient({
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por N°, Cliente, DNI, Vendedor o Artículo..."
+              placeholder="Buscar por N°, Cliente, DNI, Artículo o ID Envío/Venta ML..."
               className="h-10 pl-9 text-xs rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white"
             />
             {searchTerm && (
@@ -1014,13 +1024,33 @@ export default function PedidosVentaEdicionClient({
                         </TableCell>
 
                         <TableCell className="py-3">
-                          <span
-                            className="font-mono text-xs font-black text-slate-700 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 cursor-pointer hover:text-blue-600"
-                            onClick={() => handleCopyInfo(venta.id, venta.id)}
-                            title="Copiar ID completo"
-                          >
-                            {venta.numeroVenta ? `#${venta.numeroVenta}` : venta.id.slice(0, 8)}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span
+                              className="font-mono text-xs font-black text-slate-700 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 cursor-pointer hover:text-blue-600 w-fit"
+                              onClick={() => handleCopyInfo(venta.id, venta.id)}
+                              title="Copiar ID completo"
+                            >
+                              {venta.numeroVenta ? `#${venta.numeroVenta}` : venta.id.slice(0, 8)}
+                            </span>
+                            {venta.mlIdEnvio && (
+                              <span
+                                className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded cursor-pointer hover:bg-amber-100 w-fit"
+                                onClick={() => handleCopyInfo(venta.id, venta.mlIdEnvio!)}
+                                title="Copiar ID Envío ML"
+                              >
+                                Envío #{venta.mlIdEnvio}
+                              </span>
+                            )}
+                            {!venta.mlIdEnvio && venta.mlIdVenta && (
+                              <span
+                                className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded cursor-pointer hover:bg-sky-100 w-fit"
+                                onClick={() => handleCopyInfo(venta.id, venta.mlIdVenta!)}
+                                title="Copiar ID Venta ML"
+                              >
+                                ML #{venta.mlIdVenta}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
 
                         <TableCell className="py-3">

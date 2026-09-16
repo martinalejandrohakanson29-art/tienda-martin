@@ -1642,5 +1642,24 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "El texto que acompana al click pide otro producto (190), asi que la ficha del 170 no sale: silencio total y la consulta a la bandeja del equipo. Tampoco puede salir una negativa de compatibilidad contra una moto que el cliente no nombro."
         }
+    },
+    {
+        // Conv 4388 (16/09). Llego sin plantilla: "precio de la leva para el
+        // cb1 / es compatible con la twister 125?". Ni "cb1" ni "twister"
+        // existen en motos_modelos, asi que el motor arrancaba el turno sin
+        // saber que habia una moto en juego: el aviso del catalogo no viajaba y
+        // el backstop no miraba. El bot contesto el menu de los tres combos que
+        // pegan con "leva" — le cambio el tema al cliente. La leva que le
+        // corresponde a esa moto existe (el equipo se la vendio a mano) pero no
+        // esta en el catalogo: no hay nada que el bot pueda contestar solo.
+        id: "caso-84-moto-que-no-tenemos-cargada-va-al-equipo",
+        titulo: "Pregunta por una moto que no esta cargada: deriva, no manda el menu de kits (conv 4388)",
+        mensajeCliente: "precio de la leva para el cb1\nes compatible con la twister 125?",
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "La moto no nos consta: ninguna herramienta puede decir si le entra la leva. Silencio total y la consulta a la bandeja del equipo. PROHIBIDO el menu de kits, la ficha de un combo o repreguntarle la moto: ya la dijo."
+        }
     }
 ]

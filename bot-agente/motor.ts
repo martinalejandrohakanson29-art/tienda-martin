@@ -14,7 +14,7 @@ import {
     guiaCondicionSuperada,
     guiaNegativaYaEntregada
 } from "./nucleo/negativa-condicional"
-import { resolverMoto, cilindradaSinMarca } from "./nucleo/motos"
+import { resolverMoto, cilindradaSinMarca, motoDesconocidaMencionada, guiaMotoDesconocida } from "./nucleo/motos"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
@@ -1239,6 +1239,19 @@ export async function ejecutarTurnoAgente(
     //  - memoria de estado: lo que ya quedó resuelto en la conversación (moto, variante...)
     const situaciones = await detectarSituaciones(mensajeUsuario).catch(() => [])
     const bloqueSituaciones = formatearBloqueSituaciones(situaciones)
+
+    /**
+     * El cliente nombró una moto que NO tenemos cargada ("la twister 125").
+     * Hasta la conv 4388 (16/09) eso era indistinguible de "no dijo ninguna
+     * moto": el turno arrancaba a ciegas y el bot le contestó el menú de kits
+     * en vez de derivar la pregunta de compatibilidad. Ver
+     * `motoDesconocidaMencionada`.
+     */
+    const motoDesconocidaDelTurno = await motoDesconocidaMencionada(mensajeUsuario).catch(() => null)
+    const bloqueMotoDesconocida = motoDesconocidaDelTurno
+        ? `### MOTO QUE NO TENEMOS CARGADA:
+${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
+        : ""
     const bloqueEstado = formatearMemoriaEstado(estadoConv)
 
     // Patch de estado que se irá llenando con lo que resuelvan las herramientas
@@ -1299,6 +1312,7 @@ export async function ejecutarTurnoAgente(
         `### CONTEXTO TEMPORAL ACTUAL EN EL LOCAL (Córdoba Capital):\nHoy es ${fechaHoraCordoba} hs.`,
         bloqueAnuncio,
         bloqueEstado,
+        bloqueMotoDesconocida,
         bloqueSituaciones,
         bloqueCierres ? `### CIERRES DE LA CASA${bloqueCierres}` : ""
     ].filter(Boolean).join("\n\n")
@@ -1398,7 +1412,10 @@ export async function ejecutarTurnoAgente(
     // siendo una moto en juego, y el turno tiene que saberlo. Ver
     // `cilindradaSinMarca` — solo dispara con un marcador explícito, para no
     // confundir el numero del KIT con la cilindrada de la moto.
-    const motoDelTurno = motoDelMensajeTurno || cilindradaSinMarca(mensajeUsuario)
+    // La moto desconocida también es una moto en juego: no sabemos qué es, pero
+    // sabemos que todo lo que digamos de acá en más es SOBRE ella. Así viaja al
+    // aviso del catálogo y al backstop, igual que `cilindradaSinMarca`.
+    const motoDelTurno = motoDelMensajeTurno || cilindradaSinMarca(mensajeUsuario) || motoDesconocidaDelTurno
     const motoVigenteDeLaCharla = motoDelTurno || estadoConv.motoMencionada || null
     if (motoDelTurno && motoDelTurno !== estadoConv.motoMencionada) {
         patchEstado.motoMencionada = motoDelTurno
@@ -1733,6 +1750,61 @@ export async function ejecutarTurnoAgente(
                     escaladoHumano: true,
                     motivoEscalado,
                     escaladoPersistido,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: tokensTotales
+                }
+            }
+
+            /**
+             * BACKSTOP DE LA MOTO QUE NO TENEMOS: el cliente nombró una moto
+             * que no está cargada y el turno terminó contestando igual, sin
+             * derivar nada.
+             *
+             * Es lo que pasó en la conv 4388 (16/09): *"precio de la leva para
+             * el cb1 / es compatible con la twister 125?"* y el bot mandó el
+             * menú de los tres combos que pegan con "leva". No afirmó nada
+             * sobre la moto —por eso el backstop de abajo no lo veía— pero
+             * tampoco contestó lo que le preguntaron: le cambió el tema. Con la
+             * moto fuera del registro, NINGUNA herramienta puede decir si le
+             * entra algo, así que lo único correcto es derivar.
+             *
+             * Solo dispara cuando el modelo no derivó NADA por su cuenta: si
+             * escaló (entero o parcial) siguiendo la guía del turno, el
+             * escalado parcial manda y el resto de la ráfaga se contesta igual.
+             */
+            if (
+                motoDesconocidaDelTurno &&
+                mensajeFinalUnificado &&
+                !escaladoHumano &&
+                !escaladoParcial &&
+                !herramientasEjecutadas.some((ej) => ej.nombre === "escalar_a_humano")
+            ) {
+                console.warn(`[motor] backstop de la moto que no tenemos: "${motoDesconocidaDelTurno}" no está cargada y el turno contestó igual`)
+                const motivo = "moto_no_registrada"
+                const resumen = `El cliente preguntó por su ${motoDesconocidaDelTurno}, que no tenemos cargada, y el bot iba a contestar otra cosa: "${mensajeFinalUnificado.replace(/\n/g, " ").slice(0, 200)}"`
+                const resultadoEscalado = await escalarAHumano({
+                    motivo,
+                    resumen_consulta: resumen,
+                    modelo_moto: motoDesconocidaDelTurno,
+                    conversation_id: opciones.conversationId
+                }).catch((err) => {
+                    console.error("[motor] fallo al persistir el backstop de la moto desconocida:", err)
+                    return null
+                })
+                anotarEscaladoPendiente(motivo, resumen)
+                await persistirEstado()
+                herramientasEjecutadas.push({
+                    nombre: "escalar_a_humano",
+                    argumentos: { motivo, resumen_consulta: resumen },
+                    resultado: resultadoEscalado || { escalado: true, motivo, resumen }
+                })
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas,
+                    escaladoHumano: true,
+                    motivoEscalado: motivo,
+                    escaladoPersistido: Boolean(resultadoEscalado),
                     latenciaMs: Date.now() - inicio,
                     tokensUsados: tokensTotales
                 }

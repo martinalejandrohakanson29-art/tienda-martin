@@ -24,6 +24,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { normalizarTexto, distanciaOSA } from "./texto"
+import { vocabularioDelNegocio } from "./rubros"
 
 export interface MotoCanonica {
     id: number
@@ -170,6 +171,175 @@ export function cilindradaSinMarca(texto: string): string | null {
     if (terminaciones.length === 0 && !diceQueEsSuya) return null
 
     return [String(cilindradas[0]), ...terminaciones.map((t) => t.toUpperCase())].join(" ")
+}
+
+/**
+ * Frases con las que el cliente ENMARCA una moto. No la nombran: la presentan.
+ * Alcanzan para leer "es compatible con la twister 125?" como una pregunta
+ * sobre una moto, aunque no tengamos idea de qué es una Twister.
+ */
+const MARCOS_MOTO_FUERTES = [
+    "compatible con", "compatible para", "compatible en", "compatibles con",
+    "le va a", "le va al", "le va en", "le va la", "le va el",
+    "le entra a", "le entra al", "le entra en", "le sirve a", "le sirve al",
+    "sirve para", "sirve en", "sirve la", "sirve el", "anda en", "anda la",
+    "entra en", "entra a", "va en", "va para", "va a la", "va al",
+    "tengo una", "tengo un", "tengo la", "tengo el", "ando en", "ando una",
+    "mi moto es", "moto es una", "para mi moto", "es para una", "es para la",
+]
+
+/**
+ * Marcos DÉBILES: introducen cualquier cosa, no solo una moto ("envíos para el
+ * interior"). Solo cuentan si además aparece una cilindrada, que es lo que
+ * convierte "para el ___" en una moto ("para el cb 190").
+ */
+const MARCOS_MOTO_DEBILES = ["para", "en", "a", "con", "de"]
+
+/** Determinantes: "la twister" es una moto, "potenciar" no. */
+const DETERMINANTES = new Set(["la", "el", "una", "un", "mi", "mis", "los", "las", "unas", "unos"])
+
+/**
+ * Sustantivos de la charla que NUNCA son el nombre de una moto. Sin esto,
+ * "tengo un problema con el envío" entraba como moto desconocida: el marco
+ * ("tengo un") y el determinante están, y "problema" no es vocabulario del
+ * catálogo. Es la lista de lo que un cliente dice tener y no es una moto.
+ */
+const NO_SON_MOTO = new Set([
+    "problema", "problemas", "consulta", "consultas", "duda", "dudas", "pregunta",
+    "preguntas", "envio", "envios", "pedido", "pedidos", "presupuesto", "precio",
+    "precios", "descuento", "tema", "favor", "amigo", "amiga", "tiempo", "plata",
+    "garantia", "factura", "stock", "negocio", "local", "cuenta", "numero",
+    "mensaje", "foto", "fotos", "video", "apuro", "urgencia", "idea", "comercio",
+    "taller", "cliente", "compra", "venta", "reclamo", "problemita",
+])
+
+/** Deícticos: "compatible con eso" no nombra ninguna moto. */
+const DEICTICOS = new Set(["eso", "esto", "esa", "ese", "esta", "este", "esos", "esas", "ella", "el", "lo", "ahi", "aca", "alla"])
+
+/** Corta la frase en fragmentos: cada uno se mira por separado. */
+function fragmentos(textoNorm: string): string[] {
+    return textoNorm
+        .split(/\s+(?:y|pero|o|ademas|tambien)\s+/)
+        .map((f) => f.trim())
+        .filter(Boolean)
+}
+
+/**
+ * La moto que el cliente nombró y NO tenemos cargada.
+ * -----------------------------------------------------------------------------
+ * Conv 4388 (16/09): *"precio de la leva para el cb1 / es compatible con la
+ * twister 125?"*. Ni "cb1" ni "twister" existen en `motos_modelos`, así que
+ * `resolverMoto` devolvía `ninguna`, `cilindradaSinMarca` tampoco disparaba (la
+ * frase trae palabras de producto) y el turno arrancó **sin saber que había una
+ * moto en juego**: el aviso del catálogo no viajó, el backstop no miró y el bot
+ * contestó el menú de los tres combos que pegan con "leva". La pregunta de
+ * compatibilidad —que era el mensaje entero— nunca se contestó ni se derivó.
+ *
+ * Es el hueco simétrico de [[fix-bot-marca-sola-se-repregunta]] y de
+ * `cilindradaSinMarca`: hasta acá, una moto que no resuelve era indistinguible
+ * de "no hay moto". Y no es lo mismo: cuando la moto no nos consta, lo único
+ * correcto es derivar al equipo y guardar silencio sobre ese punto — que es lo
+ * que hace `consultar_compatibilidad` cuando SÍ lo llaman.
+ *
+ * El criterio no mira el catálogo de motos (si estuviera ahí, ya habría
+ * resuelto): mira la FORMA de la frase. Un marco de moto, un determinante o una
+ * cilindrada, y palabras que no son ni producto nuestro ni marca conocida.
+ * Por eso:
+ *   - "es compatible con la twister 125"  -> moto desconocida ("twister 125")
+ *   - "sirve para la leva corta?"         -> NO ("leva" es vocabulario nuestro)
+ *   - "hacen envíos para el interior?"    -> NO (marco débil y sin cilindrada)
+ *   - "le va a mi smash?"                 -> NO (resuelve: no es este caso)
+ *   - "es compatible con la gilera?"      -> NO (es marca: ver `marcaSinModelo`)
+ * El error por omisión cae del lado de no detectar nada, que es el
+ * comportamiento de siempre.
+ */
+export async function motoDesconocidaMencionada(texto: string): Promise<string | null> {
+    const norm = normalizarTexto(texto || "")
+    if (!norm) return null
+
+    // Si resuelve a algo conocido —o si es "marca sola" / "cilindrada sola"—
+    // este no es el caso: esos ya tienen su camino.
+    if (marcaSinModelo(norm) || cilindradaSinMarca(norm)) return null
+    const resol = await resolverMoto(norm).catch(() => null)
+    if (!resol || resol.confianza !== "ninguna") return null
+
+    const vocabulario = await vocabularioDelNegocio()
+    if (!vocabulario) return null // sin vocabulario no se decide nada
+
+    for (const frag of fragmentos(norm)) {
+        const tokens = frag.split(" ").filter(Boolean)
+
+        for (const marco of [...MARCOS_MOTO_FUERTES, ...MARCOS_MOTO_DEBILES]) {
+            const fuerte = MARCOS_MOTO_FUERTES.includes(marco)
+            const idx = tokens.indexOf(marco.split(" ")[0])
+            const largoMarco = marco.split(" ").length
+            if (idx < 0 || tokens.slice(idx, idx + largoMarco).join(" ") !== marco) continue
+
+            let cola = tokens.slice(idx + largoMarco)
+            let hayDeterminante = DETERMINANTES.has(marco.split(" ").slice(-1)[0])
+            while (cola.length > 0 && (RELLENO.has(cola[0]) || DETERMINANTES.has(cola[0]))) {
+                if (DETERMINANTES.has(cola[0])) hayDeterminante = true
+                cola = cola.slice(1)
+            }
+            if (cola.length === 0) continue
+
+            // El NOMBRE de la moto es la tirada de palabras que arranca justo
+            // ahí y que no es de nadie: ni relleno, ni vocabulario nuestro, ni
+            // marca. Se corta en la primera palabra que sí lo es. Sin este
+            // corte el nombre se comía el resto de la frase ("zr ches sacar
+            // 150") y, peor, una cilindrada que aparecía tres palabras después
+            // alcanzaba para dar el caso por moto ("para armar en 220 tenés
+            // algo, el 170" -> no es una moto, es un kit).
+            const nombreTokens: string[] = []
+            for (const t of cola) {
+                const numero = Number(t)
+                const esCilindrada = !isNaN(numero) && numero >= 50 && numero <= 2000
+                const esPropia =
+                    t.length >= 2 &&
+                    isNaN(numero) &&
+                    !RELLENO.has(t) &&
+                    !DEICTICOS.has(t) &&
+                    !NO_SON_MOTO.has(t) &&
+                    !MARCAS_MOTO.has(t) &&
+                    !vocabulario.has(t) &&
+                    !/^\d+cc$/.test(t)
+                if (!esCilindrada && !esPropia) break
+                nombreTokens.push(t)
+                if (nombreTokens.length >= 4) break
+            }
+            if (nombreTokens.length === 0) continue
+
+            const cilindrada = cilindradasEn(nombreTokens.join(" "))[0]
+            const palabras = nombreTokens.filter((t) => isNaN(Number(t)))
+            // Sin una palabra propia no hay moto que nombrar; con más de tres,
+            // lo que sigue al marco es una frase, no el nombre de una moto.
+            if (palabras.length === 0 || palabras.length > 3) continue
+            // Marco débil: "para el ___" introduce cualquier cosa. Solo cuenta
+            // si el cliente lo presentó como algo suyo Y le puso cilindrada.
+            if (!fuerte && !(hayDeterminante && cilindrada)) continue
+            // Marco fuerte: alcanza con una de las dos señales.
+            if (!hayDeterminante && !cilindrada) continue // "sirve para potenciar"
+
+            const nombre = nombreTokens.join(" ")
+            return nombre.trim() || null
+        }
+    }
+
+    return null
+}
+
+/**
+ * Guía para el turno en el que el cliente nombró una moto que no nos consta.
+ * No hay nada que preguntarle —el dato ya lo dio, somos nosotros los que no lo
+ * tenemos— así que no se repregunta: se deriva y se calla ESE punto.
+ */
+export function guiaMotoDesconocida(moto: string): string {
+    return [
+        `⚠️ EL CLIENTE NOMBRÓ UNA MOTO QUE NO NOS CONSTA: "${moto}". No está en la tabla de compatibilidades: NINGUNA herramienta puede decir si le entra algo.`,
+        `Ejecutá escalar_a_humano con motivo 'moto_no_registrada' y guardá SILENCIO sobre todo lo que dependa de esa moto: precio, compatibilidad, qué le conviene, qué tenemos para ella.`,
+        `⛔ PROHIBIDO contestarle con el menú de kits, con una ficha o con una pregunta para que elija: eso es responderle otra cosa. PROHIBIDO repreguntarle la moto: ya te la dijo.`,
+        `Si en la misma ráfaga preguntó algo que NO depende de la moto (envíos, horarios, formas de pago, dónde estamos), eso sí contestalo.`,
+    ].join("\n")
 }
 
 /**

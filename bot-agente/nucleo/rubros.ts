@@ -82,6 +82,19 @@ async function cargarVocabulario(): Promise<Set<string> | null> {
     return vocabulario
 }
 
+/**
+ * El vocabulario del negocio, para quien necesite preguntar "¿esta palabra es
+ * nuestra?" sin clasificar un término entero.
+ *
+ * Lo usa `nucleo/motos.ts` para leer una moto que no tenemos cargada: si lo que
+ * el cliente nombró después de "es compatible con la..." no es ni un producto
+ * ni una moto del catálogo, es una moto desconocida. Devuelve null si el
+ * vocabulario no cargó — el que llama se abstiene, igual que acá.
+ */
+export async function vocabularioDelNegocio(): Promise<Set<string> | null> {
+    return cargarVocabulario().catch(() => null)
+}
+
 /** Solo para las pruebas: obliga a releer el catálogo en la próxima llamada. */
 export function limpiarCacheRubros(): void {
     cacheVocabulario = null

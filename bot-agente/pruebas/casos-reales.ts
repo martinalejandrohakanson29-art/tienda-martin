@@ -1615,5 +1615,32 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Entiende que pide referencias de que existimos y le pasa lo que devuelve consultar_info_negocio: local con Maps, Instagram y la pagina de Mercado Libre. No repregunta 'referencia de que?'."
         }
+    },
+    {
+        // Conv 4386 (16/09, +5493406436694). Entro por el referral del anuncio
+        // del "Kit 170 varillero + leva" y su unico mensaje fue "Quiero saber
+        // si tienen kid de cg 190": otro producto, de otra medida. El bot le
+        // mando la ficha del 170 con su $99.990 y encima una negativa de
+        // compatibilidad contra una moto que el cliente nunca nombro ("Ese kit
+        // no le va a la CG Titan 150"). El equipo contesto a mano tres minutos
+        // despues que si, que tenemos el cilindro 190.
+        //
+        // La contracara del caso 78: ahi el sub-turno escalaba entero y el
+        // silencio se decidia despues; aca el sub-turno CONTESTABA (sobre el
+        // kit del aviso, que es el unico que tiene en contexto), asi que el
+        // corte tiene que ser antes de la ficha.
+        id: "caso-83-anuncio-pero-pide-otra-medida-no-manda-la-ficha",
+        titulo: "Entra por el anuncio del 170 y pregunta por un 190: ni ficha ni compatibilidad, va al equipo (conv 4386)",
+        mensajeCliente: "¡Hola! Quiero saber si tienen kid de cg 190",
+        referralAnuncio: {
+            titulo: "POTENCIA TU VARILLERO A 170CC!",
+            cuerpo: "PEDI EL TUYO!!"
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "El texto que acompana al click pide otro producto (190), asi que la ficha del 170 no sale: silencio total y la consulta a la bandeja del equipo. Tampoco puede salir una negativa de compatibilidad contra una moto que el cliente no nombro."
+        }
     }
 ]

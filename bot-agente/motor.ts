@@ -7,6 +7,7 @@ import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDi
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
+import { pideOtroProductoQueElAnuncio } from "./nucleo/otro-producto-anuncio"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
     condicionSuperada,
@@ -939,16 +940,79 @@ export async function ejecutarTurnoAgente(
             // y 3657, 08/09). Ahora la bienvenida sale igual (letra exacta, foto,
             // costo $0) y el resto se resuelve en un turno normal, que ya ve el
             // kit como presentado y no repite la ficha.
+            // Cuando el kit salió del referral no hay plantilla que descontar
+            // del texto: el aviso (y el nombre del kit) es lo único con que
+            // reconocer que el cliente solo está nombrando ESE combo.
+            const contextoAnuncio = [
+                matchPlantilla.nombre,
+                opciones.referralAnuncio?.titulo,
+                opciones.referralAnuncio?.cuerpo
+            ]
+                .filter(Boolean)
+                .join(" ")
+
             const resto = restoFueraDePlantilla(
                 mensajeUsuario,
                 matchTexto ? matchTexto.plantillaNormalizada : "",
-                // Cuando el kit salió del referral no hay plantilla que descontar
-                // del texto: el aviso (y el nombre del kit) es lo único con que
-                // reconocer que el cliente solo está nombrando ESE combo.
-                [matchPlantilla.nombre, opciones.referralAnuncio?.titulo, opciones.referralAnuncio?.cuerpo]
-                    .filter(Boolean)
-                    .join(" ")
+                contextoAnuncio
             )
+
+            // El texto que acompaña al click dice que NO viene por este kit:
+            // pide otro producto, de otra medida ("entro por el 170 y pregunta
+            // si tenemos un kid de cg 190"). La ficha del aviso —precio y foto—
+            // se leería como la respuesta a eso, así que no sale: silencio y a
+            // la bandeja del equipo. Decisión de Martín (16/09, conv 4386).
+            //
+            // No es el mismo caso que el escalado entero de más abajo (conv
+            // 4351): ahí el sub-turno ya corrió y derivó todo. Acá se corta
+            // ANTES, porque el sub-turno tiene el kit del aviso como contexto y
+            // termina contestando sobre ese kit igual —en la 4386 salió una
+            // negativa de compatibilidad contra una moto que el cliente nunca
+            // nombró (`consultar_compatibilidad` con "CG 190" → CG Titan 150)—.
+            // Cortar antes también ahorra el turno del modelo.
+            const otroProducto = resto
+                ? await pideOtroProductoQueElAnuncio(resto, contextoAnuncio)
+                : { esOtroProducto: false as const }
+
+            if (otroProducto.esOtroProducto) {
+                const motivo = "producto_no_catalogado"
+                await escalarAHumano({
+                    motivo,
+                    resumen_consulta:
+                        `Entró por el anuncio de "${matchPlantilla.nombre}" pero pregunta por otro producto` +
+                        (otroProducto.cilindrada ? ` (${otroProducto.cilindrada})` : "") +
+                        `: ${resto.slice(0, 300)}`,
+                    conversation_id: opciones.conversationId
+                }).catch((err) => console.error("[motor] fallo al persistir escalado de producto ajeno al anuncio:", err))
+
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas: [
+                        {
+                            nombre: "match_plantilla_publicidad",
+                            argumentos: {
+                                tipo: matchPlantilla.tipo,
+                                id: matchPlantilla.id,
+                                nombre: matchPlantilla.nombre
+                            },
+                            resultado: {
+                                match_directo: false,
+                                origen: "anuncio_instagram",
+                                mensaje_para_agente:
+                                    `El cliente entró por el anuncio de '${matchPlantilla.nombre}' pero lo que escribió pide otro producto` +
+                                    (otroProducto.cilindrada ? ` (${otroProducto.cilindrada})` : "") +
+                                    `. No se entrega la ficha del aviso: el turno queda mudo y la consulta va a la bandeja del equipo.`
+                            }
+                        }
+                    ],
+                    escaladoHumano: true,
+                    motivoEscalado: motivo,
+                    escaladoPersistido: true,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: sinCostoLLM(modelo)
+                }
+            }
 
             // La moto ya la sabemos: la plantilla no puede volver a pedirla.
             // Puede saberse de antes (memoria) o venir en la MISMA ráfaga:

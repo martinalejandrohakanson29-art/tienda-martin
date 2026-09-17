@@ -20,7 +20,9 @@ import {
   Percent, 
   CalendarDays, 
   RefreshCw,
-  RotateCcw
+  RotateCcw,
+  FileSpreadsheet,
+  Loader2
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import { format } from "date-fns"
@@ -79,6 +81,70 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
   
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
   const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
+  const [isExporting, setIsExporting] = React.useState(false)
+
+  const articulosAPedirCount = React.useMemo(() => {
+    return Object.values(manualInputs).filter(val => (val || 0) > 0).length
+  }, [manualInputs])
+
+  const handleExportExcel = async () => {
+    const itemsConPedido = data.filter(item => (manualInputs[item.id] || 0) > 0)
+
+    if (itemsConPedido.length === 0) {
+      alert("No hay artículos con cantidades a pedir. Ingresá valores en la columna 'Simular' para generar el pedido en Excel.")
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      const XLSX = await import("xlsx")
+
+      const filas = itemsConPedido.map(item => {
+        const cantidadPedir = manualInputs[item.id] || 0
+        const stockActual = item.stockExternal || 0
+        const ventasPeriodo = item.salesLast30 || 0
+
+        const futurasLlegadas = Object.values(item.futureArrivals || {}).reduce((sum, a) => sum + a.quantity, 0)
+
+        const covActual = calculateCoverageValue(item, safetyMargin, false, {})
+        const covProyectada = calculateCoverageValue(item, safetyMargin, true, manualInputs)
+
+        return {
+          "SKU": item.sku,
+          "Producto": item.name,
+          "Cantidad a Pedir": cantidadPedir,
+          "Stock Actual": stockActual,
+          "Ventas Período": ventasPeriodo,
+          "Importaciones en Tránsito": futurasLlegadas,
+          "Cobertura Actual (meses)": covActual >= 999 ? "∞" : Number(covActual.toFixed(1)),
+          "Cobertura Proyectada (meses)": covProyectada >= 999 ? "∞" : Number(covProyectada.toFixed(1)),
+        }
+      })
+
+      const ws = XLSX.utils.json_to_sheet(filas)
+      ws["!cols"] = [
+        { wch: 14 },
+        { wch: 45 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 26 },
+      ]
+
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Pedido de Importación")
+
+      const fechaStr = format(new Date(), "yyyy-MM-dd_HHmm")
+      XLSX.writeFile(wb, `pedido_importacion_${fechaStr}.xlsx`)
+    } catch (error) {
+      console.error("Error al exportar a Excel:", error)
+      alert("Ocurrió un error al generar el archivo Excel.")
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const periodDays = React.useMemo(() => {
     const from = searchParams.get("from")
@@ -297,6 +363,32 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
         </div>
 
         <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExportExcel}
+            disabled={isExporting}
+            className={cn(
+              "h-8 gap-2 font-medium transition-all shadow-sm",
+              articulosAPedirCount > 0 
+                ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white border-emerald-600" 
+                : "text-slate-600 border-slate-300 hover:bg-slate-100"
+            )}
+            title={articulosAPedirCount > 0 ? `Exportar ${articulosAPedirCount} artículo(s) a pedir` : "Exportar artículos con simulación a Excel"}
+          >
+            {isExporting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+            )}
+            <span>Exportar Pedido Excel</span>
+            {articulosAPedirCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-800 leading-none">
+                {articulosAPedirCount}
+              </span>
+            )}
+          </Button>
+
           {Object.keys(manualInputs).length > 0 && (
             <Button 
               variant="ghost" 

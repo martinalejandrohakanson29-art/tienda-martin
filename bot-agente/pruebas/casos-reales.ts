@@ -1851,5 +1851,46 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Debe pedirle la moto en un renglon, planteandolo como lo que es: con la moto se sabe cual de las dos LE ENTRA / le corresponde. PROHIBIDO presentarlo como una conveniencia o una eleccion del cliente ('cual te conviene', 'cual es mejor para vos') y prohibido repetir la ficha o los precios."
         }
+    },
+    {
+        // Real, 17/09: al pedido de recomendacion el bot arranco con "Ojo, no es
+        // algo que se elige: la variante la define el motor de tu moto, le entra
+        // la que le corresponde."
+        //
+        // El dato es correcto, pero el registro es una correccion: le marca al
+        // cliente que pregunto mal antes de ayudarlo. El "por que" es interno —
+        // cara al cliente se le resuelve el problema: con el modelo de su moto
+        // se lo confirmamos nosotros, y mientras tanto va la guia de como
+        // fijarse.
+        id: "caso-89-recomendacion-de-variante-sin-corregir-al-cliente",
+        titulo: "Pide una recomendacion de variante: se resuelve en positivo, sin explicarle la regla",
+        mensajeCliente: "cual me recomendas?",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" },
+            motoConfirmada: "Zanella ZB 110"
+        },
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero mas informacion sobre el combo tapa cdi 125 + cilindro 120" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo de TAPA CDI + CILINDRO 120 viene con la corona de distribución de regalo.\n\n👉🏼 Recorrido corto: $175.000\n👉🏼 Recorrido largo: $189.000\n\nA qué moto se lo querés poner?"
+            },
+            { rol: "user", contenido: "una zanella zb 110" },
+            { rol: "assistant", contenido: "A la ZB 110 le entra perfecto, sin modificar nada. Sabés si tu moto es recorrido corto o largo?" }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["resolver_variante"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Tiene que salir la guía de cómo fijarse (cilindro o corona).
+            patronRespuesta: /cilindro|corona|dientes/i,
+            // Ni el consejo de rendimiento inventado (conv 3627) ni el arranque
+            // que lo corrige.
+            patronProhibido:
+                /\bojo\b|no es algo que se elig|no es una elecci[oó]n|no depende de vos|a tu gusto|no va a tu|la define el motor|depende del motor|torque|estirada|anda mejor|rinde m[aá]s/i,
+            descripcionEsperada:
+                "Debe pasarle la guia de como fijarse (color del cilindro / dientes de la corona) y ofrecerle confirmarselo con el modelo exacto de su moto. PROHIBIDO explicarle la regla o corregirlo ('ojo, no es algo que se elige') y prohibido inventar comparaciones de rendimiento."
+        }
     }
 ]

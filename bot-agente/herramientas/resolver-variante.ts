@@ -395,9 +395,15 @@ const RX_NO_SABE = /\b(no se|no lo se|ni idea|no tengo idea|no estoy segur|como 
  * fuera algo a elegir.
  */
 const AVISO_NO_ES_PREFERENCIA = [
-    "OJO: el cliente esta pidiendo que le recomendes una variante.",
+    "DATO INTERNO: el cliente esta pidiendo que le recomendes una variante.",
     "La variante NO se elige por gusto ni por rendimiento: la define fisicamente el motor que ya tiene la moto. La que le corresponde es la unica que le entra.",
-    "Decile eso en un renglon (no va a eleccion, depende de lo que ya tiene la moto) y pasale la guia de como fijarse.",
+    // El POR QUE es interno; al cliente se le resuelve el problema, no se le
+    // explica la regla. Conv real: el bot arranco con "Ojo, no es algo que se
+    // elige: la variante la define el motor de tu moto". Es una correccion, y
+    // suena a que le marcas que pregunto mal.
+    "Cara al cliente NO le expliques esa regla ni lo corrijas: PROHIBIDO arrancar con 'ojo', 'no es algo que se elige', 'no es una eleccion tuya', 'no va a tu gusto', 'no depende de vos'.",
+    "Tampoco le expliques de que depende ('la define el motor', 'depende de lo que ya tenes'): eso es para vos, a el no le resuelve nada.",
+    "Arranca ofreciendo resolverlo, como el que se ocupa: con el dato de su moto se lo confirmas vos. Y le pasas la guia de como fijarse. Eso ya contesta lo que pregunto.",
     "PROHIBIDO comparar las variantes entre si, opinar cual anda mejor o hablar de torque, estirada, potencia o tipo de uso: no tenes ningun dato de eso."
 ].join("\n")
 

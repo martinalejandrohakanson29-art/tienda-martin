@@ -49,6 +49,100 @@ export interface CasoPrueba {
 }
 
 export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
+    ...["no sé si es largo", "no es largo"].map((mensajeCliente, i): CasoPrueba => ({
+        id: `caso-hueco-1-${i === 0 ? "duda" : "negacion"}`,
+        titulo: "Una mención negada o dudosa no confirma recorrido largo",
+        mensajeCliente,
+        estadoInicial: { grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" } },
+        historial: [
+            { rol: "user", contenido: "Quiero el Combo Tapa CDI + Cilindro 120" },
+            { rol: "assistant", contenido: "Recorrido corto $175.000 o largo $189.000. Sabés qué recorrido tiene tu motor?" }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["resolver_variante"], debeEscalarHumano: false, debeGuardarSilencio: false,
+            patronProhibido: /189\.?000|(?:entonces|confirmado|perfecto)[^.!?]{0,35}(?:recorrido )?largo/i,
+            descripcionEsperada: "Debe ayudar a identificar la variante sin dar por elegido el largo ni cotizarlo."
+        }
+    })),
+    {
+        id: "caso-hueco-2-otro-kit",
+        titulo: "La compatibilidad del combo para 110 no valida el Kit 170",
+        mensajeCliente: "Y el Kit 170 varillero + leva le entra a mi Zanella ZB 110?",
+        estadoInicial: { grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }, motoConfirmada: "Zanella ZB 110" },
+        historial: [
+            { rol: "user", contenido: "Tengo una Zanella ZB 110, le va el combo Tapa CDI + Cilindro 120?" },
+            { rol: "assistant", contenido: "Sí, ese combo le va a tu ZB 110. Falta definir el recorrido." }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_compatibilidad"], debeGuardarSilencio: true, debeEscalarHumano: true,
+            descripcionEsperada: "Consultar el nuevo kit y derivar porque no hay fila para ZB + Kit 170; no heredar el sí del combo anterior."
+        }
+    },
+    {
+        id: "caso-hueco-2-otra-moto",
+        titulo: "Cambiar de ZB a YBR invalida la compatibilidad y variante anteriores",
+        mensajeCliente: "Ahora lo quiero para una Yamaha YBR 125, le va el mismo Combo Tapa CDI + Cilindro 120?",
+        estadoInicial: { grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" }, motoConfirmada: "Zanella ZB 110" },
+        historial: [
+            { rol: "user", contenido: "Tengo una Zanella ZB 110" },
+            { rol: "assistant", contenido: "El Combo Tapa CDI + Cilindro 120 le va a tu ZB 110." }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: true, debeGuardarSilencio: true,
+            descripcionEsperada: "La YBR 125 no tiene confirmación para este combo: derivar sin reutilizar la compatibilidad de la ZB."
+        }
+    },
+    {
+        id: "caso-hueco-3-confianza",
+        titulo: "Preguntar cómo confiar no equivale a insultar",
+        mensajeCliente: "Cómo sé que no son estafadores? Me da miedo transferir sin conocerlos",
+        resultadoEsperado: {
+            debeEscalarHumano: false, debeGuardarSilencio: false,
+            debeLlamarHerramientas: ["consultar_info_negocio"],
+            patronRespuesta: /mercado\s*libre|local|instagram|protegid/i,
+            descripcionEsperada: "Contestar con respaldo oficial de confianza, sin tratar al cliente como agresivo."
+        }
+    },
+    {
+        id: "caso-hueco-3-humano-negado",
+        titulo: "Negar que necesita un humano no debe silenciar la consulta de precio",
+        mensajeCliente: "No necesito hablar con un humano, solo quiero el precio del Kit 170 varillero + leva",
+        resultadoEsperado: {
+            debeEscalarHumano: false, debeGuardarSilencio: false,
+            patronRespuesta: /\$[\d.,]+/,
+            descripcionEsperada: "Dar el precio oficial del kit, sin derivar por el pedido de humano negado."
+        }
+    },
+    {
+        id: "caso-hueco-4-repetir-plazo",
+        titulo: "El cliente vuelve a pedir el plazo sin signos: debe recibir el dato",
+        mensajeCliente: "repetíme cuánto tarda el envío y por qué correo sale",
+        estadoInicial: { temasRespondidos: ["envios"] },
+        historial: [{ rol: "assistant", contenido: "El envío demora 4 a 6 días hábiles. Sale por correo." }],
+        resultadoEsperado: {
+            debeEscalarHumano: false, debeGuardarSilencio: false,
+            patronRespuesta: /\d[^.!?]{0,35}d[ií]as/i,
+            descripcionEsperada: "Contestar el plazo oficial consultado otra vez; no borrarlo por repetición."
+        }
+    },
+    {
+        id: "caso-hueco-5-negativa-otro-kit",
+        titulo: "La primera negativa del segundo combo debe explicarse",
+        mensajeCliente: "Y el Combo Escape pwr + Leva 6.40 le entra a la Honda Wave 110?",
+        estadoInicial: {
+            grupoPineado: { id: 3, nombre: "Combo Tapa CDI + Cilindro 120" },
+            negativaEntregada: { moto: "Honda Wave 110", kit: "Combo Tapa CDI + Cilindro 120", detalle: "No le va.", en: new Date().toISOString() }
+        },
+        historial: [
+            { rol: "user", contenido: "Le entra el Combo Tapa CDI + Cilindro 120 a mi Honda Wave 110?" },
+            { rol: "assistant", contenido: "Ese combo no le va a tu Honda Wave 110." }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false, debeGuardarSilencio: false,
+            patronRespuesta: /no (?:le )?(?:va|entra|sirve|es compatible)|incompatible/i,
+            descripcionEsperada: "Consultar el segundo combo y explicar su negativa propia sin tratar la consulta como insistencia."
+        }
+    },
     {
         id: "caso-1-compra-diferida",
         titulo: "Compra diferida ('junto plata y compro')",

@@ -75,7 +75,7 @@ async function kitDelEmbudo(embudo: EstadoEmbudo | undefined): Promise<string | 
  * catálogo (un kit viejo, un nombre inventado por el modelo). En ese caso NO se
  * filtra nada: sin saber qué compone el kit, descartar filas sería adivinar.
  */
-async function composicionDelKitPedido(
+export async function composicionDelKitPedido(
     kitPedido: string | undefined
 ): Promise<{ resuelto: boolean; articuloIds: Set<number>; packIds: Set<number> }> {
     const vacio = { resuelto: false, articuloIds: new Set<number>(), packIds: new Set<number>() }

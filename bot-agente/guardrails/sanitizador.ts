@@ -1,4 +1,5 @@
 import { normalizarTexto, STOP_WORDS_CATALOGO } from "../nucleo/texto"
+import { pideRespuestaExplicita } from "../nucleo/afirmaciones"
 /**
  * Guardrail y sanitizador determinista de salida.
  * Se ejecuta en código puro sobre cualquier texto generado por la IA
@@ -473,7 +474,7 @@ export function quitarHechosYaDichos(
 ): string {
     if (!texto?.trim() || !mensajesPreviosDelBot?.length) return texto
 
-    const preguntaDelCliente = !!mensajeDelCliente && /\?/.test(mensajeDelCliente)
+    const preguntaDelCliente = pideRespuestaExplicita(mensajeDelCliente)
     // El cliente pregunta => contestar con el dato es lo correcto, no repetirse.
     // Salvo que ese dato ya haya salido en un globo de esta misma rafaga.
     if (preguntaDelCliente && !hechosDeLaMismaRafaga?.size) return texto
@@ -560,8 +561,9 @@ export function quitarHechosYaDichos(
     return texto
 }
 
-export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: string[]): string {
+export function quitarOracionesYaDichas(texto: string, mensajesPreviosDelBot: string[], mensajeDelCliente?: string): string {
     if (!texto?.trim() || !mensajesPreviosDelBot?.length) return texto
+    if (pideRespuestaExplicita(mensajeDelCliente)) return texto
 
     const yaDichas = new Set<string>()
     for (const previo of mensajesPreviosDelBot) {

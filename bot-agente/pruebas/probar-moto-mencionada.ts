@@ -81,14 +81,16 @@ async function main() {
         /NOMBRÓ SU MOTO EN ESTE MENSAJE: 110 DLX/.test(conMotoDelMensaje.mensaje_para_agente)
     )
 
-    // Ya confirmada: no se avisa nada (ya se consultó, repetirlo es ruido).
+    // Ya confirmada: el aviso SIGUE saliendo. Esa confirmación es de OTRO
+    // producto (el que se consultó antes), así que para el kit que se está
+    // buscando ahora la compatibilidad está sin verificar.
     const confirmada = await consultarCatalogoPrecios({
         termino_busqueda: "kit 120",
-        __embudo: { motoDelMensaje: null, motoMencionada: "110 DLX", motoConfirmada: "110 DLX" }
+        __embudo: { motoDelMensaje: null, motoMencionada: null, motoConfirmada: "110 DLX" }
     })
     agregar(
-        "la moto ya confirmada no dispara el aviso",
-        !/EL CLIENTE YA DIJO SU MOTO/.test(confirmada.mensaje_para_agente)
+        "la moto confirmada de otro producto igual dispara el aviso",
+        /EL CLIENTE YA DIJO SU MOTO EN ESTA CHARLA: 110 DLX/.test(confirmada.mensaje_para_agente)
     )
 
     // Sin ninguna moto en juego, nada cambia.

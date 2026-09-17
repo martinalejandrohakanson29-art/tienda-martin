@@ -6,6 +6,7 @@ import {
     envejecerEstadoParaPruebas
 } from "../nucleo/estado-persistente"
 import { CASOS_PRUEBA_REALES, CasoPrueba } from "./casos-reales"
+import { CASOS_CINCO_HUECOS } from "./cinco-huecos"
 
 /**
  * RUNNER DEL BANCO DE PRUEBAS (red de seguridad anti-regresion)
@@ -145,6 +146,15 @@ export async function correrBancoPruebas(
         : CASOS_PRUEBA_REALES
 
     const resultados: ResultadoCaso[] = []
+    for (const caso of CASOS_CINCO_HUECOS.filter((c) => !soloIds?.length || soloIds.includes(c.id))) {
+        const inicio = Date.now()
+        const fallos: string[] = []
+        try { await caso.ejecutar() } catch (error) { fallos.push(String(error)) }
+        resultados.push({
+            id: caso.id, titulo: caso.titulo, ok: fallos.length === 0, fallos,
+            observado: { mensajeFinal: null, escaladoHumano: false, herramientas: [], latenciaMs: Date.now() - inicio }
+        })
+    }
     for (const caso of casos) {
         resultados.push(await evaluarCaso(caso, opciones))
     }

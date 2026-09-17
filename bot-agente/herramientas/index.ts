@@ -22,6 +22,8 @@ export const definicionesHerramientas: DefinicionHerramienta[] = Object.values(t
 )
 
 export interface ContextoEjecucion {
+    /** Texto original: el modelo no puede convertir «no sé si es largo» en «largo». */
+    mensajeCliente?: string
     /** ID de la conversación de Chatwoot: el motor lo inyecta, el LLM no lo ve. */
     conversationId?: number
     /**
@@ -228,6 +230,9 @@ export async function ejecutarHerramienta(
 
     const { args: argsCorregidos, corregidas } = corregirClavesArgumentos(ejecutor.definicion, argsParsed)
     argsParsed = argsCorregidos
+    if (nombre === "resolver_variante" && contexto.mensajeCliente !== undefined) {
+        argsParsed.mensaje_cliente = contexto.mensajeCliente
+    }
     if (corregidas.length) {
         // Queda en el log a propósito: si un modelo nuevo empieza a errarle
         // sistemáticamente a un parámetro, se ve acá antes que en una conversación.

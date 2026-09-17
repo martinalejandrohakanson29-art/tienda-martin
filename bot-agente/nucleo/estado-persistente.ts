@@ -413,6 +413,7 @@ export async function guardarEstadoConversacion(
 
     try {
         const actual = await cargarEstadoConversacion(clave)
+        patch = ajustarCambioDeProducto(actual, patch)
         const merged: EstadoConversacion = {
             grupoPineado: patch.grupoPineado !== undefined ? patch.grupoPineado : actual.grupoPineado,
             varianteResuelta:
@@ -483,6 +484,17 @@ export async function guardarEstadoConversacion(
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)
     }
+}
+
+/** No mezclar una ficha nueva con el precio/variante del producto anterior. */
+export function ajustarCambioDeProducto(actual: EstadoConversacion, patch: EstadoConversacion): EstadoConversacion {
+    if (patch.grupoPineado && patch.grupoPineado.id !== actual.grupoPineado?.id) {
+        return { ...patch, packPresentado: null, varianteResuelta: patch.varianteResuelta ?? null }
+    }
+    if (patch.packPresentado && patch.packPresentado.id !== actual.packPresentado?.id) {
+        return { ...patch, grupoPineado: null, varianteResuelta: patch.varianteResuelta ?? null }
+    }
+    return patch
 }
 
 /**
@@ -584,14 +596,14 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
         )
     }
     if (estado.motoConfirmada) {
-        lineas.push(`- Moto ya confirmada compatible: "${estado.motoConfirmada}". No la vuelvas a preguntar ni consultes compatibilidad de nuevo.`)
+        lineas.push(`- Moto informada anteriormente: "${estado.motoConfirmada}". No la repreguntes. La compatibilidad anterior no valida otro producto ni otra moto: antes de afirmar que le entra el producto consultado, verificá esa combinación con la herramienta.`)
     }
     if (estado.varianteResuelta?.etiqueta) {
         const precio = estado.varianteResuelta.precio
             ? ` (${formatearPrecioAR(estado.varianteResuelta.precio)})`
             : ""
         lineas.push(
-            `- Variante YA resuelta: "${estado.varianteResuelta.etiqueta}"${precio}. El producto y el precio final están 100% determinados. No vuelvas a preguntar la moto ni la variante, ni re-consultes lo ya resuelto. Contestá lo que el cliente haya preguntado y cerrá.`
+            `- Variante resuelta del producto anterior: "${estado.varianteResuelta.etiqueta}"${precio}. Conservála solo si siguen hablando del mismo producto y la misma moto. No traslades esta variante ni su precio a un producto nuevo. Contestá lo que el cliente haya preguntado.`
         )
     }
     if (estado.temasRespondidos && estado.temasRespondidos.length > 0) {
@@ -602,8 +614,8 @@ export function formatearMemoriaEstado(estado: EstadoConversacion): string {
 
     if (estado.negativaEntregada?.moto) {
         lineas.push(
-            `- A este cliente YA le dijiste que el kit no le va a la "${estado.negativaEntregada.moto}", con su motivo. No se lo repitas ni se lo reformules por ningun motivo. Si vuelve sobre ese tema (insiste, aclara algo de su moto, dice que la mando a modificar), ejecuta escalar_a_humano(motivo: 'compatibilidad_dudosa') y guarda silencio sobre ese punto: lo sigue el equipo.\n` +
-                `- Si te pide OTRA cosa para esa misma moto ("y algo para esa no tenes?", "que le puedo poner?"): no tenes ninguna alternativa confirmada por el sistema para esa moto. PROHIBIDO ofrecerle armar algo, listarle categorias o rubros para que elija, o prometerle "las opciones y precios que tenemos para esa". Ejecuta escalar_a_humano(motivo: 'compatibilidad_dudosa') y silencio sobre ese punto.`
+            `- Ya explicaste la incompatibilidad de "${estado.negativaEntregada.kit || "el producto consultado anteriormente"}" con "${estado.negativaEntregada.moto}". Si insiste sobre ESA MISMA combinación o modifica esa moto, escalá con motivo 'compatibilidad_dudosa'. Si consulta por OTRO producto concreto, consultá su compatibilidad: la negativa anterior no lo abarca.\n` +
+                `- Si pide una alternativa SIN identificar un producto concreto ("y algo para esa no tenes?", "que le puedo poner?"), no inventes opciones para esa moto: escalá con motivo 'compatibilidad_dudosa'.`
         )
     }
 

@@ -13,6 +13,8 @@ import { pideOtraCilindradaQueElProducto } from "./nucleo/cilindrada-objetivo"
 import { conversionDesdeMotorAjeno } from "./nucleo/conversion-pedida"
 import { empaquetarLectura, leerNumeros, lecturaYaHecha } from "./nucleo/numeros-del-mensaje"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
+import { coincideIntencionDirecta } from "./nucleo/afirmaciones"
+import { mismaConsultaCompatibilidad, tieneVeredictoCompatibilidad } from "./nucleo/consulta-compatibilidad"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
     condicionSuperada,
@@ -538,7 +540,7 @@ function confirmarPresentadoSegunMensaje(
 /**
  * Detecta situaciones deterministas que requieren escalado inmediato en silencio absoluto (costo $0)
  */
-function detectarEscaladoDeterminista(msg: string): { motivo: string; resumen: string } | null {
+export function detectarEscaladoDeterminista(msg: string): { motivo: string; resumen: string } | null {
     const texto = (msg || "")
         .toLowerCase()
         .normalize("NFD")
@@ -549,7 +551,7 @@ function detectarEscaladoDeterminista(msg: string): { motivo: string; resumen: s
 
     // 1. Pedido explícito e inequívoco de hablar con un humano
     const rxHumano = /\b(pasame|comunicame|quiero hablar|atendeme|derivar(me)?|hablar)\s+(con\s+)?(un\s+|una\s+)?(humano|persona|asesor|alguien\s+real)\b/i
-    if (rxHumano.test(texto) || texto === "humano" || texto === "persona real" || texto === "pasame con alguien") {
+    if (coincideIntencionDirecta(texto, rxHumano) || texto === "humano" || texto === "persona real" || texto === "pasame con alguien") {
         return {
             motivo: "cliente_pide_humano",
             resumen: "El cliente solicitó expresamente ser atendido por un asesor o persona humana."
@@ -558,7 +560,7 @@ function detectarEscaladoDeterminista(msg: string): { motivo: string; resumen: s
 
     // 2. Insultos o agresiones graves explícitas
     const rxAgresion = /\b(estafadores?|ladrones?|garcas?|hijos? de puta|concha de tu madre|hdp|sinverguenzas?|chorros?)\b/i
-    if (rxAgresion.test(texto)) {
+    if (coincideIntencionDirecta(texto, rxAgresion)) {
         return {
             motivo: "cliente_agresivo",
             resumen: `Mensaje con agresión o insultos directos: "${msg}"`
@@ -567,7 +569,7 @@ function detectarEscaladoDeterminista(msg: string): { motivo: string; resumen: s
 
     // 3. Reclamo postventa explícito y crítico
     const rxReclamo = /\b(vino rot[ao]|lleg[oó] rot[ao]|vino fallad[ao]|paquete rot[ao]|hacer un reclamo|reclamo por (el |mi )?(envio|pedido|paquete|compra)|no me lleg[oó] (el |mi )?(pedido|paquete|compra))\b/i
-    if (rxReclamo.test(texto)) {
+    if (coincideIntencionDirecta(texto, rxReclamo)) {
         return {
             motivo: "reclamo_postventa",
             resumen: `Reclamo explícito del cliente: "${msg}"`
@@ -652,6 +654,25 @@ export async function ejecutarTurnoAgente(
         obtenerConfiguracionAgente(),
         cargarEstadoConversacion(estadoKey)
     ])
+
+    // La variante de la moto anterior deja de ser firme cuando el cliente
+    // nombra otro modelo. Es un dato del cliente, no una entrega del bot.
+    if (estadoConv.varianteResuelta && (estadoConv.motoMencionada || estadoConv.motoConfirmada)) {
+        const [actual, anterior] = await Promise.all([
+            resolverMoto(mensajeUsuario),
+            resolverMoto(estadoConv.motoMencionada || estadoConv.motoConfirmada || "")
+        ])
+        if (actual.modelo && (!anterior.modelo || actual.modelo.id !== anterior.modelo.id)) {
+            estadoConv.varianteResuelta = null
+            estadoConv.motoConfirmada = null
+            estadoConv.motoMencionada = actual.modelo.nombre_completo
+            await guardarEstadoConversacion(estadoKey, {
+                varianteResuelta: null,
+                motoConfirmada: null,
+                motoMencionada: actual.modelo.nombre_completo
+            })
+        }
+    }
 
     // Proveedor principal + suplente. El suplente solo entra si el principal se
     // cae del todo (ver `llamarLLM` y el loop ReAct más abajo).
@@ -1618,7 +1639,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
     // sabemos que todo lo que digamos de acá en más es SOBRE ella. Así viaja al
     // aviso del catálogo y al backstop, igual que `cilindradaSinMarca`.
     const motoDelTurno = motoDelMensajeTurno || cilindradaSinMarca(mensajeUsuario) || motoDesconocidaDelTurno
-    const motoVigenteDeLaCharla = motoDelTurno || estadoConv.motoMencionada || null
+    const motoVigenteDeLaCharla = motoDelTurno || estadoConv.motoMencionada || estadoConv.motoConfirmada || null
     if (motoDelTurno && motoDelTurno !== estadoConv.motoMencionada) {
         patchEstado.motoMencionada = motoDelTurno
     }
@@ -1874,7 +1895,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                 })
                 // Los globos ya emitidos en este mismo turno también cuentan.
                 const yaDichoPorElBot = [...dichoPorElBot, ...mensajesFinalesSanitizados]
-                const sinRepetidos = quitarOracionesYaDichas(sanitizado.textoLimpio, yaDichoPorElBot)
+                const sinRepetidos = quitarOracionesYaDichas(sanitizado.textoLimpio, yaDichoPorElBot, mensajeUsuario)
                 // Segunda pasada: la de arriba solo atrapa la oración calcada.
                 // Un modelo que parafrasea le pasa por al lado y el cliente
                 // igual lee el mismo plazo o el mismo precio dos veces.
@@ -2006,11 +2027,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
             const motivoBaseEscalado = (motivoEscalado || "").split(":")[0].trim().toLowerCase()
             const loDerivadoEraLaCompat =
                 motivoBaseEscalado === "moto_no_registrada" || motivoBaseEscalado === "compatibilidad_dudosa"
-            const compatConfirmadaPorHerramienta = herramientasEjecutadas.some(
-                (ej) =>
-                    (ej.nombre === "consultar_compatibilidad" && ej.resultado?.encontrado === true) ||
-                    (ej.nombre === "resolver_variante" && ej.resultado?.escalar !== true)
-            )
+            const compatConfirmadaPorHerramienta = tieneVeredictoCompatibilidad(herramientasEjecutadas)
             if (
                 escaladoParcial &&
                 afirmaCompatibilidad(mensajeFinalUnificado) &&
@@ -2100,8 +2117,8 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
              * con todas las 110", a una ZB 110 "le entra directo" sin consultar,
              * y a la Rouser NS 200 de la conv 4194 que le vendíamos repuestos.
              *
-             * Exime `motoConfirmada`: si la moto ya quedó validada en un turno
-             * anterior, repetir que le va no es afirmar de memoria.
+             * Una moto guardada no exime este control: la confirmación anterior
+             * puede pertenecer a otro producto o a otra moto de la conversación.
              *
              * La moto no tiene que estar en el mensaje de ESTE turno: el cliente
              * la dice una vez y sigue preguntando. Mientras esto miraba solo
@@ -2112,14 +2129,13 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
             if (
                 mensajeFinalUnificado &&
                 !compatConfirmadaPorHerramienta &&
-                !estadoConv.motoConfirmada &&
                 // Los dos detectores de siempre, o —si hay una moto en juego en
                 // la charla— la forma invertida que ellos no ven ("Para la Wave
                 // 110 tenemos estas opciones"), que se chequea abajo con el
                 // nombre ya resuelto.
                 (afirmaCompatibilidad(mensajeFinalUnificado) ||
                     afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
-                    Boolean(estadoConv.motoMencionada))
+                    Boolean(motoVigenteDeLaCharla))
             ) {
                 // La moto puede venir de ESTE mensaje o de uno anterior: el
                 // cliente la dice una vez y sigue preguntando (conv 4206).
@@ -2130,7 +2146,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                           motoDelCliente.candidatos.map((c) => c.nombre_completo).join(" / ") ||
                           mensajeUsuario.slice(0, 60)
                         : null
-                const nombreMoto = nombreMotoDelTurno || estadoConv.motoMencionada || null
+                const nombreMoto = nombreMotoDelTurno || motoVigenteDeLaCharla || null
                 const afirmaAlgoSobreSuMoto =
                     afirmaCompatibilidad(mensajeFinalUnificado) ||
                     afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
@@ -2337,6 +2353,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
             try {
                 const ejecucion = await ejecutarHerramienta(call.function.name, call.function.arguments, {
                     conversationId: opciones.conversationId,
+                    mensajeCliente: mensajeUsuario,
                     // Lo ya contestado antes en esta charla + lo contestado en
                     // los pasos previos de ESTE turno (una ráfaga puede tocar
                     // el mismo tema dos veces).
@@ -2528,16 +2545,16 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                         resNeg.moto || resNeg.modelo_moto_detectado || ejecucion.argumentos?.modelo_moto || ""
                     ).trim()
                     const kitNeg = String(
-                        ejecucion.argumentos?.combo ||
+                        (resNeg.grupo_id ? `grupo:${resNeg.grupo_id}` : null) ||
+                            ejecucion.argumentos?.combo ||
                             ejecucion.argumentos?.kit_nombre_o_id ||
                             resNeg.kit ||
                             ""
                     ).trim()
                     const detalleNeg = String(resNeg.detalle || "")
                     const previa = estadoConv.negativaEntregada
-                    const yaSeLaDimos =
-                        !!previa && normalizarTexto(previa.moto) === normalizarTexto(motoNeg) && !!motoNeg
-                    const superada = condicionSuperada(mensajeUsuario, detalleNeg || previa?.detalle)
+                    const yaSeLaDimos = await mismaConsultaCompatibilidad(previa, { moto: motoNeg, kit: kitNeg })
+                    const superada = condicionSuperada(mensajeUsuario, detalleNeg || (yaSeLaDimos ? previa?.detalle : undefined))
 
                     if (motoNeg && (superada || yaSeLaDimos)) {
                         guiaNegativa = superada
@@ -2679,6 +2696,9 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                 }
                 if (r.resuelta && r.variante_pack_id) {
                     patchEstado.varianteResuelta = { packId: r.variante_pack_id, etiqueta: r.etiqueta || "", precio: r.precio || 0 }
+                } else if (r.grupo_id && !r.resuelta) {
+                    // La nueva duda/negación no puede dejar firme la elección anterior.
+                    patchEstado.varianteResuelta = null
                 }
                 if (r.moto_confirmada && patchEstado.motoConfirmada === undefined) {
                     patchEstado.motoConfirmada = r.moto_confirmada

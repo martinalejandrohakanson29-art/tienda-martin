@@ -11,6 +11,7 @@ import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { MomentoFrase } from "../frases/momentos"
 import { clausulaEnvioPack } from "../nucleo/envio"
 import { bloquePresentacionOficial } from "./catalogo-precios"
+import { mencionaAfirmativamente } from "../nucleo/afirmaciones"
 
 /**
  * HERRAMIENTA `resolver_variante` — resolución de variante AGNÓSTICA AL EJE
@@ -201,7 +202,7 @@ function contradiceAtributoFijo(texto: string, contradice: string[]): boolean {
     const t = normalizarTexto(texto)
     if (!t || contradice.length === 0) return false
     return contradice.some(
-        (c) => c.length >= 3 && new RegExp(`(^|\\s)${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(t)
+        (c) => c.length >= 3 && mencionaAfirmativamente(texto, c)
     )
 }
 
@@ -367,7 +368,7 @@ function palabrasEtiqueta(etiqueta: string): string[] {
  * fallback por etiqueta -- el match sigue funcionando por `sinonimos_variante`
  * o por la palabra que sí distingue (ej. "corto").
  */
-function matchearVariantes(texto: string, variantes: GrupoVariantes["variantes"]) {
+export function matchearVariantes<T extends Pick<GrupoVariantes["variantes"][number], "etiqueta" | "sinonimos">>(texto: string, variantes: T[]): T[] {
     const t = normalizarTexto(texto)
     if (!t) return []
 
@@ -381,11 +382,11 @@ function matchearVariantes(texto: string, variantes: GrupoVariantes["variantes"]
     return variantes.filter((v) => {
         const palabrasPropias = palabrasEtiqueta(v.etiqueta).filter((w) => conteoPalabras.get(w) === 1)
         const claves = [...v.sinonimos, ...palabrasPropias]
-        return claves.some((c) => c.length >= 2 && new RegExp(`(^|\\s)${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(t))
+        return claves.some((c) => c.length >= 2 && mencionaAfirmativamente(texto, c))
     })
 }
 
-const RX_NO_SABE = /\b(no se|no lo se|ni idea|no tengo idea|no estoy segur|como me fijo|como se|como averiguo|no se cual|no sabria|nose)\b/
+const RX_NO_SABE = /\b(no se|no lo se|ni idea|no tengo idea|no estoy segur[oa]|como me fijo|como se|como averiguo|no se cual|no sabria|nose)\b/
 
 /**
  * Aviso que se suma a la guia cuando el cliente pide que le recomienden una
@@ -695,11 +696,11 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         //    bot le preguntaba la medida de la leva de un combo que es para 110
         //    (conv 4342, 16/09). Cuenta como moto del mensaje —no del embudo—
         //    porque es del turno actual: puede escalar y repreguntar.
-        const motoDelMensaje = (args.modelo_moto || args.__embudo?.motoDelMensaje || "").trim()
+        const motoDelMensaje = (args.__embudo?.motoDelMensaje || args.modelo_moto || "").trim()
         // Fallback: la moto que ya quedó confirmada en turnos anteriores. Sin
         // esto el chequeo no corre cuando el cliente dijo la moto hace 3 turnos
         // y el modelo no la vuelve a pasar (10 de esas 35 veces).
-        const motoDelEmbudo = (args.__embudo?.motoConfirmada || "").trim()
+        const motoDelEmbudo = (args.__embudo?.motoMencionada || args.__embudo?.motoConfirmada || "").trim()
         const motoTexto = motoDelMensaje || motoDelEmbudo
         let motoConfirmadaOk: string | undefined
         /**
@@ -825,20 +826,17 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             // "una 110", "tengo un 110" y hasta marcas que no tenemos cargadas
             // ("Okinoi 110"). Una XR 150 no matchea esa fila, y por eso escala.
             //
-            // Con la moto del EMBUDO no se escala: esa moto ya venía confirmada de
-            // un turno anterior y un "no confirmada" acá sería inventar escalados
-            // sobre charlas que ya estaban encaminadas. El fallback del embudo
-            // existe para atajar el veredicto NEGATIVO, no para volver a auditar
-            // lo que ya se dio por bueno.
+            // La moto del embudo también se verifica para ESTE combo: haber
+            // confirmado otro producto antes no aporta una fila compatible acá.
             const confirmadaCompatible = compat.encontrado && compat.compatible === true
-            if (!confirmadaCompatible && motoDelMensaje) {
+            if (!confirmadaCompatible && motoTexto) {
                 return {
                     encontrado: true,
                     resuelta: false,
                     grupo_id: grupo.id,
                     escalar: true,
                     motivo: "moto_no_registrada",
-                    mensaje_para_agente: `Compatibilidad de "${motoDelMensaje}" no confirmada para este combo. Ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio total cara al cliente.`
+                    mensaje_para_agente: `Compatibilidad de "${motoTexto}" no confirmada para este combo. Ejecutá escalar_a_humano(motivo: 'moto_no_registrada') y guardá silencio total cara al cliente.`
                 }
             }
             if (confirmadaCompatible) {
@@ -872,7 +870,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
 
         // 2. ¿El cliente ya nombró la variante? (la moto ya pasó el chequeo)
         const hits = matchearVariantes(args.mensaje_cliente || "", variantes)
-        if (hits.length === 1) {
+        if (hits.length === 1 && !clienteNoSabe) {
             const v = hits[0]
             // Dato duro para que el modelo no redacte lo contrario de lo que el
             // pack es (ver el bloque 0). Va incluso cuando la variante ya estaba
@@ -897,7 +895,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 // La moto que acaba de pasar el chequeo del paso 1 también queda
                 // registrada acá: antes, un turno que resolvía moto + variante
                 // juntas no guardaba la moto en el estado.
-                moto_confirmada: motoDelMensaje ? motoConfirmadaOk : undefined,
+                moto_confirmada: motoConfirmadaOk,
                 // "YA RESUELTA DE ANTES" no lleva letra: ese paso pide NO
                 // volver a confirmar nada, y ofrecerle una forma de decirlo
                 // sería empujarlo justo a lo que tiene prohibido.
@@ -989,6 +987,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             encontrado: true,
             resuelta: false,
             grupo_id: grupo.id,
+            moto_confirmada: motoConfirmadaOk,
             pregunta_directa: guia,
             ...datosFicha,
             mensaje_para_agente: `${guiaFicha}Todavía falta saber ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}\n${COMO_SE_PIDE_LA_VARIANTE}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`

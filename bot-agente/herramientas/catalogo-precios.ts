@@ -1099,11 +1099,10 @@ Qué le entra a esa moto lo sabe SOLO consultar_compatibilidad: llamala con mode
          * después, y el catálogo devolvió los kits sin una palabra de aviso —
          * entre ellos el dakar 200 y el 220, que se le ofrecieron igual.
          */
-        const motoEnJuego = (args.__embudo?.motoDelMensaje || args.__embudo?.motoMencionada || "").trim()
-        const motoYaValidada = (args.__embudo?.motoConfirmada || "").trim()
+        const motoEnJuego = (args.__embudo?.motoDelMensaje || args.__embudo?.motoMencionada || args.__embudo?.motoConfirmada || "").trim()
         const laDijoEnEsteMensaje = Boolean((args.__embudo?.motoDelMensaje || "").trim())
         const avisoMoto =
-            motoEnJuego && motoEnJuego !== motoYaValidada
+            motoEnJuego
                 ? [
                       laDijoEnEsteMensaje
                           ? `⚠️ EL CLIENTE NOMBRÓ SU MOTO EN ESTE MENSAJE: ${motoEnJuego}.`
@@ -1353,7 +1352,7 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                 // puntual que preguntó el cliente.
                 lineas.push(`   - YA PRESENTADO: el cliente ya recibió en esta charla la ficha, la foto y las opciones con precio de este combo.`)
                 lineas.push(`   - PROHIBIDO reenviar el mensaje de bienvenida, la lista de "qué incluye", la foto o volver a listar las variantes.`)
-                if (embudo.varianteResuelta) {
+                if (embudo.varianteResuelta && g.variantes.some((v) => v.id === embudo.varianteResuelta?.packId)) {
                     const envioVarianteDefinida = clausulaEnvioPack(
                         g.variantes.find((v) => v.id === embudo.varianteResuelta?.packId)?.envio
                     )
@@ -1406,7 +1405,7 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                     // igual para armar la composición: el cliente se lleva ESA
                     // pieza, no "una de las dos" (conv 4344).
                     varianteResueltaPackId:
-                        embudo.varianteResuelta?.packId ?? embudo.varianteResueltaEnTurno?.packId ?? null,
+                        embudo.varianteResueltaEnTurno?.packId ?? embudo.varianteResuelta?.packId ?? null,
                     yaPresentado: grupoYaPresentado(g),
                     categoriasCatalogo,
                     // Sin moto y sin variante firme, la pregunta que falta es la

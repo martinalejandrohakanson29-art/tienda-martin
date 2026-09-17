@@ -14,6 +14,8 @@ import {
 } from "@tanstack/react-table"
 import { 
   ArrowUpDown, 
+  ArrowUp,
+  ArrowDown,
   Search, 
   Percent, 
   CalendarDays, 
@@ -190,6 +192,7 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
       },
       {
         id: "currentCoverage",
+        accessorFn: (row) => calculateCoverageValue(row, safetyMargin, false, {}),
         header: "MESES S/ IMPORTACIONES",
         size: 80,
         cell: ({ row }) => {
@@ -242,6 +245,7 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
 
     cols.push({
       id: "projected",
+      accessorFn: (row) => calculateCoverageValue(row, safetyMargin, true, manualInputs),
       header: "STOCK FINAL C/ IMPORTACIONES",
       size: 90,
       cell: ({ row, table }) => {
@@ -262,7 +266,7 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
     })
 
     return cols
-  }, [uniqueOrders, safetyMargin, calculateCoverageValue])
+  }, [uniqueOrders, safetyMargin, manualInputs, calculateCoverageValue])
 
   const table = useReactTable({
     data: filteredData,
@@ -363,12 +367,16 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
                       {header.isPlaceholder ? null : (
                         <div 
                           className={cn(
-                            header.column.getCanSort() ? "cursor-pointer select-none flex items-center justify-center gap-1" : ""
+                            header.column.getCanSort() ? "cursor-pointer select-none flex items-center justify-center gap-1 hover:text-blue-600 transition-colors" : ""
                           )}
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          {header.column.getIsSorted() && <ArrowUpDown className="h-3 w-3" />}
+                          {header.column.getIsSorted() === "asc" && <ArrowUp className="h-3 w-3 text-blue-600 shrink-0" />}
+                          {header.column.getIsSorted() === "desc" && <ArrowDown className="h-3 w-3 text-blue-600 shrink-0" />}
+                          {header.column.getCanSort() && !header.column.getIsSorted() && (
+                            <ArrowUpDown className="h-3 w-3 opacity-30 shrink-0" />
+                          )}
                         </div>
                       )}
                     </TableHead>

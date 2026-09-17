@@ -562,6 +562,39 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        // Conv 4429 (17/09). La ficha ya habia dicho solamente "hacemos
+        // envios a todo el pais". Cuando el cliente pregunto si llegaba a
+        // Buenos Aires, el tema entero figuraba como respondido y el bot
+        // contesto apenas "Si, llega tranquilo", aunque la herramienta le dio
+        // el dato nuevo de Andreani a domicilio y la demora.
+        id: "caso-33b-cobertura-envio-incluye-modalidad",
+        titulo: "Consulta de cobertura: confirma cómo llega aunque envíos ya se haya mencionado",
+        mensajeCliente: "Soi de Buenos Aires yo llegan",
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 },
+            motoConfirmada: "rx 150",
+            temasRespondidos: ["envios"]
+        },
+        historial: [
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola amigo! El kit cuesta $99.990 con envio gratis. Hacemos envios a todo el pais. A que moto se lo queres poner?"
+            },
+            { rol: "user", contenido: "Se lo quiero poner a una Zanella RX 150R" },
+            { rol: "assistant", contenido: "Si, va perfecto en la RX 150. Le entra sin modificar nada." }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_info_negocio"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /andreani[\s\S]*domicilio|domicilio[\s\S]*andreani/i,
+            patronProhibido: /(contra reembolso|pago al recibir|despu[eé]s del pago)/i,
+            descripcionEsperada:
+                "Debe confirmar que llega a Buenos Aires y agregar el dato oficial nuevo: se envía por Andreani a domicilio. Puede sumar la demora de 4 a 6 días, pero no debe meter la condición de pago porque el cliente no preguntó por eso."
+        }
+    },
+    {
         // Conv 3561 (07/09), turno 270. La ráfaga "Un Motomel s2" + "Hay q
         // modificar sigueñal?" se partió en dos turnos concurrentes: se contestó
         // la moto y la pregunta del cigüeñal se generó y se descartó — el cliente

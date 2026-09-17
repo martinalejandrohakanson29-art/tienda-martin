@@ -87,6 +87,24 @@ export function partirEnHechos(respuesta: string): string[] {
 }
 
 /**
+ * El cliente no esta repitiendo el tema "envios": esta preguntando si el
+ * correo llega a SU destino. Esa confirmacion queda incompleta si solo decimos
+ * "si, llega" teniendo cargado como se lo entregamos.
+ *
+ * Se mantiene deliberadamente chico y semantico: una mera aclaracion de lugar
+ * ("soy de Villa Dolores") no dispara la ficha de envios de nuevo; tiene que
+ * haber una pregunta/consulta de cobertura ("llega", "mandan", "envian").
+ */
+export function esConsultaCoberturaEnvio(tema: string, preguntaCliente?: string): boolean {
+    if (!normalizarTexto(tema).includes("envio")) return false
+    const pregunta = normalizarTexto(preguntaCliente || "")
+    return (
+        /\b(llega|llegan|mandan|envian|despachan)\b/.test(pregunta) ||
+        /\bhacen envios\b|\benvios?\s+(a|hasta|para)\b/.test(pregunta)
+    )
+}
+
+/**
  * Arma la guía del turno. Es la ÚNICA regla que la herramienta impone; todo lo
  * demás que entrega son datos.
  */
@@ -115,6 +133,16 @@ export function construirGuiaInfoNegocio(params: {
           ].join("\n")
         : ""
 
+    const reglaCoberturaEnvio = esConsultaCoberturaEnvio(tema, preguntaCliente)
+        ? [
+              "",
+              "CONSULTA DE COBERTURA DE ENVIO: confirmar solamente que llega queda incompleto.",
+              "Respondé en 1 o 2 renglones con: (a) que llega al destino consultado y (b) COMO se entrega, usando exclusivamente el transportista y la modalidad que figuren en los hechos oficiales. Prohibido nombrar un correo o una modalidad que no aparezcan en esos hechos.",
+              "Podés sumar la demora habitual si está cargada y entra natural en la misma respuesta. No menciones la condición de pago salvo que el cliente pregunte por el pago o por el momento del despacho.",
+              "Esto es información NUEVA aunque antes solo se haya dicho de forma genérica que hacemos envíos a todo el país."
+          ].join("\n")
+        : ""
+
     if (yaRespondido) {
         return [
             `OJO: el tema ${tema.toUpperCase()} YA se lo contestaste antes en esta conversación.`,
@@ -125,6 +153,7 @@ export function construirGuiaInfoNegocio(params: {
             "",
             "REGLA DE ESTE TURNO: NO repitas lo que ya le dijiste. Contestá SOLO el matiz nuevo que trae (en un renglón). Si no trae nada nuevo, un acuse corto y natural alcanza.",
             "EXCEPCION: si lo que pide es un link (o un dato que todavía no le pasaste de este tema), dáselo igual aunque el tema ya se haya tocado.",
+            reglaCoberturaEnvio,
             reglaEnlaces
         ].filter((l) => l !== null).join("\n").trimEnd()
     }
@@ -135,6 +164,7 @@ export function construirGuiaInfoNegocio(params: {
         dijo,
         "",
         "REGLA DE ESTE TURNO: contestá con TUS palabras SOLO el dato que responde lo que preguntó, en 1 o 2 renglones. Los demás datos son contexto tuyo: no los menciones si no los pidió.",
+        reglaCoberturaEnvio,
         reglaEnlaces
     ].join("\n").trimEnd()
 }

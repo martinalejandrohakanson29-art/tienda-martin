@@ -6,6 +6,7 @@ import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
 import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
+import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
 import { pideOtroProductoQueElAnuncio } from "./nucleo/otro-producto-anuncio"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
@@ -1294,6 +1295,46 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
         patchEstado.escaladoPendiente = { motivo, resumen, en: new Date().toISOString() }
     }
 
+    /**
+     * COBERTURA DE ENVIO CON FUENTE OBLIGATORIA (conv 4429, 17/09).
+     *
+     * El contrato general dice que el modelo debe consultar info_negocio, pero
+     * si en el historial ya leyó "hacemos envíos a todo el país", DeepSeek a
+     * veces contesta de memoria "sí, llega tranquilo" y omite la tool. Así se
+     * pierde justamente el dato nuevo que el cliente necesita: por qué correo
+     * y de qué forma le llega.
+     *
+     * Para una pregunta explícita de cobertura la consulta deja de depender del
+     * routing del modelo. El motor trae la fila oficial antes de redactar y la
+     * inyecta en el contexto variable. No hay datos logísticos hardcodeados acá:
+     * transportista, modalidad y demora siguen saliendo de info_negocio.
+     */
+    let bloqueCoberturaEnvio = ""
+    if (esConsultaCoberturaEnvio("envios", mensajeUsuario)) {
+        const infoEnvio = await ejecutarHerramienta(
+            "consultar_info_negocio",
+            { tema: "envios", pregunta_cliente: mensajeUsuario },
+            { temasYaRespondidos: estadoConv.temasRespondidos || [] }
+        ).catch((err) => {
+            console.error("[motor] no se pudo precargar la cobertura de envío:", err)
+            return null
+        })
+
+        if (infoEnvio) {
+            herramientasEjecutadas.push(infoEnvio)
+            const r = infoEnvio.resultado || {}
+            if (r.encontrado === true) {
+                huboOtroDatoResuelto = true
+                patchEstado.temasRespondidos = unirTemas(patchEstado.temasRespondidos, [r.tema || "envios"])
+                bloqueCoberturaEnvio = [
+                    "### INFORMACION OFICIAL DE ENVIO YA CONSULTADA PARA ESTE TURNO:",
+                    r.mensaje_para_agente,
+                    "La consulta ya fue ejecutada por el motor. No vuelvas a llamar consultar_info_negocio para envios en este turno: redacta la respuesta con estos datos."
+                ].join("\n")
+            }
+        }
+    }
+
     // El cliente llegó de un anuncio que no resolvimos a un kit del catálogo (o
     // que pega con más de uno): el texto del anuncio es la única pista de qué
     // está mirando. Va como contexto para que lo busque, no como dato de venta.
@@ -1338,6 +1379,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
         bloqueEstado,
         bloqueMotoDesconocida,
         bloqueSituaciones,
+        bloqueCoberturaEnvio,
         bloqueCierres ? `### CIERRES DE LA CASA${bloqueCierres}` : ""
     ].filter(Boolean).join("\n\n")
 

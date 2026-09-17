@@ -5,6 +5,7 @@ import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
 import { detectarRestoNoCubierto } from "../nucleo/resto-no-cubierto"
 import { pideOtraCilindradaQueElProducto } from "../nucleo/cilindrada-objetivo"
+import { lecturaYaHecha } from "../nucleo/numeros-del-mensaje"
 import { consultarCompatibilidad } from "./compatibilidad"
 import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { MomentoFrase } from "../frases/momentos"
@@ -623,10 +624,15 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         //
         //    Va ANTES de la moto y de la variante a propósito: las dos cosas se
         //    resuelven bien y por eso mismo tapaban la consulta real.
-        const otraCilindrada = await pideOtraCilindradaQueElProducto(args.mensaje_cliente, [
-            grupo.nombre,
-            ...grupo.variantes.map((v) => v.etiqueta)
-        ].join(" "))
+        const otraCilindrada = await pideOtraCilindradaQueElProducto(
+            args.mensaje_cliente,
+            [grupo.nombre, ...grupo.variantes.map((v) => v.etiqueta)].join(" "),
+            // El motor ya leyó los números de este turno y los mandó en el
+            // embudo: si el texto es el mismo, se usa esa lectura y no se
+            // clasifica dos veces lo mismo. Si el modelo mandó otro texto como
+            // `mensaje_cliente`, `lecturaYaHecha` devuelve null y se lee de nuevo.
+            lecturaYaHecha(args.__embudo?.numerosDelMensaje, args.mensaje_cliente)
+        )
         if (otraCilindrada) {
             return {
                 encontrado: true,

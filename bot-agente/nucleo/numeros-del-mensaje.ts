@@ -149,6 +149,53 @@ async function cilindradasDeSuMoto(mensaje: string, conAliases: boolean): Promis
  * unico que se quiere es la cilindrada del modelo. Viaja como opcion porque los
  * detectores no coincidian en esto y el sweep lo deja a la vista.
  */
+/**
+ * La lectura de ESTE turno, lista para viajar en el embudo hasta las tools.
+ *
+ * Es plana a proposito (arrays, no Sets): el embudo se serializa para quedar
+ * registrado junto a la llamada de la herramienta, y un Set ahi se guarda como
+ * `{}`.
+ *
+ * Lleva el TEXTO sobre el que se hizo porque no siempre es el mismo: la rama de
+ * la plantilla del anuncio lee el "resto" —lo que el cliente escribio ademas de
+ * la plantilla— y los numeros de la plantilla no los dijo el. Guardar el texto
+ * es lo que permite reusar la lectura sin arriesgarse a servir la de otro.
+ */
+export interface NumerosDelTurno {
+    texto: string
+    numeros: NumeroLeido[]
+    deLaMoto: number[]
+}
+
+export function empaquetarLectura(texto: string | null | undefined, lectura: LecturaNumeros): NumerosDelTurno {
+    return {
+        texto: normalizarTexto(texto || ""),
+        numeros: lectura.numeros,
+        deLaMoto: [...lectura.deLaMoto]
+    }
+}
+
+/**
+ * ¿La lectura que viene en el embudo es la de ESTE texto?
+ *
+ * Devuelve la lectura lista para usar, o `null` si el texto es otro y hay que
+ * leerlo de nuevo. Nunca adivina: preferimos pagar la lectura de nuevo antes
+ * que clasificar los numeros de un mensaje con los roles de otro.
+ */
+export function lecturaYaHecha(
+    paquete: NumerosDelTurno | null | undefined,
+    texto: string | null | undefined
+): LecturaNumeros | null {
+    if (!paquete) return null
+    if (paquete.texto !== normalizarTexto(texto || "")) return null
+    return {
+        numeros: paquete.numeros,
+        deLaMoto: new Set(paquete.deLaMoto),
+        objetivo: paquete.numeros.find((n) => n.rol === "objetivo"),
+        producto: paquete.numeros.find((n) => n.rol === "producto")
+    }
+}
+
 export async function leerNumeros(
     mensaje: string | null | undefined,
     opciones?: { conAliasesDeLaMoto?: boolean }

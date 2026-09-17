@@ -1,5 +1,6 @@
 import { DefinicionHerramienta, EjecutorHerramienta, HerramientaEjecutadaInfo } from "../tipos"
 import { distanciaOSA } from "../nucleo/texto"
+import type { NumerosDelTurno } from "../nucleo/numeros-del-mensaje"
 import { herramientaCompatibilidad } from "./compatibilidad"
 import { herramientaCatalogoPrecios } from "./catalogo-precios"
 import { herramientaCotizarSueltas } from "./cotizar-sueltas"
@@ -106,6 +107,18 @@ export interface EstadoEmbudo {
      * compatibilidad antes de que el modelo afirme que el producto le sirve.
      */
     motoDelMensaje?: string | null
+    /**
+     * Los numeros del mensaje de ESTE turno, ya leidos con su rol (la
+     * cilindrada de su moto, a cuanto quiere llevarla, la medida que pide). Lo
+     * resuelve el motor UNA vez, el LLM no lo ve ni lo puede falsear.
+     *
+     * Antes cada rama del turno leia el mismo mensaje por su cuenta —la de la
+     * plantilla del anuncio en el motor, `resolver_variante` adentro de la
+     * tool— y un numero podia terminar con un rol distinto segun por donde
+     * entrara la charla. Ver `nucleo/numeros-del-mensaje.ts`: trae el texto
+     * sobre el que se leyo, y si no es el mismo la tool lee de nuevo.
+     */
+    numerosDelMensaje?: NumerosDelTurno | null
     /**
      * Todo lo que el bot ya le dijo al cliente en esta charla, concatenado. Lo
      * lleva el motor (historial), el LLM no lo ve ni lo puede falsear.

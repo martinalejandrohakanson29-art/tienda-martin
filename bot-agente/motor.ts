@@ -10,6 +10,7 @@ import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
 import { pideOtroProductoQueElAnuncio } from "./nucleo/otro-producto-anuncio"
 import { pideOtraCilindradaQueElProducto } from "./nucleo/cilindrada-objetivo"
+import { empaquetarLectura, leerNumeros, lecturaYaHecha } from "./nucleo/numeros-del-mensaje"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
@@ -849,6 +850,21 @@ export async function ejecutarTurnoAgente(
         }
     }
 
+    /**
+     * Los números del mensaje, leídos UNA vez por turno con su rol (la
+     * cilindrada de su moto, a cuánto quiere llevarla, la medida que pide).
+     *
+     * Mismo principio que `motoDelMensajeTurno` más abajo: el dato se resuelve
+     * una sola vez acá y viaja en el embudo hasta las tools. Antes cada rama lo
+     * leía por su cuenta —la de la plantilla del anuncio, acá abajo, y
+     * `resolver_variante` adentro de la tool— y un número podía terminar con un
+     * rol distinto según por dónde entrara la charla.
+     *
+     * Va ANTES del bloque de la plantilla porque esa rama es la primera que lo
+     * necesita. Ver `nucleo/numeros-del-mensaje.ts` para la precedencia.
+     */
+    const numerosDelTurno = empaquetarLectura(mensajeUsuario, await leerNumeros(mensajeUsuario))
+
     // Match con una plantilla de anuncio de Instagram: el mensaje publicitario
     // llega tal cual del anuncio y se responde con la bienvenida oficial en
     // automático (costo $0), no solo en el primer mensaje: un cliente que
@@ -1005,8 +1021,16 @@ export async function ejecutarTurnoAgente(
             // 140" sobre el aviso del Cilindro 120). De en cuánto deja el motor
             // cada kit no hay dato en ninguna tabla, así que la ficha —con su
             // precio— tampoco puede salir como si fuera la respuesta.
+            // `resto` casi nunca es el mensaje entero (la plantilla del aviso
+            // se descuenta), asi que la lectura del turno sirve solo cuando
+            // coinciden; si no, se lee ese texto. Los numeros de la plantilla
+            // no los escribio el cliente y no pueden cambiarle el rol a nada.
             const otraCilindrada = resto
-                ? await pideOtraCilindradaQueElProducto(resto, contextoAnuncio)
+                ? await pideOtraCilindradaQueElProducto(
+                      resto,
+                      contextoAnuncio,
+                      lecturaYaHecha(numerosDelTurno, resto)
+                  )
                 : null
 
             if (otraCilindrada) {
@@ -2200,7 +2224,8 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                                     repreguntasMoto:
                                         patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
                                     motoDelMensaje: motoDelTurno,
-                                    motoMencionada: motoVigenteDeLaCharla
+                                    motoMencionada: motoVigenteDeLaCharla,
+                                    numerosDelMensaje: numerosDelTurno
                                 }
                             }
                         )
@@ -2279,6 +2304,10 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                         repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
                         motoDelMensaje: motoDelTurno,
                         motoMencionada: motoVigenteDeLaCharla,
+                        // Los numeros del mensaje ya leidos con su rol: sin
+                        // esto `resolver_variante` vuelve a leer el mismo texto
+                        // y puede clasificarlo distinto que la rama de arriba.
+                        numerosDelMensaje: numerosDelTurno,
                         // Lo que el bot ya le dijo en esta charla: evidencia de
                         // que una ficha ya salió aunque nadie la haya pineado
                         // (ver `fichaPendiente` en resolver-variante.ts).

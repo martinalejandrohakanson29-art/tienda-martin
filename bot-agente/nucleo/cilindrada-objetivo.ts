@@ -19,7 +19,7 @@
  */
 
 import { cilindradasEn } from "./motos"
-import { leerNumeros } from "./numeros-del-mensaje"
+import { leerNumeros, type LecturaNumeros } from "./numeros-del-mensaje"
 
 export interface CilindradaObjetivo {
     /** A cuánto quiere llevar el motor. */
@@ -35,9 +35,15 @@ export interface CilindradaObjetivo {
  * primero para saber que hay que derivar.
  */
 export async function detectarCilindradaObjetivo(
-    mensaje: string | null | undefined
+    mensaje: string | null | undefined,
+    /**
+     * La lectura de este mismo texto, si el motor ya la hizo en este turno
+     * (viaja en el embudo). Sin ella se lee de nuevo, que es lo mismo pero
+     * pagando otra resolucion de moto.
+     */
+    lecturaPrevia?: LecturaNumeros | null
 ): Promise<CilindradaObjetivo | null> {
-    const { objetivo } = await leerNumeros(mensaje)
+    const { objetivo } = lecturaPrevia || (await leerNumeros(mensaje))
     return objetivo ? { cilindrada: objetivo.valor, frase: objetivo.frase } : null
 }
 
@@ -53,9 +59,10 @@ export async function detectarCilindradaObjetivo(
  */
 export async function pideOtraCilindradaQueElProducto(
     mensaje: string | null | undefined,
-    contextoProducto: string | null | undefined
+    contextoProducto: string | null | undefined,
+    lecturaPrevia?: LecturaNumeros | null
 ): Promise<CilindradaObjetivo | null> {
-    const objetivo = await detectarCilindradaObjetivo(mensaje)
+    const objetivo = await detectarCilindradaObjetivo(mensaje, lecturaPrevia)
     if (!objetivo) return null
 
     const delProducto = new Set(cilindradasEn(contextoProducto || ""))

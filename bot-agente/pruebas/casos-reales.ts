@@ -1815,5 +1815,40 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Debe mandarle la ficha oficial del combo 110 a 120 + codo y carburador (vinetas, las dos opciones con precio y el envio) y recien despues preguntarle el recorrido. PROHIBIDO preguntar la variante a secas dejando la presentacion para despues."
         }
+    },
+    {
+        // Conv 4453 (17/09). El cliente entro por el anuncio, recibio la ficha
+        // con las dos opciones y contesto "Sii" a la pregunta de la moto. El bot
+        // respondio "Dale! Decime que moto tenes asi te confirmo cual de las dos
+        // variantes te conviene".
+        //
+        // La variante no le "conviene" a nadie: la define el motor que ya tiene
+        // la moto. Decirlo asi le hace creer que esta eligiendo y lo empuja al
+        // "y cual me recomendas?" que no tenemos con que contestar (conv 3627).
+        id: "caso-88-la-variante-no-conviene-corresponde",
+        titulo: "Pide la moto para definir la variante sin venderla como conveniencia (conv 4453)",
+        mensajeCliente: "Sii",
+        estadoInicial: {
+            grupoPineado: { id: 1, nombre: "Combo 110 a 120 + Codo y carburador" },
+            packPresentado: { id: 1, nombre: "Combo 110 a 120 + Codo y carburador", precio: 99000 }
+        },
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola!\n\nEl combo incluye:\n✅ Cilindro 120\n✅ Carburador CG 125\n✅ Codo de admision\n✅ Filtro de aire alto flujo\n\nTenes 2 opciones:\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000\n\nEnvio gratis a todo el pais!\n\nPara que moto lo estas buscando?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Tiene que volver a pedir la moto: es el dato que falta.
+            patronRespuesta: /moto/i,
+            // La variante no es un negocio ni un gusto del cliente.
+            patronProhibido: /te conviene|le conviene|conviene m[aá]s|te sirve m[aá]s|te va mejor|es (el|la) mejor para/i,
+            descripcionEsperada:
+                "Debe pedirle la moto en un renglon, planteandolo como lo que es: con la moto se sabe cual de las dos LE ENTRA / le corresponde. PROHIBIDO presentarlo como una conveniencia o una eleccion del cliente ('cual te conviene', 'cual es mejor para vos') y prohibido repetir la ficha o los precios."
+        }
     }
 ]

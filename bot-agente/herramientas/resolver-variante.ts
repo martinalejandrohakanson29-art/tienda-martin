@@ -402,6 +402,19 @@ const AVISO_NO_ES_PREFERENCIA = [
 ].join("\n")
 
 /**
+ * Cómo se PIDE el dato de la variante. Va en todos los pasos que todavía la
+ * están averiguando, lo haya pedido el cliente o no.
+ *
+ * Conv 4453 (17/09): sin que nadie le preguntara nada, el bot ofreció "decime
+ * que moto tenes asi te confirmo cual de las dos variantes te conviene".
+ * Presentarlo como conveniencia le miente al cliente sobre lo que estamos por
+ * hacer —no hay nada que elegir: una le entra y la otra no— y lo invita a
+ * pedir una recomendación que no podemos dar (conv 3627).
+ */
+const COMO_SE_PIDE_LA_VARIANTE =
+    'PROHIBIDO presentarlo como una conveniencia o una eleccion del cliente: nada de "cual te conviene", "cual es mejor para vos", "cual te sirve mas". Lo que se define es cual LE ENTRA / le corresponde a su moto.'
+
+/**
  * Pedido de recomendacion sobre la variante ("que me recomendas", "cual me
  * conviene", "cual es mejor").
  *
@@ -918,6 +931,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                     guiaFicha.trim() || "",
                     `TODAVIA NO. El cliente nombró las dos opciones (${opciones}) pero no dijo cuál tiene.`,
                     `Preguntále cuál de las dos es, con tu voz. NO repitas los precios: ya se los diste.`,
+                    COMO_SE_PIDE_LA_VARIANTE,
                     guiaAmbiguo ? `Si no sabe cómo fijarse, pasale esta guía:\n${guiaAmbiguo}` : "",
                     pideRecomendacion ? `\n${AVISO_NO_ES_PREFERENCIA}` : ""
                 ].filter(Boolean).join("\n")
@@ -956,7 +970,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 // todas las confirmaciones salían con esa misma frase. La
                 // redacción la decide la letra de `chat_frases`, o el modelo
                 // con su voz si no hay ninguna cargada.
-                mensaje_para_agente: `${guiaFicha}${cabezaCompatible} Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
+                mensaje_para_agente: `${guiaFicha}${cabezaCompatible} Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}\n${COMO_SE_PIDE_LA_VARIANTE}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
             }
         }
 
@@ -971,7 +985,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             grupo_id: grupo.id,
             pregunta_directa: guia,
             ...datosFicha,
-            mensaje_para_agente: `${guiaFicha}Todavía falta saber ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
+            mensaje_para_agente: `${guiaFicha}Todavía falta saber ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}\n${COMO_SE_PIDE_LA_VARIANTE}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
         }
     } catch (err: any) {
         console.error("Error en resolverVariante:", err)

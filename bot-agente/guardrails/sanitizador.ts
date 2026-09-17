@@ -157,6 +157,65 @@ const JERGA_INTERNA_DE_OFICINA: [RegExp, string][] = [
     [/\b(te|lo|la)\s+(sigue|atiende|contesta|responde|va a atender|va a responder|va a contestar)\s+(un|una)\s+(humano|humana|persona real|agente|operador|operadora)\b[^.\n!?]*/gi, "seguimos por acá"],
 ]
 
+/**
+ * LA VARIANTE NO SE ELIGE POR CONVENIENCIA.
+ *
+ * Conv 4453 (17/09): el bot escribió "decime que moto tenes asi te confirmo
+ * cual de las dos variantes te conviene". No hay nada que convenga: el eje de
+ * variante (recorrido corto/largo, medida de leva) lo define físicamente el
+ * motor que ya tiene la moto, así que lo que se define es cuál LE ENTRA, no
+ * cuál es mejor para él. "Te conviene" le hace creer que está eligiendo y abre
+ * la puerta al "y cuál me recomendás?" que no tenemos con qué contestar — el
+ * mismo pozo de la conv 3627 (el torque y la estirada inventados).
+ *
+ * `resolver_variante` ya lo avisa en su guía, pero solo cuando el turno pasa
+ * por la herramienta: en la 4453 el cliente contestó "Sii" a la ficha y el
+ * modelo redactó libre, sin tool. Por eso la corrección también vive acá,
+ * determinista sobre cualquier texto de salida.
+ *
+ * Se aplica ORACIÓN POR ORACIÓN y solo si la oración habla de la variante: un
+ * "te conviene" sobre cualquier otra cosa no es asunto de esta regla.
+ */
+const RX_CONTEXTO_VARIANTE =
+    /\b(variantes?|opci[oó]n|opciones|recorrido|leva|medida|corto|corta|largo|larga)\b|cu[aá]l de (las|los) (dos|tres)/i
+
+const LEXICO_VARIANTE_NO_ES_CONVENIENCIA: [RegExp, string][] = [
+    // "cuál te conviene" / "cuál le convendría" -> "cuál te corresponde"
+    [/\b(te|le)\s+(conviene|convendr[ií]a)\b/gi, "$1 corresponde"],
+    [/\b(te|le)\s+(convienen|convendr[ií]an)\b/gi, "$1 corresponden"],
+    // "la que te va mejor" / "cuál te sirve más"
+    [/\b(te|le)\s+(va|queda|sirve|rinde|funciona)\s+(mejor|m[aá]s)\b/gi, "$1 corresponde"],
+    // "cuál es la mejor para tu moto" -> "cuál corresponde a tu moto"
+    [/\bcu[aá]l\s+es\s+(?:la|el)\s+mejor\s+para\s+(?:vos|tu\s+moto|tu\s+caso)\b/gi, "cuál corresponde a tu moto"],
+    [/\b(es|ser[ií]a)\s+(?:la|el)\s+mejor\s+para\s+(?:vos|tu\s+moto|tu\s+caso)\b/gi, "$1 la que corresponde a tu moto"],
+    // "conviene más el corto" (sin pronombre)
+    [/\bconviene\s+m[aá]s\b/gi, "corresponde"],
+]
+
+/**
+ * Cambia el "te conviene" por "te corresponde" cuando la oración habla de la
+ * variante. Exportada para poder probarla sola.
+ */
+export function corregirVarianteNoEsConveniencia(texto: string): string {
+    return texto
+        .split("\n")
+        .map((linea) =>
+            linea
+                .split(/(?<=[.!?])\s+/)
+                .map((oracion) => {
+                    if (!RX_CONTEXTO_VARIANTE.test(oracion)) return oracion
+                    let o = oracion
+                    for (const [regex, reemplazo] of LEXICO_VARIANTE_NO_ES_CONVENIENCIA) {
+                        regex.lastIndex = 0
+                        o = o.replace(regex, reemplazo)
+                    }
+                    return o
+                })
+                .join(" ")
+        )
+        .join("\n")
+}
+
 // Corrección obligatoria de tuteo neutro a voseo argentino (ej: Recuerda -> Recordá)
 const CORRECCIONES_VOSEO_ARGENTINO: [RegExp, string][] = [
     [/\brecuerda\b/gi, "recordá"],
@@ -862,6 +921,16 @@ export function sanitizarMensajeSalida(
     for (const [regex, reemplazo] of JERGA_INTERNA_DE_OFICINA) {
         regex.lastIndex = 0
         const nuevo = limpio.replace(regex, reemplazo).trim()
+        if (nuevo !== limpio) {
+            limpio = nuevo
+            modificado = true
+        }
+    }
+
+    // 2.c-ter La variante no se elige por conveniencia: "cuál te conviene" ->
+    // "cuál te corresponde" (conv 4453).
+    {
+        const nuevo = corregirVarianteNoEsConveniencia(limpio)
         if (nuevo !== limpio) {
             limpio = nuevo
             modificado = true

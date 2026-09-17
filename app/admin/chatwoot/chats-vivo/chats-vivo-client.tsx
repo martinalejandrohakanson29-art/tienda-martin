@@ -270,6 +270,29 @@ type ItemRapido = {
     meta?: React.ReactNode
 }
 
+type AdjuntoPendiente = {
+    url: string
+    nombre: string
+    preview: string
+    tipo: "image" | "audio" | "video" | "file"
+    contentType: string
+    tamano: number
+}
+
+function tipoAdjuntoDesdeMime(mime: string): AdjuntoPendiente["tipo"] {
+    if (mime.startsWith("image/")) return "image"
+    if (mime.startsWith("audio/")) return "audio"
+    if (mime.startsWith("video/")) return "video"
+    return "file"
+}
+
+function etiquetaTipoAdjunto(tipo: AdjuntoPendiente["tipo"]): string {
+    if (tipo === "image") return "Foto"
+    if (tipo === "audio") return "Audio"
+    if (tipo === "video") return "Video"
+    return "Archivo"
+}
+
 /**
  * Selector desplegable con buscador y filas reordenables por drag&drop
  * (el orden se guarda en localStorage por `lsKey`). Lo usan tanto el botón
@@ -471,7 +494,7 @@ function SelectorRapido({
             </button>
 
             {abierto && (
-                <div className="absolute top-full left-0 mt-1 w-[460px] max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="fixed left-2 right-2 top-[7rem] w-auto sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-1 sm:w-[460px] sm:max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
                     {modoCrear ? (
                         <div className="p-3">
                             <div className="flex items-center justify-between mb-2">
@@ -682,8 +705,8 @@ export function ChatsVivoClient({
     const [modoNota, setModoNota] = useState(false)
     const [enviandoMensaje, setEnviandoMensaje] = useState(false)
     const [mostrarEmojis, setMostrarEmojis] = useState(false)
-    // Imagen adjunta pendiente de enviar (arrastrada o foto de un kit precargado)
-    const [adjunto, setAdjunto] = useState<{ url: string; nombre: string; preview: string } | null>(null)
+    // Adjunto pendiente de enviar (foto, video, audio o documento).
+    const [adjunto, setAdjunto] = useState<AdjuntoPendiente | null>(null)
     const [subiendoAdjunto, setSubiendoAdjunto] = useState(false)
     const [errorAdjunto, setErrorAdjunto] = useState<string | null>(null)
     const [dragAdjunto, setDragAdjunto] = useState(false)
@@ -710,29 +733,47 @@ export function ChatsVivoClient({
 
     const subirAdjunto = async (archivo: File) => {
         setErrorAdjunto(null)
-        if (!archivo.type.startsWith("image/")) {
-            setErrorAdjunto("El archivo tiene que ser una imagen")
+        const tipo = tipoAdjuntoDesdeMime(archivo.type)
+        const documentoPermitido = [
+            "application/pdf",
+            "text/plain",
+            "text/csv",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ].includes(archivo.type)
+        if (tipo === "file" && !documentoPermitido) {
+            setErrorAdjunto("Formato no admitido. Usá una foto, video, audio, PDF o documento")
             return
         }
-        if (archivo.size > 5 * 1024 * 1024) {
-            setErrorAdjunto("La imagen no puede superar los 5MB")
+        const limite = tipo === "image" ? 5 * 1024 * 1024 : 25 * 1024 * 1024
+        if (archivo.size > limite) {
+            setErrorAdjunto(tipo === "image" ? "La imagen no puede superar los 5MB" : "El archivo no puede superar los 25MB")
             return
         }
         const preview = URL.createObjectURL(archivo)
         setSubiendoAdjunto(true)
         try {
             const cuerpo = new FormData()
-            cuerpo.append("imagen", archivo)
-            const res = await fetch("/api/admin/kits/imagen", { method: "POST", body: cuerpo })
+            cuerpo.append("archivo", archivo)
+            const res = await fetch("/api/admin/chatwoot/adjunto", { method: "POST", body: cuerpo })
             const data = await res.json()
-            if (!res.ok || !data.success) throw new Error(data.error || "No se pudo subir la imagen")
+            if (!res.ok || !data.success) throw new Error(data.error || "No se pudo subir el archivo")
             setAdjunto((prev) => {
                 revocarPreview(prev)
-                return { url: data.fotoUrl, nombre: archivo.name, preview }
+                return {
+                    url: data.url,
+                    nombre: data.nombre || archivo.name,
+                    preview,
+                    tipo,
+                    contentType: data.contentType || archivo.type,
+                    tamano: data.tamano || archivo.size,
+                }
             })
         } catch (err) {
             URL.revokeObjectURL(preview)
-            setErrorAdjunto(err instanceof Error ? err.message : "Error al subir la imagen")
+            setErrorAdjunto(err instanceof Error ? err.message : "Error al subir el archivo")
         } finally {
             setSubiendoAdjunto(false)
         }
@@ -1511,7 +1552,16 @@ export function ChatsVivoClient({
         setPinearKit(true)
         setAdjunto((prev) => {
             revocarPreview(prev)
-            return kit.fotoUrl ? { url: kit.fotoUrl, nombre: `Foto: ${kit.nombre}`, preview: kit.fotoUrl } : null
+            return kit.fotoUrl
+                ? {
+                      url: kit.fotoUrl,
+                      nombre: `Foto: ${kit.nombre}`,
+                      preview: kit.fotoUrl,
+                      tipo: "image",
+                      contentType: "image/jpeg",
+                      tamano: 0,
+                  }
+                : null
         })
         setErrorAdjunto(null)
         setSelectorAbierto(null)
@@ -1543,12 +1593,12 @@ export function ChatsVivoClient({
 
         const contenido = textoMensaje.trim()
         const esNota = modoNota
-        const fotoUrl = !esNota ? adjunto?.url ?? null : null
+        const adjuntoAEnviar = !esNota ? adjunto : null
         // El kit se pinea solo si el check quedó activo y NO es una nota interna
         const kitParaPin = !esNota && kitCargado && pinearKit ? kitCargado : null
 
         if (esNota && !contenido) return
-        if (!esNota && !contenido && !fotoUrl) return
+        if (!esNota && !contenido && !adjuntoAEnviar) return
 
         const convId = seleccionada.id
 
@@ -1572,7 +1622,16 @@ export function ChatsVivoClient({
             remitente: "Nosotros",
             creadoEn: new Date().toISOString(),
             status: "progress",
-            adjuntos: fotoUrl ? [{ id: `tmp-${tempId}`, tipo: "image", url: fotoUrl }] : undefined,
+            adjuntos: adjuntoAEnviar
+                ? [{
+                      id: `tmp-${tempId}`,
+                      tipo: adjuntoAEnviar.tipo,
+                      url: adjuntoAEnviar.url,
+                      nombre: adjuntoAEnviar.nombre,
+                      contentType: adjuntoAEnviar.contentType,
+                      tamano: adjuntoAEnviar.tamano,
+                  }]
+                : undefined,
         }
 
         setHilos((prev) => {
@@ -1591,7 +1650,15 @@ export function ChatsVivoClient({
                         c.id === convId
                             ? {
                                   ...c,
-                                  ultimoMensaje: contenido || "📷 Foto",
+                                  ultimoMensaje:
+                                      contenido ||
+                                      (adjuntoAEnviar?.tipo === "image"
+                                          ? "📷 Foto"
+                                          : adjuntoAEnviar?.tipo === "audio"
+                                            ? "🎤 Audio"
+                                            : adjuntoAEnviar?.tipo === "video"
+                                              ? "🎥 Video"
+                                              : "📎 Archivo"),
                                   ultimoMensajePropio: true,
                                   botPausado: kitParaPin ? false : true,
                               }
@@ -1607,7 +1674,15 @@ export function ChatsVivoClient({
                 conversationId: convId,
                 contenido,
                 esNota,
-                fotoUrl,
+                adjunto: adjuntoAEnviar
+                    ? {
+                          url: adjuntoAEnviar.url,
+                          nombre: adjuntoAEnviar.nombre,
+                          tipo: adjuntoAEnviar.tipo,
+                          contentType: adjuntoAEnviar.contentType,
+                          tamano: adjuntoAEnviar.tamano,
+                      }
+                    : null,
                 kit: kitParaPin,
             })
             if (!res.success) throw new Error(esNota ? "No se pudo enviar la nota" : "No se pudo enviar el mensaje")
@@ -1617,8 +1692,8 @@ export function ChatsVivoClient({
                     return { ...prev, [convId]: fusionarMensajeEnHilo(actual, res.mensaje) }
                 })
             }
-            if (res.avisoFoto) {
-                alert("El texto se envió, pero la imagen no salió: " + res.avisoFoto)
+            if (res.avisoAdjunto) {
+                alert("El texto se envió, pero el archivo no salió: " + res.avisoAdjunto)
             }
             if (res.avisoPin) {
                 console.warn("Mensaje enviado, pero no se pudo pinear el kit en Redis:", res.avisoPin)
@@ -1642,21 +1717,21 @@ export function ChatsVivoClient({
     }
 
     return (
-        <div className="h-screen w-full overflow-hidden flex flex-col bg-[#f0f2f5]">
-            <div className="flex items-center gap-3 px-4 py-2 border-b bg-white shrink-0 h-12">
+        <div className="h-[100dvh] w-full overflow-hidden flex flex-col bg-[#f0f2f5]">
+            <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 border-b bg-white shrink-0 min-h-12">
                 <Link href="/admin/chatwoot" className="text-gray-500 hover:text-gray-800">
                     <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <h1 className="text-sm font-semibold text-gray-800">Chats en vivo</h1>
-                        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded-full border border-emerald-200">
+                        <h1 className="text-sm font-semibold text-gray-800 whitespace-nowrap">Chats en vivo</h1>
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded-full border border-emerald-200">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             En vivo
                         </span>
                         <ChipSaludMotor salud={panel?.saludMotor} />
                     </div>
-                    <p className="text-[11px] text-gray-500" suppressHydrationWarning>
+                    <p className="hidden md:block text-[11px] text-gray-500" suppressHydrationWarning>
                         {fallo
                             ? fallo
                             : panel
@@ -1664,12 +1739,12 @@ export function ChatsVivoClient({
                               : "Cargando…"}
                     </p>
                 </div>
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                <div className="flex items-center gap-0.5 sm:gap-1 bg-gray-100 rounded-lg p-0.5 overflow-x-auto">
                     {PERIODOS.map((p) => (
                         <button
                             key={p.valor}
                             onClick={() => cambiarPeriodo(p.valor)}
-                            className={`text-xs px-2.5 py-0.5 rounded-md transition-colors ${
+                            className={`text-[11px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 rounded-md transition-colors whitespace-nowrap ${
                                 periodoDias === p.valor ? "bg-white shadow-sm text-gray-800 font-medium" : "text-gray-500 hover:text-gray-700"
                             }`}
                         >
@@ -1684,7 +1759,7 @@ export function ChatsVivoClient({
 
             <div className="flex flex-1 min-h-0">
                 {/* Columna izquierda: lista de conversaciones */}
-                <div className="w-[420px] lg:w-[480px] xl:w-[520px] shrink-0 border-r bg-white flex flex-col min-h-0">
+                <div className={`${seleccionada ? "hidden md:flex" : "flex"} w-full md:w-[380px] lg:w-[440px] xl:w-[500px] shrink-0 border-r bg-white flex-col min-h-0`}>
                     <div className="px-3.5 py-2 bg-[#f0f2f5] shrink-0 flex items-center justify-between">
                         <span className="font-semibold text-[#111b25] text-sm">Conversaciones</span>
                         <span className="text-xs text-gray-500">{conversacionesFiltradas.length}</span>
@@ -1938,11 +2013,19 @@ export function ChatsVivoClient({
                 </div>
 
                 {/* Columna derecha: hilo de la conversación seleccionada */}
-                <div className="flex-1 flex flex-col min-h-0">
+                <div className={`${seleccionada ? "flex" : "hidden md:flex"} flex-1 w-full flex-col min-h-0 min-w-0`}>
                     {seleccionada ? (
                         <>
-                            <div className="flex items-center justify-between px-4 py-2 bg-[#f0f2f5] border-b shrink-0 gap-3 min-h-[52px]">
+                            <div className="flex items-center justify-between px-2 sm:px-4 py-2 bg-[#f0f2f5] border-b shrink-0 gap-2 sm:gap-3 min-h-[52px]">
                                 <div className="flex items-center gap-2.5 min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSeleccionadaId(null)}
+                                        className="md:hidden h-9 w-9 -ml-1 rounded-full flex items-center justify-center text-[#54656f] hover:bg-black/5 shrink-0"
+                                        aria-label="Volver a conversaciones"
+                                    >
+                                        <ArrowLeft className="h-5 w-5" />
+                                    </button>
                                     <div
                                         className={`h-9 w-9 rounded-full ${seleccionada.colorAvatar} text-white flex items-center justify-center font-semibold text-xs shrink-0`}
                                         suppressHydrationWarning
@@ -1969,13 +2052,13 @@ export function ChatsVivoClient({
                                         </div>
                                         <p className="text-[11px] text-[#667781] truncate">{seleccionada.telefono}</p>
                                     </div>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
+                                    <span className={`hidden lg:inline-flex text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
                                         {CATEGORIA_INFO[seleccionada.categoria].texto}
                                     </span>
                                     {categoriasDe(seleccionada).slice(1).map((extra) => (
                                         <span
                                             key={extra}
-                                            className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[extra].clase}`}
+                                            className={`hidden xl:inline-flex text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[extra].clase}`}
                                         >
                                             {CATEGORIA_INFO[extra].texto}
                                         </span>
@@ -1986,7 +2069,7 @@ export function ChatsVivoClient({
                                             onClick={() => handleMarcarResuelta(seleccionada.id)}
                                             disabled={resolviendo === seleccionada.id}
                                             title="Marcar como resuelto"
-                                            className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors disabled:opacity-50 shrink-0"
+                                            className="hidden xl:inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors disabled:opacity-50 shrink-0"
                                         >
                                             {resolviendo === seleccionada.id ? (
                                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1998,9 +2081,9 @@ export function ChatsVivoClient({
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-2.5 shrink-0">
+                                <div className="flex items-center gap-1 sm:gap-2.5 shrink-0 overflow-x-auto max-w-[52%] sm:max-w-none">
                                     {/* Switch ON/OFF del Bot para esta conversación */}
-                                    <div className="flex items-center gap-2 bg-white px-2.5 py-1 rounded-lg border shadow-sm">
+                                    <div className="flex items-center gap-1 sm:gap-2 bg-white px-1.5 sm:px-2.5 py-1 rounded-lg border shadow-sm shrink-0">
                                         <button
                                             type="button"
                                             role="switch"
@@ -2023,7 +2106,7 @@ export function ChatsVivoClient({
                                                 }`}
                                             />
                                         </button>
-                                        <div className="flex items-center gap-1 min-w-[70px]">
+                                        <div className="hidden sm:flex items-center gap-1 min-w-[70px]">
                                             {togglingBot === seleccionada.id ? (
                                                 <Loader2 className="h-3 w-3 animate-spin text-gray-500" />
                                             ) : !seleccionada.botPausado ? (
@@ -2062,22 +2145,22 @@ export function ChatsVivoClient({
                                         ) : (
                                             <span>🧪</span>
                                         )}
-                                        {pilotoActivo[seleccionada.id] ? "Piloto bot-agente ON" : "Piloto bot-agente"}
+                                        <span className="hidden xl:inline">{pilotoActivo[seleccionada.id] ? "Piloto bot-agente ON" : "Piloto bot-agente"}</span>
                                     </button>
 
                                     <a
                                         href={`${chatwootUrl}/app/accounts/1/conversations/${seleccionada.id}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-xs text-[#00a884] font-medium hover:underline"
+                                        className="flex items-center gap-1 text-xs text-[#00a884] font-medium hover:underline shrink-0"
                                     >
-                                        Chatwoot <ExternalLink className="h-3 w-3" />
+                                        <span className="hidden lg:inline">Chatwoot</span> <ExternalLink className="h-4 w-4 lg:h-3 lg:w-3" />
                                     </a>
                                 </div>
                             </div>
 
                             {/* Selectores rápidos: info de kit y notas del negocio */}
-                            <div className="flex items-center gap-2 px-4 py-1.5 bg-white border-b shrink-0">
+                            <div className="flex items-center gap-2 px-2 sm:px-4 py-1.5 bg-white border-b shrink-0 overflow-x-auto">
                                 <SelectorRapido
                                     etiqueta="Enviar info de kit"
                                     Icono={Zap}
@@ -2137,7 +2220,7 @@ export function ChatsVivoClient({
                                 />
                             </div>
 
-                            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5" style={fondoChat}>
+                            <div className="flex-1 overflow-y-auto px-2.5 sm:px-5 py-3 space-y-1.5" style={fondoChat}>
                                 {(!hilosCargados.has(seleccionada.id) || (cargandoHilo && !hiloActual)) && (
                                     <div className="flex items-center justify-center h-full text-[#667781] text-xs gap-2">
                                         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando conversación…
@@ -2252,9 +2335,9 @@ export function ChatsVivoClient({
                                 }}
                             />
 
-                            {/* Barra para escribir y responder manualmente (4 renglones) */}
+                            {/* Barra para escribir y responder manualmente */}
                             <div
-                                className={`px-3.5 py-2.5 bg-[#f0f2f5] border-t shrink-0 relative transition-colors ${
+                                className={`px-2 sm:px-3.5 pt-2 sm:pt-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-[#f0f2f5] border-t shrink-0 relative transition-colors ${
                                     dragAdjunto ? "bg-violet-50 ring-2 ring-inset ring-violet-300" : ""
                                 }`}
                                 onDragOver={(e) => {
@@ -2276,7 +2359,7 @@ export function ChatsVivoClient({
                             >
                                 {dragAdjunto && (
                                     <div className="absolute inset-2 rounded-xl border-2 border-dashed border-violet-400 bg-violet-50/80 flex items-center justify-center text-violet-700 text-xs font-medium z-40 pointer-events-none">
-                                        Soltá la imagen para adjuntarla
+                                        Soltá el archivo para adjuntarlo
                                     </div>
                                 )}
                                 {/* Popover de Emojis frecuentes */}
@@ -2363,28 +2446,38 @@ export function ChatsVivoClient({
                                     </div>
                                 )}
 
-                                {/* Imagen adjunta pendiente */}
+                                {/* Adjunto pendiente */}
                                 {!modoNota && (adjunto || subiendoAdjunto || errorAdjunto) && (
                                     <div className="flex items-center gap-2 mb-2 bg-white border border-gray-200 rounded-md px-2 py-1.5 shadow-sm">
                                         {subiendoAdjunto ? (
                                             <span className="flex items-center gap-2 text-[11px] text-gray-500">
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Subiendo imagen…
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Subiendo archivo…
                                             </span>
                                         ) : adjunto ? (
                                             <>
-                                                <img
-                                                    src={adjunto.preview}
-                                                    alt={adjunto.nombre}
-                                                    className="h-10 w-10 object-cover rounded border cursor-pointer"
-                                                    onClick={() => setLightboxImg({ url: adjunto.preview, nombre: adjunto.nombre })}
-                                                />
-                                                <span className="text-[11px] text-gray-600 truncate flex-1 min-w-0">{adjunto.nombre}</span>
-                                                <span className="text-[10px] text-emerald-600 shrink-0">se manda con el mensaje</span>
+                                                {adjunto.tipo === "image" ? (
+                                                    <img
+                                                        src={adjunto.preview}
+                                                        alt={adjunto.nombre}
+                                                        className="h-11 w-11 object-cover rounded border cursor-pointer"
+                                                        onClick={() => setLightboxImg({ url: adjunto.preview, nombre: adjunto.nombre })}
+                                                    />
+                                                ) : (
+                                                    <span className="h-11 w-11 rounded border bg-gray-50 flex items-center justify-center text-[#00a884] shrink-0">
+                                                        {adjunto.tipo === "audio" ? <Mic className="h-5 w-5" /> : adjunto.tipo === "video" ? <Film className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                                                    </span>
+                                                )}
+                                                <span className="text-[11px] text-gray-600 truncate flex-1 min-w-0">
+                                                    <span className="block font-medium text-gray-700">{adjunto.nombre}</span>
+                                                    <span className="text-[10px] text-gray-400">
+                                                        {etiquetaTipoAdjunto(adjunto.tipo)} · {adjunto.tamano ? `${(adjunto.tamano / 1024 / 1024).toFixed(1)} MB` : "listo para enviar"}
+                                                    </span>
+                                                </span>
                                                 <button
                                                     type="button"
                                                     onClick={quitarAdjunto}
                                                     className="text-gray-400 hover:text-rose-600 shrink-0"
-                                                    title="Quitar la imagen"
+                                                    title="Quitar el archivo"
                                                 >
                                                     <X className="h-3.5 w-3.5" />
                                                 </button>
@@ -2403,7 +2496,7 @@ export function ChatsVivoClient({
                                 <input
                                     ref={adjuntoFileRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/*,video/*,audio/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx"
                                     className="hidden"
                                     onChange={(e) => {
                                         const f = e.target.files?.[0]
@@ -2411,7 +2504,7 @@ export function ChatsVivoClient({
                                     }}
                                 />
 
-                                <form onSubmit={handleEnviarMensaje} className="flex items-end gap-2">
+                                <form onSubmit={handleEnviarMensaje} className="flex items-end gap-1.5 sm:gap-2">
                                     <div
                                         className={`flex-1 bg-white rounded-xl px-3.5 py-2 border shadow-sm transition-all ${
                                             modoNota
@@ -2429,8 +2522,8 @@ export function ChatsVivoClient({
                                                     ? "Escribí el dato técnico para el bot (ej: 'sí es compatible con la Rouser 200 NS')... (Enter para enviar)"
                                                     : "Escribe un mensaje para responder al cliente... (Enter para enviar, Shift+Enter para nueva línea)"
                                             }
-                                            rows={3}
-                                            className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[68px] max-h-[340px] block leading-relaxed overflow-y-auto"
+                                            rows={2}
+                                            className="w-full resize-none bg-transparent outline-none text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[48px] sm:min-h-[68px] max-h-[34dvh] block leading-relaxed overflow-y-auto"
                                         />
                                     </div>
                                     <div className="flex flex-col gap-1.5 shrink-0 mb-0.5">
@@ -2441,7 +2534,7 @@ export function ChatsVivoClient({
                                                 onClick={() => adjuntoFileRef.current?.click()}
                                                 disabled={subiendoAdjunto}
                                                 className="h-9 w-9 p-0 rounded-xl border-gray-200 bg-white text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-colors shadow-sm"
-                                                title="Adjuntar imagen (o arrastrala al cuadro)"
+                                                title="Adjuntar foto, video, audio o documento"
                                             >
                                                 {subiendoAdjunto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                                             </Button>

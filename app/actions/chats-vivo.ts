@@ -15,7 +15,7 @@ import {
     type PanelChatsVivo,
 } from "@/lib/chatwoot-chats-vivo"
 import {
-    enviarImagenChatwoot,
+    enviarAdjuntoChatwoot,
     enviarMensajeChatwoot,
     enviarMensajeManualChatwoot,
     enviarNotaPrivadaChatwoot,
@@ -429,37 +429,42 @@ export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
 
 /**
  * Envía lo que el equipo escribió en el cuadro del panel de chats en vivo:
- * texto y/o una imagen (adjunto pendiente), como mensaje al cliente o nota
+ * texto y/o un archivo (adjunto pendiente), como mensaje al cliente o nota
  * interna para el bot.
  *
- * - `esNota`: nota privada para el bot (no lleva imagen, no pausa el bot).
+ * - `esNota`: nota privada para el bot (no lleva adjunto, no pausa el bot).
  * - `kit` presente: se manda como "saludo de kit" — identidad del Bot, prende el
  *   bot en la charla y lo "pinea" en Redis vía el workflow n8n (como si el
  *   cliente hubiera entrado por publicidad). El equipo pudo haber editado el
  *   texto/la foto antes de mandar.
  * - sin `kit`: mensaje manual del equipo (identidad de agente humano, pausa el bot).
  *
- * `fotoUrl` es una URL http(s) pública (foto del kit, o la que devuelve
- * /api/admin/kits/imagen al subir una imagen arrastrada). El fallo al mandar la
- * imagen o al pinear no tumban el envío del texto: se devuelven como avisos.
+ * El adjunto apunta a una URL http(s) pública de nuestro proxy S3. El fallo al
+ * mandarlo o al pinear no tumban el envío del texto: se devuelven como avisos.
  */
 export async function enviarMensajeComposerChatVivo(params: {
     conversationId: number
     contenido: string
     esNota: boolean
-    fotoUrl?: string | null
+    adjunto?: {
+        url: string
+        nombre: string
+        tipo: "image" | "audio" | "video" | "file"
+        contentType?: string | null
+        tamano?: number | null
+    } | null
     kit?: { id: number; nombre: string } | null
 }): Promise<{
     success: boolean
     mensaje: MensajeConversacion
-    avisoFoto: string | null
+    avisoAdjunto: string | null
     avisoPin: string | null
 }> {
     await requireAdmin()
 
     const { conversationId, esNota } = params
     const texto = params.contenido.trim()
-    const fotoUrl = params.fotoUrl && params.fotoUrl.trim() ? params.fotoUrl.trim() : null
+    const adjunto = params.adjunto?.url?.trim() ? { ...params.adjunto, url: params.adjunto.url.trim() } : null
     const kit = !esNota ? params.kit ?? null : null
 
     // --- Nota interna ---
@@ -475,11 +480,11 @@ export async function enviarMensajeComposerChatVivo(params: {
             creadoEn: new Date().toISOString(),
         }
         revalidatePath("/admin/chatwoot/chats-vivo")
-        return { success: true, mensaje, avisoFoto: null, avisoPin: null }
+        return { success: true, mensaje, avisoAdjunto: null, avisoPin: null }
     }
 
     // --- Mensaje al cliente ---
-    if (!texto && !fotoUrl) throw new Error("Escribí un mensaje o adjuntá una imagen")
+    if (!texto && !adjunto) throw new Error("Escribí un mensaje o adjuntá un archivo")
 
     let idTexto = Date.now()
 
@@ -491,23 +496,29 @@ export async function enviarMensajeComposerChatVivo(params: {
             const res = await enviarMensajeChatwoot({ accountId: ACCOUNT_ID, conversationId, content: texto })
             idTexto = Number(res?.id || idTexto)
         }
-        await registrarMensajeSalienteEnEspejo(conversationId, texto || "📷 Foto")
+        await registrarMensajeSalienteEnEspejo(conversationId, texto || etiquetaAdjunto(adjunto))
     } else {
         // Mensaje manual del equipo: identidad de agente humano, pausa el bot.
         if (texto) {
             const res = await enviarMensajeManualChatwoot({ accountId: ACCOUNT_ID, conversationId, content: texto })
             idTexto = Number(res?.id || idTexto)
         }
-        await registrarMensajeSalienteEnEspejo(conversationId, texto || "📷 Foto", { pausarBot: true })
+        await registrarMensajeSalienteEnEspejo(conversationId, texto || etiquetaAdjunto(adjunto), { pausarBot: true })
     }
 
-    let avisoFoto: string | null = null
-    if (fotoUrl) {
+    let avisoAdjunto: string | null = null
+    if (adjunto) {
         try {
-            await enviarImagenChatwoot({ accountId: ACCOUNT_ID, conversationId, fotoUrl })
+            await enviarAdjuntoChatwoot({
+                accountId: ACCOUNT_ID,
+                conversationId,
+                url: adjunto.url,
+                nombre: adjunto.nombre,
+                contentType: adjunto.contentType,
+            })
         } catch (error) {
-            avisoFoto = error instanceof Error ? error.message : "No se pudo mandar la imagen"
-            console.error("No se pudo mandar la imagen (composer chats-vivo):", error)
+            avisoAdjunto = error instanceof Error ? error.message : "No se pudo mandar el archivo"
+            console.error("No se pudo mandar el adjunto (composer chats-vivo):", error)
         }
     }
 
@@ -552,12 +563,29 @@ export async function enviarMensajeComposerChatVivo(params: {
         remitente: kit ? "Bot" : "Nosotros",
         creadoEn: new Date().toISOString(),
         status: "sent",
-        adjuntos: fotoUrl ? [{ id: `adjunto-${idTexto}`, tipo: "image", url: fotoUrl }] : undefined,
+        adjuntos: adjunto
+            ? [{
+                  id: `adjunto-${idTexto}`,
+                  tipo: adjunto.tipo,
+                  url: adjunto.url,
+                  nombre: adjunto.nombre,
+                  contentType: adjunto.contentType,
+                  tamano: adjunto.tamano,
+              }]
+            : undefined,
     }
     emitirEventoChatwoot({ tipo: "message_created", conversationId, mensaje })
 
     revalidatePath("/admin/chatwoot/chats-vivo")
-    return { success: true, mensaje, avisoFoto, avisoPin }
+    return { success: true, mensaje, avisoAdjunto, avisoPin }
+}
+
+function etiquetaAdjunto(adjunto: { tipo: string } | null): string {
+    if (!adjunto) return "📎 Archivo"
+    if (adjunto.tipo === "image") return "📷 Foto"
+    if (adjunto.tipo === "audio") return "🎤 Audio"
+    if (adjunto.tipo === "video") return "🎥 Video"
+    return "📎 Archivo"
 }
 
 export type NotaRapida = {

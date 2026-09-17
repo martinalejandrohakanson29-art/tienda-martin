@@ -322,6 +322,7 @@ export async function enviarMensajeManualChatwoot(params: {
 
 const FOTO_TAMANO_MAXIMO = 5 * 1024 * 1024 // 5MB, límite típico de imagen en WhatsApp/Chatwoot
 const FOTO_TIMEOUT_MS = 15000
+const ADJUNTO_TAMANO_MAXIMO = 25 * 1024 * 1024
 
 /**
  * Manda una foto al cliente por Chatwoot como adjunto (sin caption, se manda
@@ -382,6 +383,70 @@ export async function enviarImagenChatwoot(params: {
     if (!res.ok) {
         const detalle = await res.text().catch(() => "")
         throw new Error(`Chatwoot respondió ${res.status} al mandar la foto: ${detalle.slice(0, 300)}`)
+    }
+    return res.json().catch(() => ({}))
+}
+
+/**
+ * Envía cualquier adjunto admitido por Chatwoot/WhatsApp (imagen, video,
+ * audio o documento). El archivo se descarga desde nuestro proxy de S3 y se
+ * vuelve a subir como multipart porque la API de Chatwoot no acepta URLs.
+ *
+ * Se mantiene `enviarImagenChatwoot` arriba para no alterar los flujos
+ * existentes de fotos de kits; el composer de chats en vivo usa esta versión
+ * genérica.
+ */
+export async function enviarAdjuntoChatwoot(params: {
+    accountId: number | bigint
+    conversationId: number | bigint
+    url: string
+    nombre?: string | null
+    contentType?: string | null
+}) {
+    const { api, token } = chatwootConfig()
+    if (!token) throw new Error("Falta CHATWOOT_API_TOKEN en el entorno de la app")
+
+    let archivoUrl: URL
+    try {
+        archivoUrl = new URL(params.url)
+    } catch {
+        throw new Error("La URL del adjunto no es válida")
+    }
+    if (archivoUrl.protocol !== "http:" && archivoUrl.protocol !== "https:") {
+        throw new Error("La URL del adjunto tiene que ser http(s)")
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    let bytes: ArrayBuffer
+    let contentType: string
+    try {
+        const descarga = await fetch(archivoUrl, { signal: controller.signal })
+        if (!descarga.ok) throw new Error(`No se pudo descargar el adjunto (${descarga.status})`)
+        contentType = params.contentType || descarga.headers.get("content-type") || "application/octet-stream"
+        const contentLength = Number(descarga.headers.get("content-length") || 0)
+        if (contentLength > ADJUNTO_TAMANO_MAXIMO) throw new Error("El archivo supera los 25MB")
+        bytes = await descarga.arrayBuffer()
+        if (bytes.byteLength > ADJUNTO_TAMANO_MAXIMO) throw new Error("El archivo supera los 25MB")
+    } finally {
+        clearTimeout(timeoutId)
+    }
+
+    const extension = (contentType.split("/")[1] || "bin").split(";")[0].replace(/[^a-z0-9.+-]/gi, "")
+    const nombreSeguro = (params.nombre || `adjunto.${extension}`).replace(/[\r\n"\\/]/g, "_").slice(0, 180)
+    const form = new FormData()
+    form.append("message_type", "outgoing")
+    form.append("attachments[]", new Blob([bytes], { type: contentType }), nombreSeguro)
+
+    const chatwootUrl = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
+    const res = await chatwootFetch(chatwootUrl, {
+        method: "POST",
+        headers: { api_access_token: token },
+        body: form,
+    })
+    if (!res.ok) {
+        const detalle = await res.text().catch(() => "")
+        throw new Error(`Chatwoot respondió ${res.status} al mandar el adjunto: ${detalle.slice(0, 300)}`)
     }
     return res.json().catch(() => ({}))
 }

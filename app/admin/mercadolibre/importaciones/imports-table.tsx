@@ -69,19 +69,27 @@ type StatusFilterType = "all" | "red" | "yellow" | "green"
 
 export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTableProps) {
   const searchParams = useSearchParams()
-  
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "salesLast30", desc: true }
   ])
-  
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
   const [manualInputs, setManualInputs] = React.useState<Record<string, number>>({})
-  
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
   const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
   const [isExporting, setIsExporting] = React.useState(false)
+
+  // Snapshot de manualInputs utilizado exclusivamente para el ordenamiento
+  // Esto previene que al tipear en la columna "Simular" las filas salten de lugar
+  const [sortingManualInputs, setSortingManualInputs] = React.useState<Record<string, number>>({})
+  const manualInputsRef = React.useRef(manualInputs)
+  manualInputsRef.current = manualInputs
+
+  const handleSortingChange: React.Dispatch<React.SetStateAction<SortingState>> = React.useCallback((updater) => {
+    setSortingManualInputs({ ...manualInputsRef.current })
+    setSorting(updater)
+  }, [])
 
   const articulosAPedirCount = React.useMemo(() => {
     return Object.values(manualInputs).filter(val => (val || 0) > 0).length
@@ -190,7 +198,6 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {
       const covActual = calculateCoverageValue(item, safetyMargin, false, {})
-      const covProyectada = calculateCoverageValue(item, safetyMargin, true, manualInputs)
 
       const matchActual = statusFilter === "all" || (
         statusFilter === "red" ? covActual < 6 :
@@ -198,15 +205,15 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
         statusFilter === "green" ? covActual > 8 : true
       )
 
-      const matchProj = projectionFilter === "all" || (
-        projectionFilter === "red" ? covProyectada < 6 :
+      if (!matchActual) return false
+      if (projectionFilter === "all") return true
+
+      const covProyectada = calculateCoverageValue(item, safetyMargin, true, sortingManualInputs)
+      return projectionFilter === "red" ? covProyectada < 6 :
         projectionFilter === "yellow" ? (covProyectada >= 6 && covProyectada <= 8) :
         projectionFilter === "green" ? covProyectada > 8 : true
-      )
-
-      return matchActual && matchProj
     })
-  }, [data, statusFilter, projectionFilter, safetyMargin, manualInputs, calculateCoverageValue])
+  }, [data, statusFilter, projectionFilter, safetyMargin, sortingManualInputs, calculateCoverageValue])
 
   const uniqueOrders = React.useMemo(() => {
     const orderMap = new Map<string, string>();
@@ -311,7 +318,7 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
 
     cols.push({
       id: "projected",
-      accessorFn: (row) => calculateCoverageValue(row, safetyMargin, true, manualInputs),
+      accessorFn: (row) => calculateCoverageValue(row, safetyMargin, true, sortingManualInputs),
       header: "STOCK FINAL C/ IMPORTACIONES",
       size: 90,
       cell: ({ row, table }) => {
@@ -332,13 +339,13 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
     })
 
     return cols
-  }, [uniqueOrders, safetyMargin, manualInputs, calculateCoverageValue])
+  }, [uniqueOrders, safetyMargin, sortingManualInputs, calculateCoverageValue])
 
   const table = useReactTable({
     data: filteredData,
     columns,
     state: { sorting, columnFilters },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -393,7 +400,10 @@ export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTablePr
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => setManualInputs({})}
+              onClick={() => {
+                setManualInputs({})
+                setSortingManualInputs({})
+              }}
               className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8"
             >
               <RotateCcw className="mr-2 h-3 w-3" /> Limpiar Simulación

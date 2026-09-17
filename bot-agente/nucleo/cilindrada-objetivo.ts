@@ -8,64 +8,18 @@
  * realmente vino a preguntar— no lo miró nadie: el combo deja el motor en 120,
  * no en 140, y de a cuánto deja cada kit NO hay dato en la base.
  *
- * La cilindrada OBJETIVO es un dato distinto de los otros dos números que ya
- * sabemos leer:
- *   - la cilindrada de SU MOTO ("un econor de 110")  -> `nucleo/motos.ts`
- *   - la medida del producto que PIDE ("tenés kit 190?") -> `otro-producto-anuncio.ts`
- *   - a cuánto quiere DEJARLA ("hacerla 140")        -> esto.
- *
  * No hay forma de contestarlo con el catálogo: `cilindradas_base` dice para qué
  * motor es el kit, nunca en cuánto lo deja. Así que la regla es dura y
  * conservadora: si el número objetivo no es el del producto que está sobre la
  * mesa, el bot no confirma nada y la consulta va al equipo.
  *
- * Determinista a propósito (no depende del modelo), igual que sus dos hermanos.
+ * Quién lee el número y con qué precedencia contra los otros dos roles (la
+ * cilindrada de su moto, la medida del producto que pide) vive en
+ * `nucleo/numeros-del-mensaje.ts`. Acá queda solo la regla de negocio.
  */
 
-import { normalizarTexto } from "./texto"
 import { cilindradasEn } from "./motos"
-
-/**
- * Verbos con los que se dice "llevarla a X". Se aceptan con el pronombre
- * pegado, que es como se escribe en WhatsApp ("hacerla", "pasarlo", "dejarla").
- */
-const RX_VERBO_OBJETIVO =
-    /^(hacer|haser|aser|llevar|pasar|subir|agrandar|ampliar|aumentar|potenciar|convertir|dejar|trucar|modificar)(la|lo|le|las|los|me|se|mela|melo|sela|selo)?$/
-
-/** Las mismas, conjugadas en primera/tercera persona ("la paso a 140"). */
-const RX_VERBO_CONJUGADO =
-    /^(hago|hace|hacen|llevo|lleva|paso|pasa|subo|sube|agrando|agranda|potencio|potencia|dejo|deja|quede|quedaria|convierto)$/
-
-/** Imperativo de voseo con el pronombre pegado: "hacela de 140", "pasalo a 150". */
-const RX_VERBO_IMPERATIVO =
-    /^(hac|has|llev|pas|sub|agrand|ampli|aument|potenci|dej|truc|modific)[ae](la|lo|le|las|los)$/
-
-/**
- * Palabras que pueden ir ENTRE el verbo y el número sin romper la idea
- * ("llevarla a 140", "dejarla en unos 140"). Cualquier otra palabra corta la
- * cadena: así "hacer el envío a 140 km" o "lo dejo para el 15" no matchean.
- */
-const PUENTE = new Set([
-    "a", "al", "de", "del", "en", "hasta", "como", "unos", "unas", "un", "una",
-    "el", "la", "los", "las", "mi", "su", "moto", "motor", "cilindrada", "cc",
-])
-
-/** Cuántas palabras puente se toleran entre el verbo y el número. */
-const VENTANA_PUENTE = 3
-
-/**
- * Lo que une los dos números del "de 110 a 120": el de la izquierda es la moto
- * que tiene, el de la derecha es a dónde quiere llegar.
- */
-const SALTO_A_OTRO_NUMERO = new Set(["a", "hasta", "en"])
-
-/** El token es una cilindrada ("120", "120cc"), o no. */
-function numeroDeCilindrada(token: string): number | null {
-    const m = token.match(/^(\d{2,4})(cc)?$/)
-    if (!m) return null
-    const n = Number(m[1])
-    return n >= 50 && n <= 2000 ? n : null
-}
+import { leerNumeros } from "./numeros-del-mensaje"
 
 export interface CilindradaObjetivo {
     /** A cuánto quiere llevar el motor. */
@@ -80,43 +34,11 @@ export interface CilindradaObjetivo {
  * Devuelve el primer objetivo que aparece; con dos números distintos alcanza el
  * primero para saber que hay que derivar.
  */
-export function detectarCilindradaObjetivo(mensaje: string | null | undefined): CilindradaObjetivo | null {
-    const norm = normalizarTexto(mensaje || "")
-    if (!norm) return null
-
-    const tokens = norm.split(" ").filter(Boolean)
-    for (let i = 0; i < tokens.length; i++) {
-        const esVerbo =
-            RX_VERBO_OBJETIVO.test(tokens[i]) ||
-            RX_VERBO_CONJUGADO.test(tokens[i]) ||
-            RX_VERBO_IMPERATIVO.test(tokens[i])
-        if (!esVerbo) continue
-
-        for (let j = i + 1; j <= i + 1 + VENTANA_PUENTE && j < tokens.length; j++) {
-            const n = numeroDeCilindrada(tokens[j])
-            if (n != null) {
-                // "potenciar mi 110 a 120": el primer numero es SU MOTO y el
-                // objetivo es el segundo. Sin esto el detector devolvia 110 y
-                // mandaba al equipo justo al cliente que quiere lo que el kit
-                // hace (conv 3338, real). El objetivo es el ULTIMO numero de la
-                // cadena: se sigue mientras haya un "a"/"hasta" y otro numero.
-                let fin = j
-                let objetivo = n
-                while (
-                    fin + 2 < tokens.length &&
-                    SALTO_A_OTRO_NUMERO.has(tokens[fin + 1]) &&
-                    numeroDeCilindrada(tokens[fin + 2]) != null
-                ) {
-                    objetivo = numeroDeCilindrada(tokens[fin + 2]) as number
-                    fin += 2
-                }
-                return { cilindrada: objetivo, frase: tokens.slice(i, fin + 1).join(" ") }
-            }
-            if (!PUENTE.has(tokens[j])) break
-        }
-    }
-
-    return null
+export async function detectarCilindradaObjetivo(
+    mensaje: string | null | undefined
+): Promise<CilindradaObjetivo | null> {
+    const { objetivo } = await leerNumeros(mensaje)
+    return objetivo ? { cilindrada: objetivo.valor, frase: objetivo.frase } : null
 }
 
 /**
@@ -129,11 +51,11 @@ export function detectarCilindradaObjetivo(mensaje: string | null | undefined): 
  *
  * Sin número en el contexto no se opina: no hay con qué comparar.
  */
-export function pideOtraCilindradaQueElProducto(
+export async function pideOtraCilindradaQueElProducto(
     mensaje: string | null | undefined,
     contextoProducto: string | null | undefined
-): CilindradaObjetivo | null {
-    const objetivo = detectarCilindradaObjetivo(mensaje)
+): Promise<CilindradaObjetivo | null> {
+    const objetivo = await detectarCilindradaObjetivo(mensaje)
     if (!objetivo) return null
 
     const delProducto = new Set(cilindradasEn(contextoProducto || ""))

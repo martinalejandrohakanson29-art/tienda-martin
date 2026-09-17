@@ -47,11 +47,11 @@ const CONTRA_PRODUCTO: { mensaje: string; producto: string; esperado: number | n
     { mensaje: "Quiero hacerla 140", producto: "Kit de levas", esperado: null, nota: "sin numero en el producto no hay con que comparar" },
 ]
 
-function main() {
+async function main() {
     let fallaron = 0
 
     for (const c of DETECCION) {
-        const r = detectarCilindradaObjetivo(c.mensaje)
+        const r = await detectarCilindradaObjetivo(c.mensaje)
         const ok = (r?.cilindrada ?? null) === c.esperado
         if (!ok) fallaron++
         console.log(`${ok ? "OK  " : "FALLA"}  ${JSON.stringify(c.mensaje)} -> ${r?.cilindrada ?? null}  · ${c.nota}`)
@@ -59,7 +59,7 @@ function main() {
 
     console.log("")
     for (const c of CONTRA_PRODUCTO) {
-        const r = pideOtraCilindradaQueElProducto(c.mensaje, c.producto)
+        const r = await pideOtraCilindradaQueElProducto(c.mensaje, c.producto)
         const ok = (r?.cilindrada ?? null) === c.esperado
         if (!ok) fallaron++
         console.log(`${ok ? "OK  " : "FALLA"}  ${JSON.stringify(c.mensaje)} vs "${c.producto}" -> ${r?.cilindrada ?? null}  · ${c.nota}`)
@@ -70,4 +70,7 @@ function main() {
     process.exit(fallaron === 0 ? 0 : 1)
 }
 
-main()
+main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+})

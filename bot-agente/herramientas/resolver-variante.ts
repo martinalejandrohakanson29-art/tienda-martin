@@ -623,7 +623,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         //
         //    Va ANTES de la moto y de la variante a propósito: las dos cosas se
         //    resuelven bien y por eso mismo tapaban la consulta real.
-        const otraCilindrada = pideOtraCilindradaQueElProducto(args.mensaje_cliente, [
+        const otraCilindrada = await pideOtraCilindradaQueElProducto(args.mensaje_cliente, [
             grupo.nombre,
             ...grupo.variantes.map((v) => v.etiqueta)
         ].join(" "))

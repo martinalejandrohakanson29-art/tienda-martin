@@ -1006,7 +1006,7 @@ export async function ejecutarTurnoAgente(
             // cada kit no hay dato en ninguna tabla, así que la ficha —con su
             // precio— tampoco puede salir como si fuera la respuesta.
             const otraCilindrada = resto
-                ? pideOtraCilindradaQueElProducto(resto, contextoAnuncio)
+                ? await pideOtraCilindradaQueElProducto(resto, contextoAnuncio)
                 : null
 
             if (otraCilindrada) {

@@ -1,0 +1,112 @@
+# Corpus del sweep de numeros: mensajes REALES que traen una cilindrada.
+# Formato: <conversation_id> | <mensaje del cliente en una linea>
+# Se suma con `--recolectar`; no se edita a mano salvo para agregar un caso inventado.
+
+4280 | Una skua 150 Le va?
+4285 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!
+4286 | Me pasarias que icluye el kit 200?
+4287 | ¡Hola! Quiero más información del kit170cc
+4286 | Una sanella rx 150 Con ese kit levanta unos 130 o no
+4288 | ¡Hola! Quiero más información sobre el escape de 110 + leva de calle de 6.40?
+3825 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! Es de recorrido corto es para un zanella 110
+4291 | ¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4?
+4293 | Hola amigo te pregunto cilindro 125 recorrido largo para 110 tenes?
+4294 | ¡Hola! Quiero más información del kit170cc 220?
+4295 | ¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4? Está disponible ?
+4284 | Ah una Motomel Custon 150 es una chopera
+4287 | Yo tengo una maverik 150 dual
+3027 | ¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!
+4304 | Se puede poner en una Motomel skua 150 cc ??
+4312 | Hola cómo es el tema del pago para compra el kit 120
+3633 | Hla kiero un combo de 110 De q parte sos
+4336 | Le queri preguntarles si eze kik le va al wave 110 el modelo viejito yo tengo 1 2010 (?)
+4340 | Sobre el kip de 120
+4301 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! quiero saber sobre el combo y aparte todo el kit con carbu y todos los chinches chiches
+4304 | ¡Hola! Quiero más información del kit170cc Se puede poner en una Motomel skua 150 cc ??
+4313 | ¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4? ¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!
+2333 | ¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!! ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! En qué precio está?
+4336 | Buen dia Le queri preguntarles si eze kik le va al wave 110 el modelo viejito yo tengo 1 2010 (?)
+4339 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!
+4340 | Hola quieres saber Sobre el kip de 120
+4317 | A una motomel blitz 110
+4295 | Buenos días es para un brava alpina 110 es recorrido corto y lleva la leva corta viste
+4295 | Buenos días es para un brava alpina 110 es recorrido corto y lleva la leva corta viste Es el primer 110 que tengo y quiero ponerle algo para que ande más sin tener que tocar mucho por qué entiendo pero hasta ahí Dale dale este es el motorcito igual
+4337 | 110 gilera mahs ? Puede seer
+4307 | Es una 110 Buenos días Es una 110
+4307 | Es una 110 Buenos días Es una 110 Y tengo una cerro 150 original y qeria ponerle un cilindro más grande no tan grande tampoco qe sea de calle pero qe ande un poco mas
+4307 | Es una 110 Buenos días Es una 110 Y tengo una cerro 150 original y qeria ponerle un cilindro más grande no tan grande tampoco qe sea de calle pero qe ande un poco mas Pregunta ustedes son los qe están en la revolución de Mallo en una esquina?
+4321 | Consulta ay q alesar el carter? Le vah a una honda storm 125?
+4342 | Para una moto 150
+4342 | Es una Gilera BC 150 Es de (74mm)
+4322 | Para una corven 110
+4327 | Buenisimo busco para una blitz 110 La voy a pasar a 125 Motomel blitz 110
+4346 | Hola vendes motores enteros Para 110
+2185 | Para moto Corven 110 recorrido corto
+4349 | ¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!.......
+4350 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! Recorrido corto tienen y cuanto me saldria
+3675 | A que 110 le entra ese amigo ?
+4351 | Hola quería saber que vale un kit 190 para xr 150
+2967 | Ah una gilera smach 110
+2185 | Kit 135 tienen
+2967 | Ah una gilera smach 110 Es recorrido corto de tres discos Se le puede poner
+4324 | Cuanto sale el kit 120 corto mas leva?
+4332 | Hola Buenas Keria Potenciar Mi Wawe Es Honda Wawe Nf 100
+4358 | Le va a la motomel 110 es recorrido corto
+4037 | Pero para armar en 220 tenes algo El 170
+4324 | consulta, tienen cilindro 125cc?
+4367 | Hola q sale el kit 200cc para varillero y el kit 170cc ??
+4374 | Quería saber el precio del kit 125
+4377 | Cuánto me sale el kit 170 para mi s2 soy de resistencia
+4374 | ¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4? Quería saber el precio del kit 125 Cdi
+1831 | Una eco 110 Bot agregó requiere-humano-tecnica ¡Hola! Quiero más información del kit170cc
+4374 | A un Keller 110 Que diferencia tiene el largo Anda mejor?
+4370 | Zanella 110 Recorrido corto
+4323 | Mondial rd 150 cc Le sirve
+4377 | Zarate Alejandro Sebastián 32.095.246 Palermo 2 mz87 pc16.pasaje cuba777 Resistencia Chaco Cel.3625451835 alezarate915@gmail.com La tercer casa antes de llegar a la esquina rejas negras
+4369 | Wave 110 2014
+4382 | Tengo una zr 150 ches Es sacar y poner entonces?
+4386 | ¡Hola! Quiero saber si tienen kid de cg 190
+4387 | Para poner kit 170 tengo q agrandar carter .?
+1831 | Le anda a los 110
+4388 | precio de la leva para el cb1 es compatible con la twister 125 ?
+4388 | sirve para el twister 125?
+4388 | y de 110 tiene el kit 125 ya la moto q leva me recomiendas
+4389 | ¡Hola! Quiero saber si tiene el. Cilindro de la yamaha YBR 125?
+4376 | Gilera smash 110
+3338 | Aún esta disponible el kit este para potenciar mi 110 a 120 ?
+4391 | Busco para 110
+1831 | Eco 110
+3338 | Igual va a andar esos 120 en todo momento ?
+4393 | 110
+4387 | Si estaba viendo poner ese kit o directamente hacerla 200
+4396 | ¡Hola! Quiero más información SOBRE TAPA CDI 125
+4399 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! ? Recorrido largo quiero yo
+4402 | El kit de 120 le va al wave s??
+4401 | Para una dlx 110
+4405 | ¡Hola! Quiero más información del kit190cc
+4405 | Para titán Precio del 220cc
+4409 | ¡Hola! Quiero más información sobre el escape de 110
+4417 | Hola buenas kit 120 para 110 tiene?
+4420 | ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! La tapa sola quiero saber reyy
+2854 | ¡Hola! Quiero más información del kit170cc Esta disponible en color negro
+4428 | ¡Hola! Quiero más información del kit170cc De dond son?
+4430 | Hola una pregunta manubrio de la Motomel Blitz 110 2024 me dijieron que el manubrio es v8
+4401 | ¡Hola! Quiero más información del kit170cc ¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4? Para una dlx 110
+4402 | De donde sos El kit de 120 le va al wave s??
+4405 | ¡Hola! Quiero más información del kit190cc Para titán Precio del 220cc
+4399 | Cuánto sería en total Completa? Ah mi moto 125
+4401 | En el kit 120
+4408 | Un motomel dlx 110
+4423 | A una 110
+4431 | A un dax echo recorrido cortó 110
+4423 | Vi que tienen un combo cilindro leva en 100 puede ser Sin la tapa
+3414 | Buen dia Que sale el kit 125 para 110 O solo 120 tienen, ?
+4434 | Tenés pistón de xr 125
+4352 | Quiero hacerla 140 Un econor con motor de 110
+4436 | Para motomel blitz 110cc
+4435 | El recorrido de la cadena es de 84 eslavones
+4437 | ¡Hola! Quiero más información del kit170cc De donde son
+4439 | Hola buen día, quería saber si tenes el porta zapata de freno del del tricargo 200cc el eje es de 20mm
+4437 | Una motomel s2 150 cc 20 cc más y anda bien cuanto mejora
+4438 | Sabes que te quería con por algún Kitt 190 de titán con leva
+4440 | Para que tipo de 110cc sirve ?

@@ -18,30 +18,16 @@
  * Decision de Martin (16/09): si el texto que acompana la plantilla pide otro
  * producto, la plantilla NO sale y la consulta la contesta el equipo.
  *
- * El detector es deterministico a proposito (no depende del modelo): busca una
- * cilindrada HUERFANA —que no es la del aviso ni la de la moto del cliente—
- * pegada a una palabra de producto ("kit 190", "kid de cg 190").
+ * Deterministico a proposito (no depende del modelo): la cilindrada tiene que
+ * ser HUERFANA —que no es la del aviso ni la de la moto del cliente— y venir
+ * pegada a una palabra de producto ("kit 190", "kid de cg 190"). Quien decide
+ * que un numero es "de producto" y no de su moto ni un objetivo ("hacerla 190")
+ * es `nucleo/numeros-del-mensaje.ts`, con su precedencia escrita una sola vez.
  */
 
 import { normalizarTexto } from "./texto"
-import { cilindradasEn, resolverMoto } from "./motos"
-
-/** Palabras con las que el cliente nombra lo que quiere comprar. */
-const PALABRAS_PRODUCTO = new Set([
-    "kit", "kits", "kid", "kids", "combo", "cilindro", "cilindros",
-    "tapa", "leva", "levas", "piston", "pistones", "carburador", "corona"
-])
-
-/**
- * Cuantos tokens puede haber entre la palabra de producto y el numero. Con 3
- * entra "kid de cg 190" y queda afuera "el kit me sirve para hacerla 190?",
- * que es una pregunta sobre el kit del aviso y no un pedido de otro producto.
- *
- * Ese "hacerla 190" no queda sin dueño: lo levanta `nucleo/cilindrada-objetivo.ts`,
- * que mira otra cosa —a cuanto quiere llevar el motor— y tambien deriva. Si se
- * toca uno de los dos, mirar el otro.
- */
-const VENTANA_TOKENS = 3
+import { cilindradasEn } from "./motos"
+import { leerNumeros } from "./numeros-del-mensaje"
 
 export interface OtroProductoDetectado {
     /** El texto pide un producto de otra medida que la del aviso. */
@@ -68,39 +54,23 @@ export async function pideOtroProductoQueElAnuncio(
     const delAnuncio = numerosDe(contextoAnuncio)
     if (delAnuncio.size === 0) return { esOtroProducto: false }
 
-    const cilindradasDelTexto = cilindradasEn(norm)
-    if (cilindradasDelTexto.length === 0) return { esOtroProducto: false }
-
-    // Las cilindradas de SU MOTO no son un pedido de producto: "el kit le va a
-    // mi rouser 200?" no es pedir un kit 200. Se resuelven PRIMERO porque la
-    // cilindrada de la moto suele estar tambien en la letra del aviso ("kit 200
-    // para varilleros 150"): si no se descuentan antes, el "150" de la moto
-    // haria pasar el mensaje por "sigue hablando del aviso".
-    const moto = await resolverMoto(norm).catch(() => null)
-    const deLaMoto = new Set<number>()
-    for (const m of [moto?.modelo, ...(moto?.candidatos || [])]) {
-        if (!m) continue
-        if (m.cilindrada) deLaMoto.add(m.cilindrada)
-        for (const n of cilindradasEn(m.nombre_completo)) deLaMoto.add(n)
-        for (const a of m.aliases || []) for (const n of cilindradasEn(a)) deLaMoto.add(n)
-    }
+    const lectura = await leerNumeros(norm)
+    if (lectura.numeros.length === 0) return { esOtroProducto: false }
 
     // El cliente tambien nombro la medida del aviso: sigue hablando de ESE kit
     // (ej. "el 170 le entra? y de 190 tenes?"). La ficha sale igual y el
     // sub-turno se encarga del resto.
-    if (cilindradasDelTexto.some((c) => !deLaMoto.has(c) && delAnuncio.has(c))) {
+    //
+    // Las cilindradas de SU MOTO no cuentan para esto: "el kit le va a mi
+    // rouser 200?" no habla del aviso ni pide un kit 200. Por eso se miran los
+    // numeros que el lector NO le atribuyo a la moto.
+    const ajenosALaMoto = lectura.numeros.filter((n) => n.rol !== "moto")
+    if (ajenosALaMoto.some((n) => delAnuncio.has(n.valor))) {
         return { esOtroProducto: false }
     }
 
-    const tokens = norm.split(" ").filter(Boolean)
-    for (let i = 0; i < tokens.length; i++) {
-        const n = Number(tokens[i])
-        if (!/^\d{2,4}$/.test(tokens[i]) || !(n >= 50 && n <= 2000)) continue
-        if (delAnuncio.has(n) || deLaMoto.has(n)) continue
-        for (let j = Math.max(0, i - VENTANA_TOKENS); j < i; j++) {
-            if (PALABRAS_PRODUCTO.has(tokens[j])) return { esOtroProducto: true, cilindrada: n }
-        }
-    }
+    const pedido = ajenosALaMoto.find((n) => n.rol === "producto" && !delAnuncio.has(n.valor))
+    if (pedido) return { esOtroProducto: true, cilindrada: pedido.valor }
 
     return { esOtroProducto: false }
 }

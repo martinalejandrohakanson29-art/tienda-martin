@@ -36,6 +36,10 @@ const PALABRAS_PRODUCTO = new Set([
  * Cuantos tokens puede haber entre la palabra de producto y el numero. Con 3
  * entra "kid de cg 190" y queda afuera "el kit me sirve para hacerla 190?",
  * que es una pregunta sobre el kit del aviso y no un pedido de otro producto.
+ *
+ * Ese "hacerla 190" no queda sin dueño: lo levanta `nucleo/cilindrada-objetivo.ts`,
+ * que mira otra cosa —a cuanto quiere llevar el motor— y tambien deriva. Si se
+ * toca uno de los dos, mirar el otro.
  */
 const VENTANA_TOKENS = 3
 

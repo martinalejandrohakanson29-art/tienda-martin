@@ -9,6 +9,7 @@ import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
 import { pideOtroProductoQueElAnuncio } from "./nucleo/otro-producto-anuncio"
+import { pideOtraCilindradaQueElProducto } from "./nucleo/cilindrada-objetivo"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
@@ -998,6 +999,52 @@ export async function ejecutarTurnoAgente(
             const otroProducto = resto
                 ? await pideOtroProductoQueElAnuncio(resto, contextoAnuncio)
                 : { esOtroProducto: false as const }
+
+            // Hermano del de arriba: el texto que acompaña al click no pide otro
+            // producto, dice A CUÁNTO quiere llevar el motor ("quiero hacerla
+            // 140" sobre el aviso del Cilindro 120). De en cuánto deja el motor
+            // cada kit no hay dato en ninguna tabla, así que la ficha —con su
+            // precio— tampoco puede salir como si fuera la respuesta.
+            const otraCilindrada = resto
+                ? pideOtraCilindradaQueElProducto(resto, contextoAnuncio)
+                : null
+
+            if (otraCilindrada) {
+                const motivo = "consulta_tecnica"
+                await escalarAHumano({
+                    motivo,
+                    resumen_consulta:
+                        `Entró por el anuncio de "${matchPlantilla.nombre}" y quiere llevar el motor a ${otraCilindrada.cilindrada}` +
+                        ` ("${otraCilindrada.frase}"): ${resto.slice(0, 300)}`,
+                    conversation_id: opciones.conversationId
+                }).catch((err) => console.error("[motor] fallo al persistir escalado de cilindrada objetivo:", err))
+
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas: [
+                        {
+                            nombre: "match_plantilla_publicidad",
+                            argumentos: {
+                                tipo: matchPlantilla.tipo,
+                                id: matchPlantilla.id,
+                                nombre: matchPlantilla.nombre
+                            },
+                            resultado: {
+                                match_directo: false,
+                                origen: "anuncio_instagram",
+                                mensaje_para_agente:
+                                    `El cliente entró por el anuncio de '${matchPlantilla.nombre}' pero lo que escribió dice a cuánto quiere llevar el motor (${otraCilindrada.cilindrada}), que no es la medida del aviso. No hay dato de en cuánto deja el motor este kit: no se entrega la ficha, el turno queda mudo y la consulta va a la bandeja del equipo.`
+                            }
+                        }
+                    ],
+                    escaladoHumano: true,
+                    motivoEscalado: motivo,
+                    escaladoPersistido: true,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: sinCostoLLM(modelo)
+                }
+            }
 
             if (otroProducto.esOtroProducto) {
                 const motivo = "producto_no_catalogado"

@@ -4,6 +4,7 @@ import { DefinicionHerramienta, EjecutorHerramienta } from "../tipos"
 import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR } from "../nucleo/texto"
 import { detectarRestoNoCubierto } from "../nucleo/resto-no-cubierto"
+import { pideOtraCilindradaQueElProducto } from "../nucleo/cilindrada-objetivo"
 import { consultarCompatibilidad } from "./compatibilidad"
 import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { MomentoFrase } from "../frases/momentos"
@@ -610,6 +611,38 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         }
         const variantes = grupo.variantes.filter((v) => !descartadas.includes(v))
 
+        // 0.bis ¿El cliente dijo A CUÁNTO quiere llevar el motor?
+        //
+        //    Conv 4352 (17/09): "Quiero hacerla 140. Un econor con motor de 110"
+        //    sobre el combo del Cilindro 120. El sistema leyó la moto, confirmó
+        //    la compatibilidad y preguntó el recorrido; el 140 —lo único que el
+        //    cliente vino a preguntar— no lo miró nadie. De en cuánto deja el
+        //    motor cada kit NO hay dato en la base (`cilindradas_base` dice para
+        //    qué motor es, no en cuánto lo deja), así que seguir la charla es
+        //    darle a entender que este combo se lo hace.
+        //
+        //    Va ANTES de la moto y de la variante a propósito: las dos cosas se
+        //    resuelven bien y por eso mismo tapaban la consulta real.
+        const otraCilindrada = pideOtraCilindradaQueElProducto(args.mensaje_cliente, [
+            grupo.nombre,
+            ...grupo.variantes.map((v) => v.etiqueta)
+        ].join(" "))
+        if (otraCilindrada) {
+            return {
+                encontrado: true,
+                resuelta: false,
+                grupo_id: grupo.id,
+                escalar: true,
+                motivo: "consulta_tecnica",
+                mensaje_para_agente: [
+                    `EL CLIENTE DIJO A CUÁNTO QUIERE LLEVAR EL MOTOR: ${otraCilindrada.cilindrada} ("${otraCilindrada.frase}"), y no es la medida de "${grupo.nombre}".`,
+                    `NO tenés ningún dato de en cuánto deja el motor este combo: el catálogo dice para qué moto va, no en cuánto la deja.`,
+                    `PROHIBIDO confirmarle que con esto la hace ${otraCilindrada.cilindrada}, PROHIBIDO decirle que no se puede, y PROHIBIDO seguir con la moto o el recorrido como si nada: eso se lee como que este combo se lo hace.`,
+                    `Ejecutá escalar_a_humano(motivo: 'consulta_tecnica') y guardá silencio total cara al cliente.`
+                ].join("\n")
+            }
+        }
+
         // Ficha oficial pendiente: si este paso le habla al cliente del combo,
         // la presentación sale acá y no espera a la variante (conv 4401).
         const ficha = fichaPendiente(grupo, args)
@@ -644,6 +677,20 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         const motoDelEmbudo = (args.__embudo?.motoConfirmada || "").trim()
         const motoTexto = motoDelMensaje || motoDelEmbudo
         let motoConfirmadaOk: string | undefined
+        /**
+         * ¿La moto que dijo el cliente EXISTE para el sistema (catálogo de
+         * modelos o fila literal de compatibilidad), o sólo pasó por el aro de
+         * la fila genérica de cilindrada?
+         *
+         * Conv 4352 (17/09): "un econor con motor de 110" se confirmó contra la
+         * fila genérica `110` —que es dato bueno: a cualquier 110 le va— pero la
+         * guía decía "COMPATIBLE con Econor 110" y el bot le contestó "este kit
+         * va perfecto a la Econor 110". Econor no existe en ninguna tabla: el
+         * bot le puso nombre propio a algo que sabe por la cilindrada.
+         */
+        let motoReconocidaOk = false
+        /** Lo que matcheó la tabla de compatibilidad ("110"), no lo que dijo el cliente. */
+        let compatPorCilindrada: string | undefined
 
         if (motoTexto) {
             const [compat, reconocida] = await Promise.all([
@@ -714,7 +761,8 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             // Este veredicto SÍ vale también para la moto del embudo: si hay una
             // fila que dice que no le entra, no se la vendemos, se haya dicho la
             // moto en este mensaje o tres turnos atrás.
-            const motoIdentificada = reconocida || compat.coincidencia_moto === "exacta"
+            motoReconocidaOk = reconocida || compat.coincidencia_moto === "exacta"
+            const motoIdentificada = motoReconocidaOk
             if (compat.encontrado && compat.compatible === false && motoIdentificada) {
                 return {
                     encontrado: true,
@@ -770,6 +818,9 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             }
             if (confirmadaCompatible) {
                 motoConfirmadaOk = motoDelMensaje || compat.modelo_moto_detectado || motoDelEmbudo
+                // Lo que matcheó de verdad ("110"), para poder contarlo sin
+                // nombrar el modelo cuando la moto no está cargada.
+                compatPorCilindrada = compat.modelo_moto_detectado || undefined
             }
         }
 
@@ -871,6 +922,17 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
         //    nunca la define. Solo cuando la moto vino en ESTE mensaje — si salió
         //    del embudo, el "le va bien" ya se lo dijimos en su momento.
         if (motoConfirmadaOk && motoDelMensaje) {
+            // El hecho se cuenta por donde salió. Si la moto no la conocemos
+            // —el "sí" vino de la fila genérica de cilindrada— el bot no puede
+            // nombrarla: confirmar "va perfecto a la Econor 110" es inventarle
+            // al cliente una ficha de una moto que no tenemos (conv 4352).
+            const porCilindrada = compatPorCilindrada || "moto de esa cilindrada"
+            const cabezaCompatible = motoReconocidaOk
+                ? `COMPATIBLE con ${motoDelMensaje}: confirmáselo al cliente.`
+                : [
+                      `COMPATIBLE POR CILINDRADA: lo que tenemos cargado es que a una ${porCilindrada} le va. Confirmáselo así, por la cilindrada ("a tu ${porCilindrada} le va").`,
+                      `⛔ El modelo que nombró el cliente ("${motoDelMensaje}") NO lo tenemos cargado en ningún lado: PROHIBIDO nombrarlo y PROHIBIDO dar a entender que lo conocés ("le va perfecto a la ${motoDelMensaje}", "ese modelo lo tenemos probado").`,
+                  ].join("\n")
             const guiaMoto = clienteNoSabe && grupo.pregunta_variante_reintento
                 ? grupo.pregunta_variante_reintento.trim()
                 : (grupo.pregunta_variante || "").trim()
@@ -888,7 +950,7 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 // todas las confirmaciones salían con esa misma frase. La
                 // redacción la decide la letra de `chat_frases`, o el modelo
                 // con su voz si no hay ninguna cargada.
-                mensaje_para_agente: `${guiaFicha}COMPATIBLE con ${motoDelMensaje}: confirmáselo al cliente. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
+                mensaje_para_agente: `${guiaFicha}${cabezaCompatible} Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
             }
         }
 

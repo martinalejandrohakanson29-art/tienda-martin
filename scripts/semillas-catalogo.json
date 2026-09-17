@@ -1,5 +1,5 @@
 {
-  "_generado": "2026-09-16T21:25:11.083Z",
+  "_generado": "2026-09-17T19:48:12.081Z",
   "_leeme": "Generado por scripts/config-catalogo.ts. No editar a mano: cambiar en /admin/chatwoot y volver a exportar.",
   "datos": {
     "chat_pack_grupos": [
@@ -635,7 +635,7 @@
           "que conviene mas",
           "cual es mas recomendable"
         ],
-        "instruccion": "El cliente pide que le recomendes cual llevar. Si es entre las VARIANTES de un mismo combo (recorrido corto/largo, medida de leva, etc.): NO es una eleccion suya. La variante la define fisicamente el motor que ya tiene la moto, la que le corresponde es la unica que le entra. Decilo en un renglon y pasale la guia de como fijarse (llama resolver_variante con cliente_no_sabe: true). Si es entre PRODUCTOS distintos: pasale lo que devuelva el catalogo, sin opinar. PROHIBIDO en los dos casos inventar comparaciones de rendimiento (torque, estirada, potencia, para calle o para picadas, cual anda mejor): el sistema no tiene ese dato. Si el cliente insiste en un consejo tecnico que no podes dar, escalar_a_humano(motivo: 'consulta_tecnica') y silencio."
+        "instruccion": "El cliente pide que le recomendes cual llevar. Si es entre las VARIANTES de un mismo combo (recorrido corto/largo, medida de leva, etc.): NO es una eleccion suya. La variante la define fisicamente el motor que ya tiene la moto, la que le corresponde es la unica que le entra. No le expliques la regla ni lo corrijas (nada de \"ojo\", \"no es algo que se elige\", \"la define el motor\"): con el dato de su moto se lo confirmas vos. Pasale la guia de como fijarse (llama resolver_variante con cliente_no_sabe: true). Si es entre PRODUCTOS distintos: pasale lo que devuelva el catalogo, sin opinar. PROHIBIDO en los dos casos inventar comparaciones de rendimiento (torque, estirada, potencia, para calle o para picadas, cual anda mejor): el sistema no tiene ese dato. Si el cliente insiste en un consejo tecnico que no podes dar, escalar_a_humano(motivo: 'consulta_tecnica') y silencio."
       },
       {
         "clave": "regalos_extra",

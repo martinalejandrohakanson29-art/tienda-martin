@@ -53,6 +53,16 @@ export interface ContextoEjecucion {
 
 /** Lo que ya quedó firme en la charla, para que las tools no re-presenten. */
 export interface EstadoEmbudo {
+    /**
+     * La charla ya venía andando: este NO es el primer mensaje del cliente.
+     * Lo lleva el motor (largo del historial), el LLM no lo ve ni lo puede
+     * falsear. Lo usa el catálogo para saber cómo entregar una ficha nueva: la
+     * plantilla del producto está escrita para el primer mensaje (saluda y
+     * termina pidiendo la moto), y en el medio de una conversación ese marco
+     * sobra. Los IDs del embudo no alcanzan como proxy: el primer kit de la
+     * charla también se presenta sin nada pineado todavía.
+     */
+    charlaEnCurso?: boolean
     grupoPineadoId?: number | null
     packPresentadoId?: number | null
     varianteResuelta?: { packId: number; etiqueta: string; precio: number } | null

@@ -1702,5 +1702,45 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "La leva SI se vende suelta. Debe contestar que si y pasarle el precio de la leva del kit que esta mirando (Leva de calle 7.80, $25.000), sin prometer envio gratis (esa pieza va con envio a cargo del cliente). PROHIBIDO decirle que las levas solo van dentro del kit."
         }
+    },
+    {
+        // Conv 4387 (16/09). El cliente venia por el kit 170, ya habia dado su
+        // moto, y pregunto si no le convenia "directamente hacerla 200". El bot
+        // tenia la ficha del kit 200 en la mano y la conto en prosa: sin
+        // vinetas, sin el renglon de envio, y cerrando con una comparacion
+        // colgada contra el 170 ("en cambio el 200 si lo trae").
+        //
+        // El segundo kit se presenta como el primero: con su ficha. Lo que se
+        // adapta es el marco (sin saludo, sin repreguntar la moto), no el cuerpo.
+        id: "caso-86-el-segundo-kit-tambien-va-con-su-ficha",
+        titulo: "Presenta un segundo kit con la plantilla, adaptada a la charla (conv 4387)",
+        mensajeCliente: "Si estaba viendo poner ese kit o directamente hacerla 200",
+        estadoInicial: {
+            motoConfirmada: "Motomel S2 150",
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero mas informacion del kit170cc" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\nel kit incluye:\n✅cilindro con piston, aros y perno, y tambien la junta de tapa y de base\n✅leva de calle de 7.80\n\nno precisa modificaciones.\nHacemos envios a todo el pais\n\nA que moto se lo queres poner?"
+            },
+            { rol: "user", contenido: "Para una S2" },
+            { rol: "assistant", contenido: "Si, a la S2 150 le entra perfecto, sin modificar nada." }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_catalogo_y_precios"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // La ficha del 200: su precio y al menos dos de sus vinetas.
+            patronRespuesta:
+                /167\.?000[\s\S]*(cig[uü]e[nñ]al|esp[aá]rrago|varilla)|(cig[uü]e[nñ]al|esp[aá]rrago|varilla)[\s\S]*167\.?000/i,
+            // Ya dio la moto hace dos mensajes: repreguntarla es el cierre crudo
+            // de la plantilla, que esta escrita para el primer mensaje.
+            patronProhibido: /(a|para) qu[eé] moto (se l[ao]|lo|la)\s*(quer[eé]s|queres)/i,
+            descripcionEsperada:
+                "Debe presentar el kit dakar 200 con su ficha oficial (precio $167.000 y las vinetas de cilindro/cigüeñal/esparragos), sin el saludo inicial de la plantilla y SIN repreguntarle la moto, que ya dijo (S2 150). PROHIBIDO resumir la ficha en un parrafo de prosa comparativa contra el 170."
+        }
     }
 ]

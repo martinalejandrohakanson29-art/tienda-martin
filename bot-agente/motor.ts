@@ -2080,6 +2080,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                             {
                                 conversationId: opciones.conversationId,
                                 embudo: {
+                                    charlaEnCurso: historialPrevio.length > 0,
                                     grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
                                     packPresentadoId: estadoConv.packPresentado?.id ?? null,
                                     varianteResuelta: estadoConv.varianteResuelta ?? null,
@@ -2148,6 +2149,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                     // y en la segunda se consulta el catálogo, la ficha todavía
                     // no salió y hay que entregarla.
                     embudo: {
+                        charlaEnCurso: historialPrevio.length > 0,
                         grupoPineadoId: estadoConv.grupoPineado?.id ?? null,
                         packPresentadoId: estadoConv.packPresentado?.id ?? null,
                         varianteResuelta: estadoConv.varianteResuelta ?? null,

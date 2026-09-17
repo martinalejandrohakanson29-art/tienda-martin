@@ -434,6 +434,66 @@ function bloqueComposicion(opciones: OpcionesComposicion): string[] {
     return [encabezado, ...cuerpo, ...reglas]
 }
 
+interface OpcionesPresentacion {
+    mensajeBienvenida?: string | null
+    /** La charla ya venía andando: esto NO es el primer mensaje. */
+    charlaEnCurso: boolean
+    /** Moto que el cliente ya nombró en esta charla, si nombró alguna. */
+    motoConocida?: string | null
+    /** Ya se le presentó OTRO producto antes en esta misma charla. */
+    veniaDeOtroProducto: boolean
+}
+
+/**
+ * Cómo se entrega la ficha de un producto que el cliente todavía NO recibió.
+ *
+ * El mensaje oficial del catálogo ES la presentación: formato, viñetas, precio
+ * y renglón de envío salen tal cual de la app. Sin esta instrucción el kit
+ * simple recibía apenas un "Mensaje oficial cargado en la app" — un dato más de
+ * la ficha, no una orden de mandarlo —, y al presentar un SEGUNDO kit el modelo
+ * lo parafraseaba en prosa suelta: sin viñetas, sin el renglón de envío y
+ * cerrando con una comparación colgada contra el kit anterior (conv 4387,
+ * 16/09). El combo sí tenía su "TEXTO PARA ENVIAR AL CLIENTE"; el kit simple
+ * no, y esa asimetría era todo el bug.
+ *
+ * Lo que cambia con la charla en curso es el MARCO, no el cuerpo: una plantilla
+ * está escrita para el primer mensaje, así que arranca saludando y termina
+ * pidiendo la moto. Mandarla cruda en el cuarto mensaje saluda de nuevo y
+ * repregunta un dato que el cliente ya dio.
+ */
+function bloquePresentacionOficial(opciones: OpcionesPresentacion): string[] {
+    const { mensajeBienvenida, charlaEnCurso, motoConocida, veniaDeOtroProducto } = opciones
+    if (!mensajeBienvenida?.trim()) return []
+
+    const lineas = [
+        `   - TEXTO PARA ENVIAR AL CLIENTE (mandá el mensaje oficial tal cual, respetando saltos de renglón, viñetas y emojis). Es una ficha, NO un dato para que resumas: PROHIBIDO reescribirla en prosa, recortarle viñetas o dejar afuera el precio o el envío.`,
+        mensajeBienvenida.trim()
+    ]
+
+    if (!charlaEnCurso) return lineas
+
+    lineas.push(
+        `   - ADAPTALA A ESTA CHARLA (no es el primer mensaje): va el MISMO cuerpo, con sus viñetas, su precio y su renglón de envío, pero SIN el saludo inicial de la plantilla.`
+    )
+    if (veniaDeOtroProducto) {
+        // La ficha entera en su propio globo. Sin esto el modelo la funde con la
+        // comparación contra el kit anterior y no queda ficha, queda un párrafo.
+        lineas.push(
+            `   - Venís de otro producto en esta misma charla: presentá este con un renglón corto tuyo ("esa es la otra opción, te la paso:") y mandá la ficha en su PROPIO globo, separada con ---MENSAJE---. La ficha va completa igual: PROHIBIDO reemplazarla por una comparación contra el producto anterior.`
+        )
+    }
+    if (motoConocida) {
+        lineas.push(
+            `   - Ya sabés que la moto es "${motoConocida}": aunque la plantilla termine preguntando la moto, NO se la repreguntes. Cambiá ese cierre por lo que corresponde acá (confirmarle que le entra, si ya lo chequeaste, y el cierre de mostrador).`
+        )
+    } else {
+        lineas.push(
+            `   - Todavía no sabés qué moto tiene: la pregunta del cierre de la plantilla queda como está.`
+        )
+    }
+    return lineas
+}
+
 /**
  * Dato del anuncio de Meta por el que entró el cliente (click-to-WhatsApp).
  * Chatwoot lo guarda en `content_attributes.referral` del mensaje entrante:
@@ -1162,6 +1222,18 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
         ).sort()
         const grupoYaPresentado = (g: { id: number }) => embudo.grupoPineadoId === g.id
         const packYaPresentado = (pk: { id: number }) => embudo.packPresentadoId === pk.id
+        // Marco en el que se entrega una ficha nueva: la plantilla está escrita
+        // para el primer mensaje de la charla (saluda y pide la moto), así que
+        // en el medio de una conversación hay que decirle al modelo qué sobra.
+        // La mencionada primero: es como la nombró el cliente ("Motomel S2 150"),
+        // no la forma recortada con la que quedó confirmada ("s2 150").
+        const motoDeLaCharla = embudo.motoMencionada || embudo.motoConfirmada || null
+        const charlaEnCurso = !!(
+            embudo.charlaEnCurso ||
+            embudo.packPresentadoId ||
+            embudo.grupoPineadoId ||
+            motoDeLaCharla
+        )
         const todoYaPresentado =
             packsFiltrados.every(packYaPresentado) && gruposFiltrados.every(grupoYaPresentado)
 
@@ -1183,7 +1255,18 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                 lineas.push(`   - PROHIBIDO reenviar el mensaje de bienvenida, la lista de "qué incluye", la foto o repetir el precio que ya le diste.`)
                 lineas.push(`   - Estos datos son SOLO para que contestes con precisión lo que el cliente preguntó recién: contestá eso en 1 o 2 renglones y cerrá corto.`)
             } else if (p.mensaje_bienvenida) {
-                lineas.push(`   - Mensaje oficial cargado en la app (respetar formato, listas y datos técnicos; si la charla ya está en curso, OMITIR el saludo inicial):\n${p.mensaje_bienvenida.trim()}`)
+                lineas.push(`   - PASO 2 (el cliente pidió este kit y todavía NO se lo presentaste en esta charla).`)
+                lineas.push(
+                    ...bloquePresentacionOficial({
+                        mensajeBienvenida: p.mensaje_bienvenida,
+                        charlaEnCurso,
+                        motoConocida: motoDeLaCharla,
+                        veniaDeOtroProducto: !!(
+                            (embudo.packPresentadoId && embudo.packPresentadoId !== p.id) ||
+                            embudo.grupoPineadoId
+                        )
+                    })
+                )
             }
             lineas.push(
                 ...bloqueComposicion({
@@ -1233,16 +1316,33 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                 lineas.push(`   - Estos datos son SOLO para que contestes con precisión lo que el cliente preguntó recién: contestá eso en 1 o 2 renglones y cerrá corto.`)
                 lineas.push(`   - Si el cliente vuelve a hablar de su moto o de la variante, usá resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo.`)
             } else {
-                lineas.push(`   - PASO 2 (el cliente ya eligió este combo pero NO dio su moto ni su variante).`)
+                lineas.push(
+                    motoDeLaCharla
+                        ? `   - PASO 2 (el cliente ya eligió este combo y todavía NO le mandaste la ficha).`
+                        : `   - PASO 2 (el cliente ya eligió este combo pero NO dio su moto ni su variante).`
+                )
                 if (g.mensaje_bienvenida) {
-                    lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (mandá el mensaje oficial tal cual, respetando saltos de renglón y viñetas; si la charla ya está en curso OMITÍ el saludo inicial y NADA MÁS):`)
-                    lineas.push(g.mensaje_bienvenida.trim())
+                    lineas.push(
+                        ...bloquePresentacionOficial({
+                            mensajeBienvenida: g.mensaje_bienvenida,
+                            charlaEnCurso,
+                            motoConocida: motoDeLaCharla,
+                            veniaDeOtroProducto: !!(
+                                embudo.packPresentadoId ||
+                                (embudo.grupoPineadoId && embudo.grupoPineadoId !== g.id)
+                            )
+                        })
+                    )
                 } else {
                     lineas.push(`   - TEXTO PARA ENVIAR AL CLIENTE (respetá cada 👉🏼 en su renglón):`)
                     lineas.push(`${bloqueVariantes}\n\nPara qué moto lo estás buscando?`)
                 }
                 lineas.push(`   - Precios de referencia (por si necesitás confirmarlos): ${g.variantes.map((v) => `${v.criterio_variante || v.nombre} ${formatearPrecio(v.precio)}`).join(" / ")}.`)
-                lineas.push(`   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`)
+                lineas.push(
+                    motoDeLaCharla
+                        ? `   - PROHIBIDO afirmar "le va bien a tu moto" de memoria: la moto ("${motoDeLaCharla}") la sabés, pero si le entra a ESTE combo lo dice resolver_variante, no vos.`
+                        : `   - PROHIBIDO afirmar "le va bien a tu moto" u opinar sobre compatibilidad: todavía no sabés qué moto tiene.`
+                )
                 lineas.push(`   - En cuanto el cliente diga su moto O su variante (corto/largo/etc.), usá SIEMPRE resolver_variante(combo: "${g.nombre}", mensaje_cliente, modelo_moto?, cliente_no_sabe?). NUNCA consultar_compatibilidad para este combo, NUNCA redactes el precio de memoria. Hacé lo que devuelva.`)
             }
             lineas.push(

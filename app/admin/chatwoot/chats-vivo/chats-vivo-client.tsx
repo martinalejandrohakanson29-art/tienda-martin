@@ -739,7 +739,8 @@ export function ChatsVivoClient({
 
     const subirAdjunto = async (archivo: File) => {
         setErrorAdjunto(null)
-        const tipo = tipoAdjuntoDesdeMime(archivo.type)
+        const pareceImagen = archivo.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(archivo.name)
+        const tipo = pareceImagen ? "image" : tipoAdjuntoDesdeMime(archivo.type)
         const documentoPermitido = [
             "application/pdf",
             "text/plain",
@@ -753,9 +754,8 @@ export function ChatsVivoClient({
             setErrorAdjunto("Formato no admitido. Usá una foto, video, audio, PDF o documento")
             return
         }
-        const limite = tipo === "image" ? 5 * 1024 * 1024 : 25 * 1024 * 1024
-        if (archivo.size > limite) {
-            setErrorAdjunto(tipo === "image" ? "La imagen no puede superar los 5MB" : "El archivo no puede superar los 25MB")
+        if (archivo.size > 25 * 1024 * 1024) {
+            setErrorAdjunto("El archivo original no puede superar los 25MB")
             return
         }
         const preview = URL.createObjectURL(archivo)

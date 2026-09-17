@@ -58,6 +58,7 @@
     "react": "^18",
     "react-dom": "^18",
     "recharts": "^2.12.7",
+    "sharp": "^0.35.4",
     "sonner": "^1.5.0",
     "sweetalert2": "^11.10.6",
     "tailwind-merge": "^3.4.0",

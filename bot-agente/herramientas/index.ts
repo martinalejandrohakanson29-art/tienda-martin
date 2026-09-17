@@ -106,6 +106,17 @@ export interface EstadoEmbudo {
      * compatibilidad antes de que el modelo afirme que el producto le sirve.
      */
     motoDelMensaje?: string | null
+    /**
+     * Todo lo que el bot ya le dijo al cliente en esta charla, concatenado. Lo
+     * lleva el motor (historial), el LLM no lo ve ni lo puede falsear.
+     *
+     * Es la segunda evidencia de "esto ya se lo mandamos", para cuando los ids
+     * del embudo no alcanzan: un combo presentado por el equipo a mano desde el
+     * panel, o una charla vieja anterior al pineo, no dejan `grupoPineadoId` y
+     * la ficha volvería a salir entera. Ver `fichaPendiente` en
+     * `resolver-variante.ts`.
+     */
+    textoPreviosDelBot?: string | null
 }
 
 /**

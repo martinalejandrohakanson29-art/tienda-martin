@@ -434,7 +434,7 @@ function bloqueComposicion(opciones: OpcionesComposicion): string[] {
     return [encabezado, ...cuerpo, ...reglas]
 }
 
-interface OpcionesPresentacion {
+export interface OpcionesPresentacion {
     mensajeBienvenida?: string | null
     /** La charla ya venía andando: esto NO es el primer mensaje. */
     charlaEnCurso: boolean
@@ -461,7 +461,7 @@ interface OpcionesPresentacion {
  * pidiendo la moto. Mandarla cruda en el cuarto mensaje saluda de nuevo y
  * repregunta un dato que el cliente ya dio.
  */
-function bloquePresentacionOficial(opciones: OpcionesPresentacion): string[] {
+export function bloquePresentacionOficial(opciones: OpcionesPresentacion): string[] {
     const { mensajeBienvenida, charlaEnCurso, motoConocida, veniaDeOtroProducto } = opciones
     if (!mensajeBienvenida?.trim()) return []
 

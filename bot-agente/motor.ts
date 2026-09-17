@@ -373,6 +373,24 @@ function extraerFotoDeBienvenida(
     descartados: { packsDescartados: Set<number>; gruposDescartados: Set<number> },
     mensajeFinal: string
 ): string | undefined {
+    // `resolver_variante` también presenta: cuando el cliente elige un combo de
+    // un menú ("el primero"), el modelo va derecho a esa herramienta y la ficha
+    // sale desde ahí (ver `fichaPendiente` en resolver-variante.ts). Sin esta
+    // rama la ficha salía sin su foto (conv 4401, 17/09).
+    for (const ej of herramientasEjecutadas) {
+        if (ej.nombre !== "resolver_variante") continue
+        const r = ej.resultado || {}
+        const foto = typeof r.foto_url === "string" ? r.foto_url.trim() : ""
+        if (!foto) continue
+        if (r.grupo_id && estadoConv.grupoPineado?.id === r.grupo_id) continue
+        // Mismo criterio que abajo: la foto sale solo si el mensaje que se envía
+        // es de verdad el de ese kit (su precio aparece en el texto).
+        const precios: number[] = Array.isArray(r.precios_ficha) ? r.precios_ficha : []
+        const presentaElKit =
+            precios.length === 0 || precios.some((precio) => precioApareceEnTexto(mensajeFinal, precio))
+        if (presentaElKit) return foto
+    }
+
     for (const ej of herramientasEjecutadas) {
         if (ej.nombre !== "consultar_catalogo_y_precios") continue
         const r = ej.resultado || {}
@@ -669,6 +687,11 @@ export async function ejecutarTurnoAgente(
     //     El bot venía quedándose siempre con la última palabra y encadenaba
     //     despedidas de a tres (convs 3988, 3960, 3985 — 11/09). Silencio a $0.
     const ultimoMensajeDelBot = [...historialPrevio].reverse().find((m) => m.rol === "assistant" && m.contenido)?.contenido
+    /** Todo lo que el bot ya dijo en esta charla, junto (ver `EstadoEmbudo.textoPreviosDelBot`). */
+    const textoQueElBotYaDijo = historialPrevio
+        .filter((m) => m.rol === "assistant" && m.contenido)
+        .map((m) => m.contenido)
+        .join("\n")
     if (debeCallarPorCierreSocial(mensajeUsuario, ultimoMensajeDelBot, historialPrevio.length > 0)) {
         return {
             mensajeFinal: null,
@@ -2166,7 +2189,11 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                         // mismo turno tiene que verse ya en el segundo paso.
                         repreguntasMoto: patchEstado.repreguntasMoto ?? estadoConv.repreguntasMoto ?? 0,
                         motoDelMensaje: motoDelTurno,
-                        motoMencionada: motoVigenteDeLaCharla
+                        motoMencionada: motoVigenteDeLaCharla,
+                        // Lo que el bot ya le dijo en esta charla: evidencia de
+                        // que una ficha ya salió aunque nadie la haya pineado
+                        // (ver `fichaPendiente` en resolver-variante.ts).
+                        textoPreviosDelBot: textoQueElBotYaDijo
                     },
                     catalogoSinMatch: catalogoSinMatchEnTurno
                 })

@@ -1742,5 +1742,45 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Debe presentar el kit dakar 200 con su ficha oficial (precio $167.000 y las vinetas de cilindro/cigüeñal/esparragos), sin el saludo inicial de la plantilla y SIN repreguntarle la moto, que ya dijo (S2 150). PROHIBIDO resumir la ficha en un parrafo de prosa comparativa contra el 170."
         }
+    },
+    {
+        // Conv 4401 (17/09). El cliente entro por dos anuncios distintos, el bot
+        // le pregunto cual le interesaba y le listo los tres combos con 120. El
+        // cliente eligio ("El primero") y pregunto el precio: el modelo fue
+        // derecho a `resolver_variante` y lo unico que salio fue "Sabes si tu
+        // moto es recorrido corto o largo?". La ficha con la foto y los precios
+        // no se mando nunca — y al turno siguiente el combo ya figuraba como
+        // YA PRESENTADO, asi que quedo prohibido mandarla.
+        //
+        // Elegido el kit, la presentacion sale YA: no espera al recorrido.
+        id: "caso-87-ficha-al-elegir-del-menu",
+        titulo: "Elige un kit del menu: la ficha sale ya, sin esperar la variante (conv 4401)",
+        mensajeCliente: "El primero\nCuanto cuesta",
+        // La moto ya la dijo en la rafaga de entrada: el turno no puede volver a
+        // preguntarla, y es lo que empuja al modelo a `resolver_variante`.
+        estadoInicial: { motoConfirmada: "DLX 110" },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero mas informacion del kit170cc" },
+            { rol: "user", contenido: "Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4?" },
+            { rol: "user", contenido: "Para una dlx 110" },
+            { rol: "assistant", contenido: "Hola bro! Veo que estas consultando por varios kits, en cual estas interesado?" },
+            { rol: "user", contenido: "En el kit 120" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Dale! De los combos con 120 tenemos estos:\n\n\u{1F449}\u{1F3FC} Combo 110 a 120 + Codo y carburador\n\u{1F449}\u{1F3FC} Combo Tapa CDI + Cilindro 120\n\u{1F449}\u{1F3FC} Kit 120 corto + Leva 6.40\n\nCual de estas estas buscando?"
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // La ficha del combo: sus dos precios (no uno solo suelto).
+            patronRespuesta: /99\.?000[\s\S]*115\.?000/,
+            // La moto ya la dijo: repreguntarla seria el cierre crudo de la
+            // plantilla, que esta escrita para el primer mensaje de la charla.
+            patronProhibido: /(a|para) qu[eé] moto/i,
+            descripcionEsperada:
+                "Debe mandarle la ficha oficial del combo 110 a 120 + codo y carburador (vinetas, las dos opciones con precio y el envio) y recien despues preguntarle el recorrido. PROHIBIDO preguntar la variante a secas dejando la presentacion para despues."
+        }
     }
 ]

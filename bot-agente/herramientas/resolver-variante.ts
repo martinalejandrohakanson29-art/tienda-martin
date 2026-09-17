@@ -8,6 +8,7 @@ import { consultarCompatibilidad } from "./compatibilidad"
 import { guiaIncompatibilidad } from "../nucleo/compat-negativa"
 import type { MomentoFrase } from "../frases/momentos"
 import { clausulaEnvioPack } from "../nucleo/envio"
+import { bloquePresentacionOficial } from "./catalogo-precios"
 
 /**
  * HERRAMIENTA `resolver_variante` — resolución de variante AGNÓSTICA AL EJE
@@ -83,6 +84,17 @@ export interface ResultadoResolverVariante {
      * de la casa. Ausente = la letra sale sin cláusula de envío.
      */
     envio_frase?: string | null
+    /**
+     * Foto de la ficha oficial cuando ESTE paso es el que le presenta el kit al
+     * cliente (ver `bloqueFichaPendiente`). El motor la adjunta al mensaje.
+     */
+    foto_url?: string
+    /**
+     * Precios de la ficha que este paso entrega. El motor los usa como evidencia
+     * de que el mensaje que sale es el de este kit antes de pegarle la foto
+     * (mismo criterio que `consultar_catalogo_y_precios`).
+     */
+    precios_ficha?: number[]
     mensaje_para_agente: string
 }
 
@@ -122,6 +134,9 @@ interface GrupoVariantes {
     nombre: string
     pregunta_variante: string | null
     pregunta_variante_reintento: string | null
+    /** Ficha oficial del combo (la misma que entrega `consultar_catalogo_y_precios`). */
+    mensaje_bienvenida: string | null
+    foto_url: string | null
     variantes: {
         id: number
         nombre: string
@@ -195,9 +210,11 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
             nombre: string
             pregunta_variante: string | null
             pregunta_variante_reintento: string | null
+            mensaje_bienvenida: string | null
+            foto_url: string | null
         }[]
     >`
-        SELECT id, nombre, pregunta_variante, pregunta_variante_reintento
+        SELECT id, nombre, pregunta_variante, pregunta_variante_reintento, mensaje_bienvenida, foto_url
         FROM chat_pack_grupos
         WHERE activo = true
     `
@@ -237,6 +254,8 @@ async function cargarGrupo(combo: string): Promise<GrupoVariantes | null> {
         nombre: elegido.nombre,
         pregunta_variante: elegido.pregunta_variante,
         pregunta_variante_reintento: elegido.pregunta_variante_reintento,
+        mensaje_bienvenida: elegido.mensaje_bienvenida,
+        foto_url: elegido.foto_url,
         variantes: (packs || []).map((p) => ({
             id: p.id,
             nombre: p.nombre,
@@ -413,6 +432,92 @@ function textoEje(variantes: GrupoVariantes["variantes"]): string {
     return eje ? `la variante (${eje})` : "la variante"
 }
 
+/**
+ * ¿El bot ya le mostró este combo al cliente, aunque nadie lo haya pineado?
+ *
+ * El `grupoPineadoId` del embudo es la evidencia principal, pero no es la
+ * única: un combo que presentó el equipo a mano desde el panel, o una charla
+ * que venía de antes, no dejan nada pineado. Sin este segundo chequeo la ficha
+ * entera volvía a salir arriba de una respuesta de una línea.
+ *
+ * Evidencia: el bot ya nombró DOS etiquetas de variante de este grupo
+ * ("recorrido corto" y "recorrido largo"), o ya dijo el precio de alguna. Las
+ * dos cosas solo aparecen cuando las opciones se pusieron sobre la mesa.
+ */
+function fichaYaDicha(grupo: GrupoVariantes, textoPrevio: string | null | undefined): boolean {
+    const texto = normalizarTexto(textoPrevio || "")
+    if (!texto) return false
+
+    const etiquetasDichas = grupo.variantes.filter((v) => {
+        const etiqueta = normalizarTexto(v.etiqueta)
+        return etiqueta.length >= 3 && texto.includes(etiqueta)
+    }).length
+    if (etiquetasDichas >= 2) return true
+
+    return grupo.variantes.some((v) => {
+        if (!v.precio) return false
+        const plano = texto.replace(/[.\s ]/g, "")
+        return plano.includes(`$${Math.round(v.precio)}`) || plano.includes(String(Math.round(v.precio)))
+    })
+}
+
+/**
+ * LA FICHA NO ESPERA A LA VARIANTE.
+ *
+ * Cuando el cliente elige un combo de un menú de opciones ("el primero"), el
+ * modelo llama derecho a `resolver_variante` y nunca vuelve a pasar por
+ * `consultar_catalogo_y_precios` — que es el único lugar donde vivía el PASO 2
+ * (la ficha oficial con sus viñetas, su precio y su foto). Resultado real
+ * (conv 4401, 17/09): el cliente eligió el "Combo 110 a 120 + Codo y
+ * carburador" y lo único que recibió fue "Sabés si tu moto es recorrido corto o
+ * largo?". La ficha no salió nunca: dos turnos después el combo ya figuraba
+ * como "YA PRESENTADO" y quedó prohibido mandarla.
+ *
+ * Criterio de la casa: elegido el kit, la presentación sale YA — no se espera a
+ * resolver el recorrido. La pregunta de la variante va después, en el mismo
+ * turno.
+ *
+ * Devuelve `null` cuando el cliente ya vio la ficha (`grupoPineadoId`) o cuando
+ * el combo no tiene ficha cargada. No se usa en los caminos que escalan o
+ * niegan: si el turno termina en silencio o en un "no le va", la ficha con el
+ * precio no corresponde.
+ */
+function fichaPendiente(
+    grupo: GrupoVariantes,
+    args: ArgsResolverVariante
+): { guia: string; foto?: string; precios: number[] } | null {
+    const embudo = args.__embudo
+    if (embudo?.grupoPineadoId === grupo.id) return null
+    if (!grupo.mensaje_bienvenida?.trim()) return null
+    if (fichaYaDicha(grupo, embudo?.textoPreviosDelBot)) return null
+
+    const motoDeLaCharla =
+        (embudo?.motoMencionada || embudo?.motoConfirmada || args.modelo_moto || "").trim() || null
+
+    const lineas = bloquePresentacionOficial({
+        mensajeBienvenida: grupo.mensaje_bienvenida,
+        // `resolver_variante` siempre corre con la charla andando: el cliente ya
+        // dijo algo sobre su moto o su variante.
+        charlaEnCurso: true,
+        motoConocida: motoDeLaCharla,
+        veniaDeOtroProducto: !!(
+            embudo?.packPresentadoId || (embudo?.grupoPineadoId && embudo.grupoPineadoId !== grupo.id)
+        )
+    })
+    if (lineas.length === 0) return null
+
+    const guia = [
+        `FICHA TODAVÍA NO ENTREGADA: el cliente eligió "${grupo.nombre}" pero nunca vio su presentación. Mandásela AHORA, en este mismo mensaje, ANTES de lo que resuelve este paso. PROHIBIDO esperar a saber la variante para presentarle el kit.`,
+        ...lineas
+    ].join("\n")
+
+    return {
+        guia,
+        foto: grupo.foto_url?.trim() || undefined,
+        precios: grupo.variantes.map((v) => v.precio).filter((n) => n > 0)
+    }
+}
+
 export async function resolverVariante(args: ArgsResolverVariante): Promise<ResultadoResolverVariante> {
     try {
         // El "no sé" se detecta también del texto, no solo del flag del modelo.
@@ -504,6 +609,12 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             }
         }
         const variantes = grupo.variantes.filter((v) => !descartadas.includes(v))
+
+        // Ficha oficial pendiente: si este paso le habla al cliente del combo,
+        // la presentación sale acá y no espera a la variante (conv 4401).
+        const ficha = fichaPendiente(grupo, args)
+        const guiaFicha = ficha ? `${ficha.guia}\n\n` : ""
+        const datosFicha = ficha ? { foto_url: ficha.foto, precios_ficha: ficha.precios } : {}
 
         // 1. LA MOTO MANDA: se chequea ANTES del match de variante.
         //
@@ -716,13 +827,16 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 // sería empujarlo justo a lo que tiene prohibido.
                 momento: args.__embudo?.varianteResuelta?.packId === v.id ? undefined : "variante_resuelta",
                 envio_frase: v.envio,
+                // La ficha solo viaja si este paso es el que la entrega: con la
+                // variante ya resuelta de antes el cliente ya la vio.
+                ...(args.__embudo?.varianteResuelta?.packId === v.id ? {} : datosFicha),
                 mensaje_para_agente:
                     args.__embudo?.varianteResuelta?.packId === v.id
                         // Ya estaba resuelta de antes: el cliente ya escuchó esta
                         // opción con su precio. Re-confirmarla es el arranque de
                         // la respuesta larga que no venía a cuento (conv 2763).
                         ? `VARIANTE YA RESUELTA DE ANTES: "${v.etiqueta}" — ${formatearPrecio(v.precio)}${envioTexto}. El cliente YA la eligió y YA le diste ese precio: NO se lo vuelvas a confirmar ni lo repitas. Contestá solamente lo que preguntó en su último mensaje, en 1 o 2 renglones.${avisoFijo}${avisoResto}`
-                        : `VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)}${envioTexto}.${avisoEnvio} Confirmá esta opción al cliente, seca, con el precio. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también. Y terminá ahí: sin cierre de relleno que le pase la pelota ("cuando quieras avanzar me avisás", "cualquier cosa me decís") — si quiere avanzar lo dice solo.${avisoFijo}${avisoResto}`
+                        : `${guiaFicha}VARIANTE RESUELTA: "${v.etiqueta}" — ${formatearPrecio(v.precio)}${envioTexto}.${avisoEnvio} Confirmá esta opción al cliente, seca, con el precio. NO la justifiques ni la compares con la otra variante (no tenés dato de rendimiento y no es una elección: la define el motor de la moto). No vuelvas a preguntar la moto ni la variante (ya están). Si el cliente preguntó otra cosa en el mismo mensaje, respondé eso también. Y terminá ahí: sin cierre de relleno que le pase la pelota ("cuando quieras avanzar me avisás", "cualquier cosa me decís") — si quiere avanzar lo dice solo.${avisoFijo}${avisoResto}`
             }
         }
         // El "no sé" GANA sobre el ambiguo. Un cliente que no sabe qué variante
@@ -742,7 +856,9 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 resuelta: false,
                 grupo_id: grupo.id,
                 pregunta_directa: guiaAmbiguo || undefined,
+                ...datosFicha,
                 mensaje_para_agente: [
+                    guiaFicha.trim() || "",
                     `TODAVIA NO. El cliente nombró las dos opciones (${opciones}) pero no dijo cuál tiene.`,
                     `Preguntále cuál de las dos es, con tu voz. NO repitas los precios: ya se los diste.`,
                     guiaAmbiguo ? `Si no sabe cómo fijarse, pasale esta guía:\n${guiaAmbiguo}` : "",
@@ -765,13 +881,14 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
                 moto_confirmada: motoConfirmadaOk,
                 pregunta_directa: guiaMoto,
                 momento: "compat_confirmada",
+                ...datosFicha,
                 // El hecho va seco ("COMPATIBLE con X"), no redactado. Cuando
                 // esta línea arrancaba con "Le va bien a X", el modelo la
                 // copiaba tal cual y ese terminó siendo el tic de la casa:
                 // todas las confirmaciones salían con esa misma frase. La
                 // redacción la decide la letra de `chat_frases`, o el modelo
                 // con su voz si no hay ninguna cargada.
-                mensaje_para_agente: `COMPATIBLE con ${motoDelMensaje}: confirmáselo al cliente. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
+                mensaje_para_agente: `${guiaFicha}COMPATIBLE con ${motoDelMensaje}: confirmáselo al cliente. Falta ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guiaMoto}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}${avisoResto}`
             }
         }
 
@@ -785,7 +902,8 @@ export async function resolverVariante(args: ArgsResolverVariante): Promise<Resu
             resuelta: false,
             grupo_id: grupo.id,
             pregunta_directa: guia,
-            mensaje_para_agente: `Todavía falta saber ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
+            ...datosFicha,
+            mensaje_para_agente: `${guiaFicha}Todavía falta saber ${textoEje(grupo.variantes)}. Seguí la charla con el cliente sobre esto, con tu voz:\n${guia}${pideRecomendacion ? `\n\n${AVISO_NO_ES_PREFERENCIA}` : ""}`
         }
     } catch (err: any) {
         console.error("Error en resolverVariante:", err)

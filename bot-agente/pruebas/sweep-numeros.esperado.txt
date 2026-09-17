@@ -5,7 +5,7 @@ moto=150  obj=-     prod=-    · Una skua 150 Le va?
 moto=-    obj=-     prod=125  · ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!
 moto=-    obj=-     prod=200  · Me pasarias que icluye el kit 200?
 moto=-    obj=-     prod=-    · ¡Hola! Quiero más información del kit170cc
-moto=150  obj=-     prod=130  · Una sanella rx 150 Con ese kit levanta unos 130 o no
+moto=150  obj=130   prod=-    · Una sanella rx 150 Con ese kit levanta unos 130 o no
 moto=-    obj=-     prod=-    · ¡Hola! Quiero más información sobre el escape de 110 + leva de calle de 6.40?
 moto=-    obj=-     prod=125  · ¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120! Es de recorrido corto es para un zanella 110
 moto=-    obj=-     prod=120  · ¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4?

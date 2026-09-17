@@ -70,6 +70,19 @@ const RX_VERBO_OBJETIVO =
 const RX_VERBO_CONJUGADO =
     /^(hago|hace|hacen|llevo|lleva|paso|pasa|subo|sube|agrando|agranda|potencio|potencia|dejo|deja|quede|quedaria|convierto)$/
 
+/**
+ * Verbos de POTENCIA: el cliente no dice que quiere hacerle, dice hasta donde
+ * espera que llegue ("con ese kit levanta unos 130?"). Real, en el corpus: ese
+ * 130 se leia como un producto que pedia y caia en la bandeja de Precio en vez
+ * de la Tecnica.
+ *
+ * La lista es corta a proposito y se agranda solo con evidencia del corpus:
+ * "llega" no entra ("llega a 150 km" es un envio), y "anda" tampoco —el sweep
+ * lo delato en el acto: "Le anda a los 110" es una pregunta de compatibilidad
+ * con SU moto, no un objetivo.
+ */
+const RX_VERBO_POTENCIA = /^(levanta|levantar|levantarla|levantarlo|alcanza|alcanzar)$/
+
 /** Imperativo de voseo con el pronombre pegado: "hacela de 140", "pasalo a 150". */
 const RX_VERBO_IMPERATIVO =
     /^(hac|has|llev|pas|sub|agrand|ampli|aument|potenci|dej|truc|modific)[ae](la|lo|le|las|los)$/
@@ -165,7 +178,8 @@ export async function leerNumeros(
         const esVerbo =
             RX_VERBO_OBJETIVO.test(tokens[i]) ||
             RX_VERBO_CONJUGADO.test(tokens[i]) ||
-            RX_VERBO_IMPERATIVO.test(tokens[i])
+            RX_VERBO_IMPERATIVO.test(tokens[i]) ||
+            RX_VERBO_POTENCIA.test(tokens[i])
         if (!esVerbo) continue
 
         for (let j = i + 1; j <= i + 1 + VENTANA_PUENTE && j < tokens.length; j++) {

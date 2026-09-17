@@ -26,6 +26,10 @@ const DETECCION: { mensaje: string; esperado: number | null; nota: string }[] = 
     { mensaje: "dale hacela de 140", esperado: 140, nota: "imperativo de voseo" },
     { mensaje: "cuanto sale? la quiero dejar en unos 150", esperado: 150, nota: "dos palabras puente" },
     { mensaje: "quiero potenciar mi moto a 150", esperado: 150, nota: "'moto' es puente, no corta" },
+    { mensaje: "el kit este para potenciar mi 110 a 120?", esperado: 120, nota: "conv 3338: el 110 es su moto, el objetivo es el 2do numero" },
+    { mensaje: "Buenisimo busco para una blitz 110 La voy a pasar a 125", esperado: 125, nota: "conv 4327, tal cual entro" },
+    { mensaje: "Si estaba viendo poner ese kit o directamente hacerla 200", esperado: 200, nota: "conv 4387, tal cual entro" },
+    { mensaje: "la quiero llevar de 110 a 140", esperado: 140, nota: "'de X a Y': gana el destino" },
 
     // ── Numeros que NO son un objetivo ───────────────────────────────────────
     { mensaje: "Un econor con motor de 110", esperado: null, nota: "la cilindrada de SU moto" },

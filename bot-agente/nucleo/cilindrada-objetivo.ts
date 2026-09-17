@@ -53,6 +53,20 @@ const PUENTE = new Set([
 /** Cuántas palabras puente se toleran entre el verbo y el número. */
 const VENTANA_PUENTE = 3
 
+/**
+ * Lo que une los dos números del "de 110 a 120": el de la izquierda es la moto
+ * que tiene, el de la derecha es a dónde quiere llegar.
+ */
+const SALTO_A_OTRO_NUMERO = new Set(["a", "hasta", "en"])
+
+/** El token es una cilindrada ("120", "120cc"), o no. */
+function numeroDeCilindrada(token: string): number | null {
+    const m = token.match(/^(\d{2,4})(cc)?$/)
+    if (!m) return null
+    const n = Number(m[1])
+    return n >= 50 && n <= 2000 ? n : null
+}
+
 export interface CilindradaObjetivo {
     /** A cuánto quiere llevar el motor. */
     cilindrada: number
@@ -79,11 +93,24 @@ export function detectarCilindradaObjetivo(mensaje: string | null | undefined): 
         if (!esVerbo) continue
 
         for (let j = i + 1; j <= i + 1 + VENTANA_PUENTE && j < tokens.length; j++) {
-            const m = tokens[j].match(/^(\d{2,4})(cc)?$/)
-            if (m) {
-                const n = Number(m[1])
-                if (n < 50 || n > 2000) break
-                return { cilindrada: n, frase: tokens.slice(i, j + 1).join(" ") }
+            const n = numeroDeCilindrada(tokens[j])
+            if (n != null) {
+                // "potenciar mi 110 a 120": el primer numero es SU MOTO y el
+                // objetivo es el segundo. Sin esto el detector devolvia 110 y
+                // mandaba al equipo justo al cliente que quiere lo que el kit
+                // hace (conv 3338, real). El objetivo es el ULTIMO numero de la
+                // cadena: se sigue mientras haya un "a"/"hasta" y otro numero.
+                let fin = j
+                let objetivo = n
+                while (
+                    fin + 2 < tokens.length &&
+                    SALTO_A_OTRO_NUMERO.has(tokens[fin + 1]) &&
+                    numeroDeCilindrada(tokens[fin + 2]) != null
+                ) {
+                    objetivo = numeroDeCilindrada(tokens[fin + 2]) as number
+                    fin += 2
+                }
+                return { cilindrada: objetivo, frase: tokens.slice(i, fin + 1).join(" ") }
             }
             if (!PUENTE.has(tokens[j])) break
         }

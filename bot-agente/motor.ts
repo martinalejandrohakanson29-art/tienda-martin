@@ -3,11 +3,12 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
 import { pideOtroProductoQueElAnuncio } from "./nucleo/otro-producto-anuncio"
+import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
     condicionSuperada,
@@ -1700,6 +1701,79 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                     : sinAnuncioDeDerivacion
                 if (sinNegativaDeLoDerivado && !pareceRespuestaNoConfiable(sinNegativaDeLoDerivado)) {
                     mensajesFinalesSanitizados.push(sinNegativaDeLoDerivado)
+                }
+            }
+
+            /**
+             * BACKSTOP DE LA PIEZA SUELTA (conv 4394, 16/09).
+             *
+             * "Vendes levas solas" -> "Las levas las damos dentro de los kits,
+             * no como pieza suelta". Las damos sueltas: hay tres levas activas
+             * en `chat_articulos`, con precio y con el alias "leva sola"
+             * cargado justamente para esto. El bot se inventó una política de
+             * la casa porque el menú de kits no le pasaba ni un dato de la
+             * pieza sola — eso se arregló en `catalogo-precios.ts`, y esto es
+             * la red: una negativa de venta por separado sobre algo que el
+             * catálogo SÍ vende suelto no sale al cliente.
+             *
+             * La oración se cae y el punto se deriva: al cliente hay que
+             * contestarle, y lo que el bot iba a decir era falso. El resto del
+             * mensaje se conserva (escalado parcial de siempre).
+             */
+            const negativasDeVentaSuelta: string[] = []
+            for (const parte of mensajesFinalesSanitizados) {
+                for (const oracion of oracionesQueNieganVentaSuelta(parte)) {
+                    const pieza = await piezaQueVendemosSuelta(oracion).catch(() => null)
+                    if (!pieza) continue
+                    console.warn(
+                        `[motor] backstop de la pieza suelta: "${oracion}" niega vender "${pieza}" por separado y el catálogo la vende sola`
+                    )
+                    negativasDeVentaSuelta.push(oracion)
+                }
+            }
+            if (negativasDeVentaSuelta.length > 0) {
+                for (let i = mensajesFinalesSanitizados.length - 1; i >= 0; i--) {
+                    const limpio = quitarOraciones(mensajesFinalesSanitizados[i], negativasDeVentaSuelta)
+                    if (limpio) mensajesFinalesSanitizados[i] = limpio
+                    else mensajesFinalesSanitizados.splice(i, 1)
+                }
+                const motivo = "consulta_precio"
+                const resumen = `El cliente preguntó por una pieza SUELTA y el bot iba a negarle que la vendamos por separado: "${negativasDeVentaSuelta
+                    .join(" ")
+                    .slice(0, 200)}". El catálogo la vende sola.`
+                if (!escaladoPersistido) {
+                    const resultadoEscalado = await escalarAHumano({
+                        motivo,
+                        resumen_consulta: resumen,
+                        conversation_id: opciones.conversationId
+                    }).catch((err) => {
+                        console.error("[motor] fallo al persistir el backstop de la pieza suelta:", err)
+                        return null
+                    })
+                    escaladoPersistido = Boolean(resultadoEscalado)
+                    herramientasEjecutadas.push({
+                        nombre: "escalar_a_humano",
+                        argumentos: { motivo, resumen_consulta: resumen },
+                        resultado: resultadoEscalado || { escalado: true, motivo, resumen }
+                    })
+                }
+                anotarEscaladoPendiente(motivo, resumen)
+                motivoEscalado = motivoEscalado || motivo
+                escaladoParcial = mensajesFinalesSanitizados.length > 0
+                // La negativa ERA todo el mensaje: silencio total y lo toma el
+                // equipo, que es la salida segura de siempre.
+                if (mensajesFinalesSanitizados.length === 0) {
+                    await persistirEstado()
+                    return {
+                        mensajeFinal: null,
+                        mensajesFinales: [],
+                        herramientasEjecutadas,
+                        escaladoHumano: true,
+                        motivoEscalado: motivo,
+                        escaladoPersistido,
+                        latenciaMs: Date.now() - inicio,
+                        tokensUsados: tokensTotales
+                    }
                 }
             }
 

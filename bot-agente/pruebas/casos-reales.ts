@@ -1661,5 +1661,46 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "La moto no nos consta: ninguna herramienta puede decir si le entra la leva. Silencio total y la consulta a la bandeja del equipo. PROHIBIDO el menu de kits, la ficha de un combo o repreguntarle la moto: ya la dijo."
         }
+    },
+    {
+        // Conv 4394 (16/09). Entro por el anuncio del Kit 170, se llevo la ficha
+        // bien, y un rato despues pregunto "Vendes levas solas". El modelo busco
+        // el termino `leva`: pega con los TRES combos que llevan leva en el
+        // nombre, asi que la herramienta devolvio el menu del PASO 1 ("tu unico
+        // objetivo es que elija", "PROHIBIDO dar precios") sin una sola linea de
+        // las piezas sueltas. Sin dato, el bot invento la politica de la casa:
+        // "Las levas las damos dentro de los kits, no como pieza suelta".
+        //
+        // Las damos sueltas. Hay tres levas activas en chat_articulos, con
+        // precio y con el alias "leva sola" cargado justamente para esto.
+        // Martin apago el bot y vendio la leva a mano un minuto despues.
+        //
+        // El cliente ya tiene el kit 170 delante: la leva que le corresponde es
+        // la de ESE kit (Leva de calle 7.80, $25.000), no las tres del catalogo.
+        id: "caso-85-pide-la-pieza-suelta-con-el-menu-abierto",
+        titulo: "Pregunta si vendemos la leva sola: se la cotiza, no se le niega (conv 4394)",
+        mensajeCliente: "Vendes levas solas",
+        estadoInicial: {
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        historial: [
+            { rol: "user", contenido: "Hola! Quiero mas informacion del kit170cc" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\nel kit incluye:\n✅cilindro con piston, aros y perno, y tambien la junta de tapa y de base\n✅leva de calle de 7.80\n\nno precisa modificaciones.\nHacemos envios a todo el pais\n\nA que moto se lo queres poner?"
+            }
+        ],
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_catalogo_y_precios"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // La negativa que costo la venta, en todas sus formas.
+            patronProhibido:
+                /no\s+(l[ao]s?\s+)?(vendemos|damos|manejamos|tenemos)[^.!?\n]{0,40}(suelt|sol[ao]|por separado|aparte)|no como pieza suelta|(s[oó]lo|solo|unicamente|únicamente)[^.!?\n]{0,40}(dentro del|dentro de los|en el kit|en los kits)/i,
+            patronRespuesta: /25\.?000/,
+            descripcionEsperada:
+                "La leva SI se vende suelta. Debe contestar que si y pasarle el precio de la leva del kit que esta mirando (Leva de calle 7.80, $25.000), sin prometer envio gratis (esa pieza va con envio a cargo del cliente). PROHIBIDO decirle que las levas solo van dentro del kit."
+        }
     }
 ]

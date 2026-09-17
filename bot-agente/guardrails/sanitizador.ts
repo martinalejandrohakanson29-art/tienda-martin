@@ -616,6 +616,71 @@ export function quitarNegativaSobreLoDerivado(
 }
 
 /**
+ * Oraciones donde el bot NIEGA que una pieza se venda por separado.
+ *
+ * Dos formas, las dos vistas en producción:
+ *   - la negación directa: "no la vendemos suelta", "no como pieza suelta",
+ *     "no se vende por separado", "aparte no la damos";
+ *   - la exclusividad, que dice lo mismo en positivo: "las levas SOLO van
+ *     dentro de los kits", "únicamente se consiguen en combo".
+ *
+ * Que vendamos o no una pieza suelta es un dato de `chat_articulos`, no algo
+ * que el modelo pueda deducir. Ver `nucleo/venta-suelta.ts`.
+ */
+/** Cómo se nombra a la venta por separado. */
+const RX_SUELTA = "suelt[oa]s?|sol[oa]s?|por\\s+separado|aparte|a\\s+parte|individual(?:es)?|de\\s+a\\s+una"
+
+const FRASES_NIEGAN_VENTA_SUELTA = [
+    // "no las vendemos sueltas", "no se venden por separado", "aparte no la damos".
+    new RegExp(
+        `\\bno\\b[^.!?\\n]{0,40}\\b(vendemos|vende[ns]?|damos|da[ns]?|manejamos|maneja[ns]?|trabajamos|hacemos|tenemos|sacamos|entregamos|consigue[ns]?)\\b[^.!?\\n]{0,40}\\b(${RX_SUELTA})\\b`,
+        "i"
+    ),
+    // "no como pieza suelta", "no de forma individual": la negación sin verbo.
+    new RegExp(`\\bno\\s+(como|de\\s+forma|en\\s+forma|de\\s+manera)\\b[^.!?\\n]{0,30}\\b(${RX_SUELTA}|separad[oa]s?)\\b`, "i"),
+    // La exclusividad, que dice lo mismo en positivo. El "solo" es obligatorio:
+    // sin él, "el pistón viene dentro del kit" es una verdad que hay que dejar
+    // pasar.
+    /\b(s[oó]lo|solamente|[uú]nicamente|nada\s+m[áa]s)\b[^.!?\n]{0,40}\b(a?dentro\s+del?\b|en\s+(el|los)\s+(kit|combo|pack)s?\b|con\s+el\s+(kit|combo)\b|en\s+(combo|kit)s?\b)/i,
+    /\b(a?dentro\s+del?\b|en\s+(el|los)\s+(kit|combo)s?\b)[^.!?\n]{0,40}\b(s[oó]lo|solamente|[uú]nicamente|nada\s+m[áa]s)\b/i,
+]
+
+/**
+ * Las oraciones del mensaje que niegan la venta por separado. Vacío si no hay
+ * ninguna. Quién decide si esa negación es FALSA es el motor, cruzándola contra
+ * las piezas que el catálogo sí vende sueltas (`piezaQueVendemosSuelta`): acá
+ * solo se detecta la forma, sin tocar la base.
+ */
+export function oracionesQueNieganVentaSuelta(texto: string | null | undefined): string[] {
+    const t = (texto || "").trim()
+    if (!t) return []
+
+    const encontradas: string[] = []
+    for (const linea of t.split(/\n/)) {
+        for (const oracion of linea.split(/(?<=[.!?])\s+/)) {
+            if (oracion.trim() && FRASES_NIEGAN_VENTA_SUELTA.some((rx) => rx.test(oracion))) {
+                encontradas.push(oracion.trim())
+            }
+        }
+    }
+    return encontradas
+}
+
+/** Saca del mensaje las oraciones que se le pasen (las que el motor vetó). */
+export function quitarOraciones(texto: string | null | undefined, aQuitar: string[]): string {
+    const t = (texto || "").trim()
+    if (!t || aQuitar.length === 0) return t
+
+    const veto = new Set(aQuitar.map((o) => o.trim()))
+    const salida: string[] = []
+    for (const linea of t.split(/\n/)) {
+        const conservadas = linea.split(/(?<=[.!?])\s+/).filter((o) => !veto.has(o.trim()))
+        salida.push(conservadas.join(" ").trim())
+    }
+    return salida.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+}
+
+/**
  * ¿El texto AFIRMA (o niega) que un kit le va a una moto?
  *
  * Backstop del escalado parcial: si lo que se derivó al equipo era justamente

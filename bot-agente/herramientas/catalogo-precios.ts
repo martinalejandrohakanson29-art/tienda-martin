@@ -218,6 +218,84 @@ function lineaPieza(art: ArticuloSueltoInfo): string {
     return detalle ? `${art.nombre} — ${detalle}` : art.nombre
 }
 
+/**
+ * LA PIEZA QUE PIDIÓ, CUANDO EL TÉRMINO PEGA CON VARIOS KITS
+ * ----------------------------------------------------------
+ * Conv 4394 (16/09). El cliente entró por el anuncio del Kit 170 y preguntó
+ * "Vendes levas solas". El modelo buscó `leva` y el término pegó con los TRES
+ * combos que llevan leva en el nombre, así que la herramienta devolvió el menú
+ * del PASO 1: "tu único objetivo es que elija cuál opción quiere", "PROHIBIDO
+ * dar precios". El menú no lleva ni una línea de las piezas sueltas — y el bot,
+ * sin ningún dato de la leva sola, se inventó la política de la casa:
+ * "Las levas las damos dentro de los kits, no como pieza suelta".
+ *
+ * Las damos sueltas: hay tres levas cargadas en `chat_articulos`, activas, con
+ * precio y con el alias "leva sola" puesto justamente para esto. Martín tuvo
+ * que apagar el bot y vender la leva a mano.
+ *
+ * Acá se calculan las piezas sueltas del catálogo que se llaman como lo que
+ * pidió. Van al mensaje como DATO (con precio, envío e ID), no como libreto: si
+ * lo que quería era el kit, el menú sigue mandando.
+ *
+ * El gate es que el cliente haya nombrado la pieza con una PALABRA, no con una
+ * cilindrada: `kit 120` deja tokens numéricos nada más y no tiene por qué abrir
+ * el precio del cilindro suelto.
+ */
+interface PiezaSueltaPedida {
+    art: ArticuloSueltoInfo
+    /** Kit/combo del que sale, para poder decir "la del kit que estás mirando". */
+    deItem: string
+    /** Sale del kit que el cliente YA tiene delante (vino por ese anuncio). */
+    delItemPresentado: boolean
+}
+
+function piezasSueltasQueMatchean(
+    termino: string,
+    items: { nombre: string; articulos: ArticuloSueltoInfo[]; presentado: boolean }[]
+): PiezaSueltaPedida[] {
+    const tokensPalabra = normalizarTexto(termino)
+        .split(" ")
+        .filter((w) => w.length >= 3 && !STOP_WORDS_CATALOGO.has(w) && !/^\d+$/.test(w))
+    if (tokensPalabra.length === 0) return []
+
+    const porId = new Map<number, PiezaSueltaPedida>()
+    for (const item of items) {
+        for (const art of item.articulos || []) {
+            const corpus = normalizarTexto(`${art.nombre} ${art.categoria || ""} ${art.alias || ""}`)
+            // El scorer decide si matchea (respeta las palabras distintivas: pedir
+            // "leva" descarta el cilindro aunque estén en el mismo kit); los
+            // tokens-palabra deciden si el cliente la nombró de verdad.
+            const score = puntuarItemCatalogo(termino, art.nombre, `${art.categoria || ""} ${art.alias || ""}`)
+            if (score < 30) continue
+            if (!tokensPalabra.some((t) => corpus.includes(t))) continue
+
+            const ya = porId.get(art.id)
+            // Si la misma pieza está en dos kits, gana la mención del kit que el
+            // cliente ya tiene delante.
+            if (ya && !(item.presentado && !ya.delItemPresentado)) continue
+            porId.set(art.id, { art, deItem: item.nombre, delItemPresentado: item.presentado })
+        }
+    }
+
+    return [...porId.values()].sort(
+        (a, b) => Number(b.delItemPresentado) - Number(a.delItemPresentado) || a.art.precio - b.art.precio
+    )
+}
+
+/** El renglón de una pieza suelta tal como lo lee el modelo: precio, envío e ID. */
+function lineaPiezaSuelta(p: PiezaSueltaPedida): string {
+    const envio =
+        p.art.envio_gratis === true
+            ? "envío gratis"
+            : p.art.envio_gratis === false
+              ? "el envío lo paga el cliente (NO digas gratis; el monto lo da cotizar_piezas_sueltas)"
+              : "envío sin cargar: NO hables del envío de esta pieza"
+    const deDonde = p.delItemPresentado
+        ? `es la de "${p.deItem}", el kit por el que entró el cliente`
+        : `va dentro de "${p.deItem}"`
+    return `   * ${p.art.nombre}: ${formatearPrecioAR(p.art.precio)} — ${envio} (ID Art. ${p.art.id}) — ${deDonde}`
+}
+
 /** Artículos que están en TODAS las variantes (van siempre, sea cual sea la que lleve). */
 function articulosComunes(variantes: VarianteComposicion[]): ArticuloSueltoInfo[] {
     if (variantes.length === 0) return []
@@ -996,13 +1074,45 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
              */
             const hayMotoEnJuego = Boolean(avisoMoto)
 
+            /**
+             * La pieza suelta que pidió, con el menú abierto (conv 4394). Ver
+             * `piezasSueltasQueMatchean`: el menú de kits no puede ser todo lo
+             * que el modelo recibe cuando lo que el cliente nombró también lo
+             * vendemos por separado, porque entonces se inventa que no.
+             */
+            const piezasPedidas = piezasSueltasQueMatchean(args.termino_busqueda!, [
+                ...gruposFiltrados.map((g) => ({
+                    nombre: g.nombre,
+                    articulos: g.articulos_sueltos || [],
+                    presentado: args.__embudo?.grupoPineadoId === g.id
+                })),
+                ...packsFiltrados.map((p) => ({
+                    nombre: p.nombre,
+                    articulos: p.articulos_sueltos || [],
+                    presentado: args.__embudo?.packPresentadoId === p.id
+                }))
+            ])
+            const hayPiezaSuelta = piezasPedidas.length > 0
+            const bloquePiezasSueltas = hayPiezaSuelta
+                ? [
+                      `PIEZAS SUELTAS DEL CATÁLOGO QUE SE LLAMAN COMO LO QUE PIDIÓ (dato duro, NO es un libreto):`,
+                      ...piezasPedidas.map(lineaPiezaSuelta),
+                      `   - Estas piezas SÍ se venden por separado. ⛔ PROHIBIDO decirle que solo van dentro del kit, que no las damos sueltas, que no las vendemos aparte o cualquier variante de eso: es falso y nos cuesta la venta.`,
+                      `   - Se nombran SOLO si el cliente pidió la pieza SOLA ("sola", "suelta", "nada más", "aparte", "por separado", "únicamente"). Si preguntó por el kit, esto no se menciona.`,
+                      ``
+                  ]
+                : []
+
             const lineasOpciones: string[] = [
+                ...bloquePiezasSueltas,
                 `CATÁLOGO OFICIAL — PASO 1: IDENTIFICAR EL KIT.`,
                 hayMotoEnJuego
                     ? `El cliente todavía no eligió cuál de estas opciones quiere, pero YA NOMBRÓ SU MOTO: antes del menú va la respuesta a lo que preguntó.`
-                    : `El cliente todavía no eligió. Tu único objetivo es que elija cuál opción quiere.`,
+                    : hayPiezaSuelta
+                      ? `El cliente todavía no eligió cuál de estas opciones quiere, pero lo que nombró también lo vendemos SUELTO: antes del menú va la respuesta a lo que preguntó.`
+                      : `El cliente todavía no eligió. Tu único objetivo es que elija cuál opción quiere.`,
                 ``,
-                hayMotoEnJuego
+                hayMotoEnJuego || hayPiezaSuelta
                     ? `TEXTO PARA ENVIAR AL CLIENTE (va DESPUÉS de contestarle, en el mismo mensaje; respetá cada 👉🏼 en su renglón):`
                     : `TEXTO PARA ENVIAR AL CLIENTE (mandalo TAL CUAL, respetando cada 👉🏼 en su renglón; solo podés ajustar el saludo inicial):`,
                 bloqueParaCliente,
@@ -1013,6 +1123,14 @@ IMPORTANTE: si en el mismo mensaje el cliente preguntó OTRA cosa que sí quedó
                           `- PRIMERO lo que preguntó, DESPUÉS el menú. Si preguntó si le entra a su moto, resolvé la compatibilidad (consultar_compatibilidad, o resolver_variante si el combo tiene variantes) y arrancá el mensaje con esa respuesta.`,
                           `- ⛔ PROHIBIDO mandar el menú solo, sin contestar lo que preguntó: para el cliente es no haberle respondido.`,
                           `- Si la compatibilidad no consta, seguí lo que dice el aviso de la moto (escalar y silencio sobre ese punto): tampoco ahí el menú reemplaza la respuesta.`
+                      ]
+                    : []),
+                ...(hayPiezaSuelta
+                    ? [
+                          `- Si pidió la pieza SOLA: contestale que SÍ la vendemos suelta, con el precio y el envío que figuran arriba, y recién después el menú. Si con eso alcanza (quiere la pieza, no un kit), el menú ni hace falta.`,
+                          `- Con el kit del anuncio ya en juego, la pieza que corresponde es la de ESE kit: no le abras las tres levas del catálogo si no preguntó por las otras.`,
+                          `- ⛔ PROHIBIDO mandar el menú solo: para el cliente que preguntó por la pieza suelta es no haberle respondido.`,
+                          `- El "PROHIBIDO dar precios" de abajo es de los KITS. El precio de la pieza suelta que pidió SÍ se lo das.`
                       ]
                     : []),
                 `- PROHIBIDO dar precios o variantes todavía.`,

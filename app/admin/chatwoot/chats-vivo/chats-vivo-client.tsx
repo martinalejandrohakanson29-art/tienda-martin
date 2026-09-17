@@ -721,6 +721,7 @@ export function ChatsVivoClient({
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const emojiPickerRef = useRef<HTMLDivElement>(null)
     const adjuntoFileRef = useRef<HTMLInputElement>(null)
+    const audioFileRef = useRef<HTMLInputElement>(null)
 
     const revocarPreview = (a: { preview: string } | null) => {
         if (a && a.preview.startsWith("blob:")) URL.revokeObjectURL(a.preview)
@@ -733,6 +734,7 @@ export function ChatsVivoClient({
         })
         setErrorAdjunto(null)
         if (adjuntoFileRef.current) adjuntoFileRef.current.value = ""
+        if (audioFileRef.current) audioFileRef.current.value = ""
     }
 
     const subirAdjunto = async (archivo: File) => {
@@ -1617,6 +1619,7 @@ export function ChatsVivoClient({
         setPinearKit(true)
         setErrorAdjunto(null)
         if (adjuntoFileRef.current) adjuntoFileRef.current.value = ""
+        if (audioFileRef.current) audioFileRef.current.value = ""
 
         const tempId = Date.now()
         const mensajeOptimista: MensajeConversacion = {
@@ -2508,6 +2511,17 @@ export function ChatsVivoClient({
                                         if (f) subirAdjunto(f)
                                     }}
                                 />
+                                <input
+                                    ref={audioFileRef}
+                                    type="file"
+                                    accept="audio/*"
+                                    capture
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0]
+                                        if (f) subirAdjunto(f)
+                                    }}
+                                />
 
                                 <form onSubmit={handleEnviarMensaje} className="flex items-end gap-1.5 sm:gap-2">
                                     <div
@@ -2531,18 +2545,32 @@ export function ChatsVivoClient({
                                             className="w-full resize-none bg-transparent outline-none text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[48px] sm:min-h-[68px] max-h-[34dvh] block leading-relaxed overflow-y-auto"
                                         />
                                     </div>
-                                    <div className="flex flex-col gap-1.5 shrink-0 mb-0.5">
+                                    <div className="grid grid-cols-2 gap-1.5 shrink-0 mb-0.5">
                                         {!modoNota && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() => adjuntoFileRef.current?.click()}
-                                                disabled={subiendoAdjunto}
-                                                className="h-9 w-9 p-0 rounded-xl border-gray-200 bg-white text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-colors shadow-sm"
-                                                title="Adjuntar foto, video, audio o documento"
-                                            >
-                                                {subiendoAdjunto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                                            </Button>
+                                            <>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => adjuntoFileRef.current?.click()}
+                                                    disabled={subiendoAdjunto}
+                                                    className="h-9 w-9 p-0 rounded-xl border-gray-200 bg-white text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-colors shadow-sm"
+                                                    title="Adjuntar foto, video o documento"
+                                                    aria-label="Adjuntar archivo"
+                                                >
+                                                    {subiendoAdjunto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => audioFileRef.current?.click()}
+                                                    disabled={subiendoAdjunto}
+                                                    className="h-9 w-9 p-0 rounded-xl border-gray-200 bg-white text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm"
+                                                    title="Grabar o adjuntar audio"
+                                                    aria-label="Grabar o adjuntar audio"
+                                                >
+                                                    <Mic className="h-4 w-4" />
+                                                </Button>
+                                            </>
                                         )}
                                         <Button
                                             type="button"

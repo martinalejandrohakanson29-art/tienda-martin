@@ -679,6 +679,10 @@ export function ChatsVivoClient({
     const [filtro, setFiltro] = useState<FiltroChats>("todas")
     const [busqueda, setBusqueda] = useState("")
     const [seleccionadaId, setSeleccionadaId] = useState<number | null>(null)
+    // En móvil la lista y el hilo son dos vistas distintas. Se mantiene este
+    // estado separado de `seleccionadaId` porque en escritorio siempre hay una
+    // conversación seleccionada y eso antes hacía imposible volver al listado.
+    const [mostrarListaMovil, setMostrarListaMovil] = useState(true)
 
     const [hilos, setHilos] = useState<Record<number, MensajeConversacion[]>>({})
     const [hilosCargados, setHilosCargados] = useState<Set<number>>(() => new Set())
@@ -1171,6 +1175,7 @@ export function ChatsVivoClient({
 
     const seleccionarConversacion = (id: number) => {
         setSeleccionadaId(id)
+        setMostrarListaMovil(false)
         setModoNota(false)
         setSelectorAbierto(null)
         setTextoMensaje("")
@@ -1759,7 +1764,7 @@ export function ChatsVivoClient({
 
             <div className="flex flex-1 min-h-0">
                 {/* Columna izquierda: lista de conversaciones */}
-                <div className={`${seleccionada ? "hidden md:flex" : "flex"} w-full md:w-[380px] lg:w-[440px] xl:w-[500px] shrink-0 border-r bg-white flex-col min-h-0`}>
+                <div className={`${mostrarListaMovil ? "flex" : "hidden md:flex"} w-full md:w-[380px] lg:w-[440px] xl:w-[500px] shrink-0 border-r bg-white flex-col min-h-0`}>
                     <div className="px-3.5 py-2 bg-[#f0f2f5] shrink-0 flex items-center justify-between">
                         <span className="font-semibold text-[#111b25] text-sm">Conversaciones</span>
                         <span className="text-xs text-gray-500">{conversacionesFiltradas.length}</span>
@@ -2013,14 +2018,14 @@ export function ChatsVivoClient({
                 </div>
 
                 {/* Columna derecha: hilo de la conversación seleccionada */}
-                <div className={`${seleccionada ? "flex" : "hidden md:flex"} flex-1 w-full flex-col min-h-0 min-w-0`}>
+                <div className={`${mostrarListaMovil ? "hidden md:flex" : "flex"} flex-1 w-full flex-col min-h-0 min-w-0`}>
                     {seleccionada ? (
                         <>
                             <div className="flex items-center justify-between px-2 sm:px-4 py-2 bg-[#f0f2f5] border-b shrink-0 gap-2 sm:gap-3 min-h-[52px]">
                                 <div className="flex items-center gap-2.5 min-w-0">
                                     <button
                                         type="button"
-                                        onClick={() => setSeleccionadaId(null)}
+                                        onClick={() => setMostrarListaMovil(true)}
                                         className="md:hidden h-9 w-9 -ml-1 rounded-full flex items-center justify-center text-[#54656f] hover:bg-black/5 shrink-0"
                                         aria-label="Volver a conversaciones"
                                     >

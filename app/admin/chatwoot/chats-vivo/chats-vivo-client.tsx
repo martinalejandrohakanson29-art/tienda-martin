@@ -1144,15 +1144,16 @@ export function ChatsVivoClient({
     }
 
     useEffect(() => {
-        if (conversacionesFiltradas.length > 0) {
-            const estaPresente = conversacionesFiltradas.some((c) => c.id === seleccionadaId)
-            if (!estaPresente) {
-                const primerId = conversacionesFiltradas[0].id
-                setSeleccionadaId(primerId)
-                marcarLeido(primerId)
-            }
-        } else if (conversacionesFiltradas.length === 0 && seleccionadaId !== null) {
-            setSeleccionadaId(null)
+        // Solo auto-selecciona cuando no hay ninguna conversación elegida todavía
+        // (carga inicial). Cambiar de filtro puede ocultar la seleccionada actual
+        // sin que eso implique elegir otra ni marcarla como leída: si no, al
+        // filtrar "sin leer" cada selección automática marca el primer resultado
+        // como leído, lo saca de la lista filtrada, y el efecto vuelve a
+        // dispararse con el siguiente, en cascada, hasta vaciar el filtro entero.
+        if (seleccionadaId === null && conversacionesFiltradas.length > 0) {
+            const primerId = conversacionesFiltradas[0].id
+            setSeleccionadaId(primerId)
+            marcarLeido(primerId)
         }
     }, [conversacionesFiltradas, seleccionadaId])
 

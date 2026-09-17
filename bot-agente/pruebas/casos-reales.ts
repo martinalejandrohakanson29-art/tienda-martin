@@ -1892,5 +1892,73 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "Debe pasarle la guia de como fijarse (color del cilindro / dientes de la corona) y ofrecerle confirmarselo con el modelo exacto de su moto. PROHIBIDO explicarle la regla o corregirlo ('ojo, no es algo que se elige') y prohibido inventar comparaciones de rendimiento."
         }
+    },
+    {
+        // Conv 4475 (17/09, +5493624253916). Entro por el anuncio "POTENCIA TU
+        // 110" y escribio "quiero saber si vienen un kit de 70 a 110". Tiene
+        // una Motomel Eco 70 y queria llevarla a 110: eso no existe en la base
+        // —`cilindradas_base` arranca en 105—. El lector leia "kit de 70" como
+        // la medida de un producto y el "110" como ruido, el modelo busco por
+        // cilindrada suelta y le volco los dos combos que potencian una 110 a
+        // 120. Le contesto la pregunta del aviso, no la suya; Martin apago el
+        // bot y le dijo a mano que no teniamos nada.
+        //
+        // Lo que decide no es el destino (110, que es justo el del aviso) sino
+        // de donde PARTE: el 70 no es ninguna de nuestras bases.
+        id: "caso-90-kit-de-70-a-110-no-existe",
+        titulo: "Pide un kit para pasar de 70 a 110: deriva, no ofrece los combos de la 110 (conv 4475)",
+        mensajeCliente: "Hola buenas tardes quiero saber si vienen un kit de 70 a 110",
+        referralAnuncio: {
+            titulo: "POTENCIA TU 110 CON EL COMBO",
+            cuerpo: "PEDI EL TUYO!!"
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "El motor del que parte (70) no es ninguna de nuestras bases: no hay kit que ofrecerle. Silencio total y la consulta a la bandeja tecnica. PROHIBIDO el menu de los combos que potencian una 110 y prohibida la ficha del aviso."
+        }
+    },
+    {
+        // El hermano de la conv 4475: el mismo pedido dicho de otra forma. Con
+        // el motor real, 17/09: *"tengo una motomel eco 70, qué kit le puedo
+        // poner?"* le devolvio los SIETE kits del catalogo, del Combo 110 al
+        // Dakar 220. No hubo "X a 110" que leer, asi que el gate del par no lo
+        // veia y el modelo no tenia con que darse cuenta: la tool del catalogo
+        // nunca le devuelve `cilindradas_base` y la guia del no-match le
+        // prohibe decir "no lo tenemos".
+        //
+        // Ahora el dato va tambien del lado de la tool. Ver el guard del motor
+        // ajeno en herramientas/catalogo-precios.ts.
+        id: "caso-91-moto-de-70-no-recibe-el-catalogo",
+        titulo: "Pregunta que kit le pone a una Eco 70: deriva, no le vuelca los kits (17/09)",
+        mensajeCliente: "tengo una motomel eco 70, que kit le puedo poner?",
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "Su motor (70) no es ninguna de nuestras bases y no hay compat cargada para esa moto: silencio total y a la bandeja tecnica. PROHIBIDO listarle kits, mandarle una ficha o preguntarle cual quiere."
+        }
+    },
+    {
+        // La contracara: la Econo 80 tampoco tiene kit, pero el equipo SI cargo
+        // su compatibilidad el 17/09 desde el circuito de aprendizaje (conv
+        // 4444, "Un econo 80"). Con el modelo cargado en motos_modelos, esa
+        // fila alcanza para que el bot conteste la negativa solo en vez de
+        // ocupar al equipo con algo ya respondido.
+        //
+        // Es la razon de ser del escape del guard: donde hay dato del equipo,
+        // manda `consultar_compatibilidad`, no el atajo de la cilindrada.
+        id: "caso-92-econo-80-la-negativa-la-contesta-el-bot",
+        titulo: "Pregunta por el Kit 120 para una Econo 80: contesta la negativa con el dato del equipo",
+        mensajeCliente: "hola, tengo un econo 80, le va el kit 120?",
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_compatibilidad"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            patronRespuesta: /no le va|no es compatible|no entra|no sirve/i,
+            descripcionEsperada:
+                "El equipo ya cargo que el Kit 120 NO le va a la Econo 80: el bot lo dice con la letra de la casa. PROHIBIDO ofrecerle otro kit como reemplazo (ninguno es para un motor de 80) y prohibido derivar algo que ya esta contestado."
+        }
     }
 ]

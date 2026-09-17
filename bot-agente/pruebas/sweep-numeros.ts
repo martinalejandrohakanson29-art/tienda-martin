@@ -37,6 +37,9 @@
  *   obj=140    a cuanto quiere llevar el motor (`-` si no dijo)
  *   prod=190   medida de otro producto que pide, contra el ANUNCIO DE REFERENCIA
  *              de abajo (`-` si no pide otro)
+ *   conv=70->110  pide pasar de un motor a otro (`-` si no lo pidio). La base es
+ *              el unico numero que el catalogo puede desmentir: ver
+ *              `nucleo/conversion-pedida.ts`
  *
  * Un cambio en el snapshot NO es necesariamente un bug: si cargas motos nuevas,
  * se espera que algun `moto=-` pase a tener valor. Lo que garantiza es que
@@ -47,6 +50,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs"
 import { join } from "path"
 import { cilindradasEn, resolverMoto } from "../nucleo/motos"
 import { detectarCilindradaObjetivo } from "../nucleo/cilindrada-objetivo"
+import { leerNumeros } from "../nucleo/numeros-del-mensaje"
 import { pideOtroProductoQueElAnuncio } from "../nucleo/otro-producto-anuncio"
 
 const CORPUS = join(__dirname, "sweep-numeros.corpus.txt")
@@ -92,12 +96,14 @@ async function clasificar(mensaje: string): Promise<string> {
     }
     const objetivo = await detectarCilindradaObjetivo(mensaje)
     const producto = await pideOtroProductoQueElAnuncio(mensaje, ANUNCIO_REFERENCIA)
+    const { conversion } = await leerNumeros(mensaje)
 
     const col = (v: string) => v.padEnd(9)
     return [
         col(`moto=${ccMoto.size ? [...ccMoto].sort((a, b) => a - b).join(",") : "-"}`),
         col(`obj=${objetivo?.cilindrada ?? "-"}`),
-        col(`prod=${producto.cilindrada ?? "-"}`)
+        col(`prod=${producto.cilindrada ?? "-"}`),
+        col(`conv=${conversion ? `${conversion.base}->${conversion.objetivo}` : "-"}`)
     ].join(" ")
 }
 
@@ -144,7 +150,7 @@ async function main() {
 
     const lineas: string[] = [
         `# anuncio de referencia: ${ANUNCIO_REFERENCIA}`,
-        `# moto=cilindrada que tiene  obj=a cuanto quiere llevarla  prod=otra medida que pide`,
+        `# moto=cilindrada que tiene  obj=a cuanto quiere llevarla  prod=otra medida que pide  conv=de que motor parte -> a cual quiere llegar`,
         ""
     ]
     for (const c of corpus) {
@@ -158,8 +164,12 @@ async function main() {
         return
     }
 
+    // Los saltos de linea se comparan normalizados: en Windows (autocrlf) un
+    // checkout deja el snapshot en CRLF y el sweep marcaba las 132 lineas como
+    // cambiadas sin que ninguna lectura se hubiera movido.
+    const sinCR = (t: string) => t.split(String.fromCharCode(13)).join("")
     const esperado = readFileSync(SNAPSHOT, "utf8")
-    if (esperado === actual) {
+    if (sinCR(esperado) === sinCR(actual)) {
         console.log(`OK · ${corpus.length} mensajes, ninguna lectura cambio`)
         return
     }

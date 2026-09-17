@@ -6,6 +6,8 @@ import type { EstadoEmbudo } from "./index"
 import { normalizarTexto, puntuarItemCatalogo, formatearPrecioAR, STOP_WORDS_CATALOGO } from "../nucleo/texto"
 import { terminoEsSoloMoto } from "../nucleo/motos"
 import { categoriasNombradas, clasificarTerminoSinMatch } from "../nucleo/rubros"
+import { motorQueNoPotenciamos } from "../nucleo/conversion-pedida"
+import { lecturaYaHecha } from "../nucleo/numeros-del-mensaje"
 
 export interface ArgsCatalogoPrecios {
     termino_busqueda?: string
@@ -764,8 +766,54 @@ export async function detectarPlantillasEnLaRafaga(
     }
 }
 
+/** Las cilindradas que sí potenciamos, para nombrarlas en el aviso del guard. */
+async function cilindradasDelCatalogoParaAviso(): Promise<number[]> {
+    const { cilindradasBaseDelCatalogo } = await import("../nucleo/conversion-pedida")
+    return [...(await cilindradasBaseDelCatalogo())].sort((a, b) => a - b)
+}
+
 export async function consultarCatalogoPrecios(args: ArgsCatalogoPrecios): Promise<ResultadoCatalogoPrecios> {
     try {
+        /**
+         * GUARD DEL MOTOR AJENO: el catálogo no tiene nada para ese motor.
+         *
+         * `cilindradas_base` dice para qué motor es cada producto (105 a 200).
+         * Si el cliente parte de uno que no está ahí —una 70—, no hay búsqueda
+         * que lo encuentre y cualquier cosa que devuelva esta tool se le va a
+         * ofrecer igual: a *"tengo una motomel eco 70, qué kit le puedo poner?"*
+         * el bot le contestó con los SIETE kits del catálogo (17/09), y a la
+         * conv 4475 con los dos combos que potencian una 110.
+         *
+         * El dato nunca le llegaba al modelo: esta tool no devuelve
+         * `cilindradas_base` y la guía del no-match le prohíbe decir "no lo
+         * tenemos" y lo manda a buscar de nuevo. Con esa combinación, buscar
+         * otra vez es lo único que podía hacer. Acá la puerta se cierra del lado
+         * del sistema, igual que el guard del volcado.
+         *
+         * El motor en juego lo resuelve el motor (conversión leída, moto del
+         * embudo, cilindrada sola), nunca el LLM: ver `nucleo/conversion-pedida`.
+         */
+        const textoCliente = args.__embudo?.numerosDelMensaje?.texto || ""
+        const motorAjeno = await motorQueNoPotenciamos({
+            mensaje: textoCliente,
+            lectura: lecturaYaHecha(args.__embudo?.numerosDelMensaje, textoCliente),
+            moto: args.__embudo?.motoDelMensaje || args.__embudo?.motoMencionada || null
+        }).catch(() => null)
+
+        if (motorAjeno) {
+            return {
+                encontrado: false,
+                packs: [],
+                grupos: [],
+                mensaje_para_agente: `⛔ NO tenemos NADA para un motor de ${motorAjeno.cilindrada}cc: el cliente ${motorAjeno.origen}, y todo lo que vendemos es para motores de ${[...(await cilindradasDelCatalogoParaAviso())].join(", ")}.
+Ejecutá escalar_a_humano con motivo 'consulta_tecnica' y guardá SILENCIO sobre ese punto.
+⛔ PROHIBIDO ofrecerle kits, listarle el catálogo, mandarle una ficha o preguntarle cuál quiere: ninguno es para su motor, y ofrecérselos le cambia la pregunta.
+⛔ PROHIBIDO volver a llamar a consultar_catalogo_y_precios por esto — ni con otro término ni sin término.
+⛔ PROHIBIDO decirle vos "no lo tenemos" o "no se puede": si hay una salida para ese motor la sabe el equipo, no vos.
+IMPORTANTE: si en el mismo mensaje preguntó OTRA cosa que sí quedó resuelta, esa se la contestás igual. NO respondas SIN_RESPUESTA por esto.`
+            }
+        }
+
         // Consultar packs simples activos incluyendo plantillas y detalles
         const packsRaw = await prisma.$queryRaw<
             {

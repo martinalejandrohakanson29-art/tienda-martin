@@ -2,6 +2,7 @@
 # packs sueltos: Kit 170 varillero + leva | kit dakar 200 economico | kit dakar 220
 # SI=confirma  NO=incompatible  esc=escala en silencio  ?=sigue la charla
 
+Econo 80                 NO  esc esc NO  esc esc esc
 Bajaj Rouser 125         esc esc esc esc esc esc esc
 Bajaj Rouser NS 200      esc esc esc esc esc esc esc
 Brava Altino 150         esc esc esc esc SI  SI  SI 
@@ -24,6 +25,7 @@ Honda XR 250 Tornado     esc esc esc esc esc esc esc
 Keller Crono 110         SI  SI  SI  SI  esc esc esc
 Mondial LD 110           SI  SI  SI  SI  esc esc esc
 Motomel Blitz 110        SI  SI  SI  SI  esc esc esc
+Motomel Eco 70           esc esc esc esc esc esc esc
 Motomel S2 150           NO  esc esc NO  SI  SI  SI 
 Motomel Skua 150         esc esc esc esc SI  SI  SI 
 Motomel Skua 200         esc esc esc esc esc esc esc

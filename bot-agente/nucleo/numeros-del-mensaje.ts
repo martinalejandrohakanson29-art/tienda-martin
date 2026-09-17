@@ -8,6 +8,11 @@
  *   objetivo  a cuanto quiere LLEVARLA     "quiero hacerla 140"
  *   producto  la medida que PIDE           "tenes kid de cg 190?"
  *
+ * Y un cuarto caso que son DOS numeros juntos, no uno: la conversion que pide
+ * ("un kit de 70 a 110"). Ahi el de la izquierda es el motor del que parte —el
+ * unico lugar donde ese numero significa algo— y el de la derecha es el
+ * objetivo de siempre. Ver `ConversionLeida` y `nucleo/conversion-pedida.ts`.
+ *
  * Como cada uno tokenizaba por su lado y corria en un punto distinto del motor,
  * quien se quedaba con un numero dependia de POR DONDE entraba la charla, no de
  * una regla escrita en ningun lado. En la conv 3338 ("potenciar mi 110 a 120")
@@ -28,6 +33,10 @@
  *   3. producto  una palabra de producto cerca ("kit 190") es lo mas debil:
  *                alcanza para pedir, no para desempatar.
  *   4. ruido     plata, kilometros, años, milimetros.
+ *
+ * La conversion se lee al final, sobre lo que quedo: pide que el numero de la
+ * izquierda ya tenga rol `moto` o `producto` (o que un verbo ate la cadena),
+ * porque sin ese ancla "de 100 a 500" es un envio y no un motor.
  *
  * Los tres detectores de `nucleo/` son consumidores de esto y conservan su
  * firma: el que agrega un caso nuevo lo agrega al banco y a la precedencia de
@@ -57,6 +66,25 @@ export interface LecturaNumeros {
     objetivo?: NumeroLeido
     /** La medida de otro producto que pide, si la pidio. */
     producto?: NumeroLeido
+    /** "de 70 a 110": desde que motor quiere partir y a donde quiere llegar. */
+    conversion?: ConversionLeida
+}
+
+/**
+ * El cliente pide pasar de UN motor a OTRO ("un kit de 70 a 110").
+ *
+ * Es el unico lugar donde el numero de la IZQUIERDA importa: no es la medida
+ * del kit que pide ni ruido, es el motor que tiene hoy. Sin esto el "70" se
+ * leia como la medida de un producto y el "110" como ruido, y el turno
+ * terminaba ofreciendo los kits que potencian una 110 (conv 4475, 17/09).
+ */
+export interface ConversionLeida {
+    /** El motor del que parte ("de 70"). */
+    base: number
+    /** A donde quiere llegar ("a 110"). */
+    objetivo: number
+    /** El pedazo del mensaje que lo dice, para el resumen del escalado. */
+    frase: string
 }
 
 /**
@@ -105,6 +133,13 @@ const VENTANA_PUENTE = 3
  * que tiene, el de la derecha es a donde quiere llegar.
  */
 const SALTO_A_OTRO_NUMERO = new Set(["a", "hasta", "en"])
+
+/**
+ * Lo que convierte un numero en plata y no en un motor ("140 mil", "200 lucas").
+ * Solo se mira para la BASE suelta del "tengo una 70 ... a 110": los demas roles
+ * ya se ganan por otra cosa.
+ */
+const UNIDADES_DE_PLATA = new Set(["mil", "lucas", "luca", "pesos", "palos", "millones", "millon"])
 
 /** Palabras con las que el cliente nombra lo que quiere comprar. */
 const PALABRAS_PRODUCTO = new Set([
@@ -165,13 +200,16 @@ export interface NumerosDelTurno {
     texto: string
     numeros: NumeroLeido[]
     deLaMoto: number[]
+    /** No se deriva de los roles: la base del "de 70 a 110" no tiene rol propio. */
+    conversion?: ConversionLeida
 }
 
 export function empaquetarLectura(texto: string | null | undefined, lectura: LecturaNumeros): NumerosDelTurno {
     return {
         texto: normalizarTexto(texto || ""),
         numeros: lectura.numeros,
-        deLaMoto: [...lectura.deLaMoto]
+        deLaMoto: [...lectura.deLaMoto],
+        conversion: lectura.conversion
     }
 }
 
@@ -192,7 +230,8 @@ export function lecturaYaHecha(
         numeros: paquete.numeros,
         deLaMoto: new Set(paquete.deLaMoto),
         objetivo: paquete.numeros.find((n) => n.rol === "objetivo"),
-        producto: paquete.numeros.find((n) => n.rol === "producto")
+        producto: paquete.numeros.find((n) => n.rol === "producto"),
+        conversion: paquete.conversion
     }
 }
 
@@ -221,6 +260,8 @@ export async function leerNumeros(
 
     // 2. OBJETIVO: verbo explicito + numero, saltando el "de X a Y".
     let objetivo: NumeroLeido | undefined
+    let conversion: ConversionLeida | undefined
+    let base: number | undefined
     for (let i = 0; i < tokens.length && !objetivo; i++) {
         const esVerbo =
             RX_VERBO_OBJETIVO.test(tokens[i]) ||
@@ -241,6 +282,10 @@ export async function leerNumeros(
                     SALTO_A_OTRO_NUMERO.has(tokens[fin + 1]) &&
                     numeroDeCilindrada(tokens[fin + 2]) != null
                 ) {
+                    // Hubo salto: lo de la izquierda es el motor del que parte.
+                    // El verbo ya ancla la cadena, asi que la conversion sale de
+                    // aca y el paso 4 no tiene que volver a buscarla.
+                    base = valor
                     valor = numeroDeCilindrada(tokens[fin + 2]) as number
                     fin += 2
                 }
@@ -251,6 +296,7 @@ export async function leerNumeros(
                     posicion: fin
                 }
                 rol.set(fin, { rol: "objetivo", frase: objetivo.frase })
+                if (base != null && valor > base) conversion = { base, objetivo: valor, frase: objetivo.frase }
                 break
             }
             if (!PUENTE.has(tokens[j])) break
@@ -270,6 +316,63 @@ export async function leerNumeros(
         }
     }
 
+    // 4. CONVERSION: "un kit de 70 a 110" — dos numeros unidos por un salto, sin
+    //    ningun verbo que los ate. El de la izquierda no es la medida de un kit
+    //    nuestro: es el motor que TIENE hoy. El de la derecha es a donde quiere
+    //    llegar, y hasta ahora quedaba en `ruido` (conv 4475): el turno leia
+    //    "kit de 70" + un 110 sin rol y terminaba ofreciendo los combos que
+    //    potencian una 110.
+    //
+    //    Solo se lee como conversion si el numero de la izquierda ya tiene un
+    //    rol que lo ancle al motor o al pedido (`moto` o `producto`). Sin ese
+    //    ancla, "de 100 a 500" es un envio o una plata, no un motor.
+    // 4.a La base tambien puede estar SUELTA, antes del objetivo y sin ningun
+    //     "a" que la ate: "tengo una 70 y la quiero llevar a 110". Ese 70 es el
+    //     motor que tiene —el dato que decide si hay algo que venderle— y hasta
+    //     ahora quedaba en `ruido`.
+    //
+    //     Solo se toma un numero SIN rol (si ya es su moto o la medida de un
+    //     producto, el rol manda) y que no sea plata: "me lo hacen por 140 mil,
+    //     la quiero hacer 150" no dice que tenga un motor de 140.
+    if (!conversion && objetivo) {
+        for (const p of posiciones) {
+            if (p.posicion >= objetivo.posicion) break
+            if (rol.has(p.posicion)) continue
+            if (UNIDADES_DE_PLATA.has(tokens[p.posicion + 1] || "")) continue
+            if (p.valor >= objetivo.valor) continue
+            conversion = {
+                base: p.valor,
+                objetivo: objetivo.valor,
+                frase: tokens.slice(p.posicion, objetivo.posicion + 1).join(" ")
+            }
+            break
+        }
+    }
+
+    if (!conversion && !objetivo) {
+        for (let i = 0; i + 2 < tokens.length && !conversion; i++) {
+            const base = numeroDeCilindrada(tokens[i])
+            if (base == null) continue
+            if (!SALTO_A_OTRO_NUMERO.has(tokens[i + 1])) continue
+            const destino = numeroDeCilindrada(tokens[i + 2])
+            if (destino == null || destino <= base) continue
+
+            const rolBase = rol.get(i)?.rol
+            if (rolBase !== "moto" && rolBase !== "producto") continue
+
+            const desde = i > 0 && tokens[i - 1] === "de" ? i - 1 : i
+            const frase = tokens.slice(desde, i + 3).join(" ")
+            conversion = { base, objetivo: destino, frase }
+
+            // El destino pasa a ser el objetivo del turno: es exactamente lo
+            // mismo que dice "llevarla a 110", solo que sin el verbo.
+            if (!rol.has(i + 2)) {
+                rol.set(i + 2, { rol: "objetivo", frase })
+                objetivo = { valor: destino, rol: "objetivo", frase, posicion: i + 2 }
+            }
+        }
+    }
+
     const numeros: NumeroLeido[] = posiciones.map((p) => {
         const r = rol.get(p.posicion)
         return {
@@ -280,5 +383,5 @@ export async function leerNumeros(
         }
     })
 
-    return { numeros, deLaMoto, objetivo, producto }
+    return { numeros, deLaMoto, objetivo, producto, conversion }
 }

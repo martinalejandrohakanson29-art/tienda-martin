@@ -10,6 +10,7 @@ import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
 import { quitarPreguntaDeMotoFinal, restoFueraDePlantilla, normalizarTexto, formatearPrecioAR } from "./nucleo/texto"
 import { pideOtroProductoQueElAnuncio } from "./nucleo/otro-producto-anuncio"
 import { pideOtraCilindradaQueElProducto } from "./nucleo/cilindrada-objetivo"
+import { conversionDesdeMotorAjeno } from "./nucleo/conversion-pedida"
 import { empaquetarLectura, leerNumeros, lecturaYaHecha } from "./nucleo/numeros-del-mensaje"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
@@ -864,6 +865,70 @@ export async function ejecutarTurnoAgente(
      * necesita. Ver `nucleo/numeros-del-mensaje.ts` para la precedencia.
      */
     const numerosDelTurno = empaquetarLectura(mensajeUsuario, await leerNumeros(mensajeUsuario))
+
+    // 1.bis El cliente pide un kit para pasar de UN motor a OTRO y el motor del
+    //     que parte no es ninguno de los que potenciamos ("un kit de 70 a 110",
+    //     conv 4475 — tenía una Motomel Eco 70). No hay producto que ofrecerle:
+    //     `cilindradas_base` arranca en 105. Antes el "70" se leía como la
+    //     medida de un kit y el "110" como ruido, y el turno terminaba
+    //     ofreciéndole los dos combos que potencian una 110 a 120 — la pregunta
+    //     del aviso, no la suya.
+    //
+    //     Va ANTES del match de plantilla: acá el cliente entró por el anuncio
+    //     de la 110 y escribió libre, así que no hay plantilla ni `resto` donde
+    //     el hermano `pideOtraCilindradaQueElProducto` pudiera verlo. Y va antes
+    //     del modelo porque el destino ("110") coincide con el del aviso: con la
+    //     ficha sobre la mesa, cualquier turno normal la lee como la respuesta.
+    //
+    //     Silencio total aunque la ráfaga traiga algo más: lo que el cliente vino
+    //     a preguntar es de qué motor parte, y el resto cuelga de eso.
+    const conversionAjena = await conversionDesdeMotorAjeno(
+        mensajeUsuario,
+        lecturaYaHecha(numerosDelTurno, mensajeUsuario)
+    )
+
+    if (conversionAjena) {
+        const motivo = "consulta_tecnica"
+        const resumen =
+            `Pide un kit para pasar de ${conversionAjena.base} a ${conversionAjena.objetivo}` +
+            ` ("${conversionAjena.frase}") y no tenemos nada para un motor de ${conversionAjena.base}: ` +
+            mensajeUsuario.slice(0, 300)
+
+        const resultado = await escalarAHumano({
+            motivo,
+            resumen_consulta: resumen,
+            conversation_id: opciones.conversationId
+        }).catch((err) => {
+            console.error("[motor] fallo al persistir escalado por conversión desde motor ajeno:", err)
+            return {
+                escalado: true,
+                motivo,
+                resumen,
+                mensaje_para_agente: "ESCALADO DETERMINISTA (no se pudo persistir)."
+            }
+        })
+
+        await guardarEstadoConversacion(estadoKey, {
+            escaladoPendiente: { motivo, resumen, en: new Date().toISOString() }
+        }).catch(() => {})
+
+        return {
+            mensajeFinal: null,
+            mensajesFinales: [],
+            herramientasEjecutadas: [
+                {
+                    nombre: "escalar_a_humano",
+                    argumentos: { motivo, resumen_consulta: resumen },
+                    resultado
+                }
+            ],
+            escaladoHumano: true,
+            motivoEscalado: motivo,
+            escaladoPersistido: true,
+            latenciaMs: Date.now() - inicio,
+            tokensUsados: sinCostoLLM(modelo)
+        }
+    }
 
     // Match con una plantilla de anuncio de Instagram: el mensaje publicitario
     // llega tal cual del anuncio y se responde con la bienvenida oficial en

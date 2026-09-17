@@ -193,6 +193,36 @@ const LEXICO_VARIANTE_NO_ES_CONVENIENCIA: [RegExp, string][] = [
 ]
 
 /**
+ * "VARIANTE" ES PALABRA NUESTRA.
+ *
+ * Es el nombre del eje en el código y en la app (`resolver_variante`,
+ * `pregunta_variante`, `sinonimos_variante`), y de ahí se le escapa al cliente:
+ * en la conv 4453 salió "cual de las dos variantes". Del otro lado nadie habla
+ * así — en el mostrador son "las dos opciones", o directamente "recorrido corto
+ * o largo".
+ *
+ * El cambio es seguro de hacer a ciegas porque las dos palabras son femeninas:
+ * los artículos, demostrativos y adjetivos que ya estaban concuerdan igual
+ * ("la variante que te corresponde" -> "la opción que te corresponde").
+ */
+const JERGA_VARIANTE: [RegExp, string][] = [
+    [/\bvariantes\b/g, "opciones"],
+    [/\bVariantes\b/g, "Opciones"],
+    [/\bvariante\b/g, "opción"],
+    [/\bVariante\b/g, "Opción"],
+]
+
+/** Saca la palabra "variante" del texto que ve el cliente. */
+export function corregirJergaVariante(texto: string): string {
+    let salida = texto
+    for (const [regex, reemplazo] of JERGA_VARIANTE) {
+        regex.lastIndex = 0
+        salida = salida.replace(regex, reemplazo)
+    }
+    return salida
+}
+
+/**
  * Cambia el "te conviene" por "te corresponde" cuando la oración habla de la
  * variante. Exportada para poder probarla sola.
  */
@@ -928,9 +958,11 @@ export function sanitizarMensajeSalida(
     }
 
     // 2.c-ter La variante no se elige por conveniencia: "cuál te conviene" ->
-    // "cuál te corresponde" (conv 4453).
+    // "cuál te corresponde", y la palabra "variante" es nuestra, no del cliente
+    // (conv 4453). El orden importa: el léxico de conveniencia se detecta con la
+    // oración todavía diciendo "variante".
     {
-        const nuevo = corregirVarianteNoEsConveniencia(limpio)
+        const nuevo = corregirJergaVariante(corregirVarianteNoEsConveniencia(limpio))
         if (nuevo !== limpio) {
             limpio = nuevo
             modificado = true

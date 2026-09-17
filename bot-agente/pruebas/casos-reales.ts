@@ -1845,8 +1845,9 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeGuardarSilencio: false,
             // Tiene que volver a pedir la moto: es el dato que falta.
             patronRespuesta: /moto/i,
-            // La variante no es un negocio ni un gusto del cliente.
-            patronProhibido: /te conviene|le conviene|conviene m[aá]s|te sirve m[aá]s|te va mejor|es (el|la) mejor para/i,
+            // La variante no es un negocio ni un gusto del cliente. Y
+            // "variante" es palabra nuestra: del otro lado son "opciones".
+            patronProhibido: /te conviene|le conviene|conviene m[aá]s|te sirve m[aá]s|te va mejor|es (el|la) mejor para|\bvariantes?\b/i,
             descripcionEsperada:
                 "Debe pedirle la moto en un renglon, planteandolo como lo que es: con la moto se sabe cual de las dos LE ENTRA / le corresponde. PROHIBIDO presentarlo como una conveniencia o una eleccion del cliente ('cual te conviene', 'cual es mejor para vos') y prohibido repetir la ficha o los precios."
         }

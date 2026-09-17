@@ -15,7 +15,11 @@
  * cualquier otra cosa (el envío, pagar en efectivo, llevar el combo completo)
  * quede intacto. La regla es del eje de variante, no de la palabra.
  */
-import { corregirVarianteNoEsConveniencia } from "../guardrails/sanitizador"
+import {
+    corregirJergaVariante,
+    corregirVarianteNoEsConveniencia,
+    sanitizarMensajeSalida
+} from "../guardrails/sanitizador"
 
 interface Caso {
     titulo: string
@@ -92,11 +96,41 @@ const casos: Caso[] = [
         titulo: "un mensaje sin la palabra vuelve igual",
         ok: corregirVarianteNoEsConveniencia("Recorrido corto: $99.000") === "Recorrido corto: $99.000"
     },
+    // ── "Variante" es palabra nuestra: del otro lado son "opciones" ──────────
+    {
+        titulo: "'las dos variantes' -> 'las dos opciones'",
+        ok:
+            corregirJergaVariante("Decime la moto y te confirmo cual de las dos variantes te corresponde") ===
+            "Decime la moto y te confirmo cual de las dos opciones te corresponde"
+    },
+    {
+        titulo: "singular con su artículo (las dos palabras son femeninas)",
+        ok:
+            corregirJergaVariante("La variante que te corresponde es la corta") ===
+            "La opción que te corresponde es la corta"
+    },
+    {
+        titulo: "arranque de oración en mayúscula",
+        ok: corregirJergaVariante("Variante corta: $99.000") === "Opción corta: $99.000"
+    },
+    {
+        titulo: "no toca palabras que la contienen",
+        ok: corregirJergaVariante("es invariante al modelo") === "es invariante al modelo"
+    },
     {
         titulo: "la ficha con sus saltos de renglón queda intacta",
         ok:
             corregirVarianteNoEsConveniencia("Tenes 2 opciones:\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000") ===
             "Tenes 2 opciones:\n👉🏼 Recorrido corto: $99.000\n👉🏼 Recorrido largo: $115.000"
+    },
+
+    // ── El mensaje real, por el sanitizador entero ───────────────────────────
+    {
+        titulo: "sanitizador completo: el mensaje de la conv 4453 sale corregido y sin jerga",
+        ok:
+            sanitizarMensajeSalida(
+                "Dale! Decime que moto tenes asi te confirmo cual de las dos variantes te conviene."
+            ).textoLimpio === "Dale! Decime que moto tenes asi te confirmo cual de las dos opciones te corresponde."
     }
 ]
 

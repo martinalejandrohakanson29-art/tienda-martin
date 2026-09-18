@@ -31,6 +31,8 @@ import type { Kit } from "@/app/actions/kits-publicidad"
 import type { Compatibilidad } from "@/app/actions/compatibilidades"
 import { matchTodasPalabras } from "@/lib/busqueda-texto"
 import { formatearListaCompat } from "@/lib/compatibilidad-texto"
+import type { MotoCanonica } from "@/app/actions/motos-aprendizaje"
+import { CompatEditor } from "./compat-editor"
 
 const SIN_CATEGORIA = "ninguna"
 const SIN_ENVIO_DEFINIDO = "sin-definir"
@@ -66,6 +68,7 @@ export function ArticulosTab({
     kitsParaCopiar,
     compatibilidadesKits,
     costoEnvioInicial,
+    motos,
 }: {
     articulosIniciales: ChatArticulo[]
     errorInicial: string | null
@@ -73,6 +76,7 @@ export function ArticulosTab({
     kitsParaCopiar: Kit[]
     compatibilidadesKits: Compatibilidad[]
     costoEnvioInicial: number | null
+    motos: MotoCanonica[]
 }) {
     const [articulos, setArticulos] = useState<ChatArticulo[]>(articulosIniciales)
     const [form, setForm] = useState<ChatArticuloInput>(FORM_VACIO)
@@ -488,10 +492,11 @@ export function ArticulosTab({
                             </p>
                         </div>
 
-                        <div className="space-y-3 pt-6 border-t border-slate-200">
-                            <div className="flex items-center justify-between flex-wrap gap-2">
-                                <Label>Compatibilidad de este artículo</Label>
-                                {kitsParaCopiar.length > 0 && (
+                        <CompatEditor
+                            idPrefijo="articulo"
+                            titulo="Compatibilidad de este artículo"
+                            acciones={
+                                kitsParaCopiar.length > 0 ? (
                                     <div className="flex items-center gap-2">
                                         <Select value={kitParaCopiar} onValueChange={setKitParaCopiar}>
                                             <SelectTrigger className="h-8 w-48 text-xs">
@@ -516,37 +521,21 @@ export function ArticulosTab({
                                             <Copy size={14} /> Copiar
                                         </Button>
                                     </div>
-                                )}
-                            </div>
-                            <p className="text-xs text-gray-400">
-                                Dato propio del artículo, no se hereda en vivo del kit — &quot;Copiar de un kit&quot; solo
-                                precarga estos dos campos una vez, después los podés editar libremente.
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="compatibleTexto">Compatible con (separado por comas)</Label>
-                                    <Textarea
-                                        id="compatibleTexto"
-                                        placeholder="Ej: Zanella ZB 110 (recorrido corto), Honda Wave 110"
-                                        value={compatibleTexto}
-                                        onChange={(e) => setCompatibleTexto(e.target.value)}
-                                        disabled={guardando}
-                                        rows={4}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="incompatibleTexto">No compatible con (separado por comas)</Label>
-                                    <Textarea
-                                        id="incompatibleTexto"
-                                        placeholder="Ej: Honda Wave NF"
-                                        value={incompatibleTexto}
-                                        onChange={(e) => setIncompatibleTexto(e.target.value)}
-                                        disabled={guardando}
-                                        rows={4}
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                                ) : null
+                            }
+                            ayuda={
+                                <>
+                                    Dato propio del artículo, no se hereda en vivo del kit — &quot;Copiar de un kit&quot; solo
+                                    precarga estos dos campos una vez, después los podés editar libremente.
+                                </>
+                            }
+                            compatibleTexto={compatibleTexto}
+                            incompatibleTexto={incompatibleTexto}
+                            onCompatibleChange={setCompatibleTexto}
+                            onIncompatibleChange={setIncompatibleTexto}
+                            motos={motos}
+                            disabled={guardando}
+                        />
 
                         <Button type="submit" disabled={guardando || !form.articuloMostradorId} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
                             {guardando ? (

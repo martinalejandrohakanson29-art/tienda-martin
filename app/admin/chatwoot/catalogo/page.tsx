@@ -10,6 +10,7 @@ import { getKits } from "@/app/actions/kits-publicidad"
 import { getCompatibilidades } from "@/app/actions/compatibilidades"
 import { getChatConfig } from "@/app/actions/chat-config"
 import { getInfoNegocio } from "@/app/actions/info-negocio"
+import { listarMotosCanonicas } from "@/app/actions/motos-aprendizaje"
 import { MENSAJE_INCOMPATIBILIDAD_DEFAULT, MENSAJE_COMPATIBLE_DEFAULT, MENSAJE_VARIOS_KITS_DEFAULT, COSTO_ENVIO_SUELTAS_DEFAULT } from "@/lib/chat-config-constants"
 
 export const dynamic = "force-dynamic"
@@ -23,7 +24,7 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<{ data: T; er
 }
 
 export default async function CatalogoPage() {
-    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits, grupos, compatibilidadesCombo, config, infoNegocio] = await Promise.all([
+    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits, grupos, compatibilidadesCombo, config, infoNegocio, motos] = await Promise.all([
         safe(getChatArticulos, []),
         safe(getChatPacks, []),
         safe(getChatArticuloCompatibilidades, []),
@@ -38,6 +39,9 @@ export default async function CatalogoPage() {
             costoEnvioSueltas: COSTO_ENVIO_SUELTAS_DEFAULT,
         }),
         safe(getInfoNegocio, []),
+        // Catálogo de motos: lo necesitan los editores de compatibilidad para
+        // decir en el momento cuáles de las grafías escritas el bot no reconoce.
+        safe(listarMotosCanonicas, []),
     ])
 
     return (
@@ -56,6 +60,7 @@ export default async function CatalogoPage() {
             configError={config.error}
             infoNegocioInicial={infoNegocio.data}
             infoNegocioError={infoNegocio.error}
+            motos={motos.data}
         />
     )
 }

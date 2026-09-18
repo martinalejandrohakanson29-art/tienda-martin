@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { BrainCircuit } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -41,9 +42,12 @@ export function ConocimientoClient({
                     Base de Conocimiento
                 </h1>
                 <p className="text-gray-500">
-                    Todo lo que cargues acá lo puede consultar el agente de WhatsApp sin escalar a un humano:
-                    kits/combos (con su compatibilidad técnica por modelo de moto adentro de cada uno), info del
-                    negocio (horarios, medios de pago, envíos, etc.) y precios/stock de productos sueltos.
+                    De acá el bot solo lee <strong>Info del Negocio</strong> (horarios, medios de pago, dónde estamos).
+                    Los kits, su compatibilidad y los precios sueltos se cargan en{" "}
+                    <Link href="/admin/chatwoot/catalogo" className="underline font-medium text-violet-700">
+                        Catálogo del Bot
+                    </Link>
+                    : lo que se ve acá son las tablas de la época de n8n, en solo lectura.
                 </p>
             </div>
 
@@ -53,11 +57,11 @@ export function ConocimientoClient({
                 </p>
             )}
 
-            <Tabs defaultValue="kits" className="space-y-4">
+            <Tabs defaultValue="negocio" className="space-y-4">
                 <TabsList className="flex-wrap h-auto">
-                    <TabsTrigger value="kits">Kits y Combos</TabsTrigger>
+                    <TabsTrigger value="kits">Kits y Combos (viejo)</TabsTrigger>
                     <TabsTrigger value="negocio">Info del Negocio</TabsTrigger>
-                    <TabsTrigger value="precios">Precios y Stock</TabsTrigger>
+                    <TabsTrigger value="precios">Precios y Stock (viejo)</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="kits">

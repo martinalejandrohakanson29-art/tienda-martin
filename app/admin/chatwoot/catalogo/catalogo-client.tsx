@@ -13,6 +13,8 @@ import { ArticulosTab } from "./articulos-tab"
 import { PacksTab } from "./packs-tab"
 import { GruposTab } from "./grupos-tab"
 import { MensajesTab } from "./mensajes-tab"
+import { SaludTab } from "./salud-tab"
+import type { MotoCanonica } from "@/app/actions/motos-aprendizaje"
 
 type Props = {
     articulosIniciales: ChatArticulo[]
@@ -29,6 +31,7 @@ type Props = {
     configError: string | null
     infoNegocioInicial: InfoNegocio[]
     infoNegocioError: string | null
+    motos: MotoCanonica[]
 }
 
 export function CatalogoClient({
@@ -46,19 +49,20 @@ export function CatalogoClient({
     configError,
     infoNegocioInicial,
     infoNegocioError,
+    motos,
 }: Props) {
     return (
         <div className="space-y-6 pb-12">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                     <Boxes className="h-8 w-8 text-emerald-600" />
-                    Catálogo del Bot (nuevo)
+                    Catálogo del Bot
                 </h1>
                 <p className="text-gray-500">
-                    Base aislada, separada de &quot;Base de Conocimiento&quot; — el bot en producción todavía no lee esto.
-                    Cargá primero los artículos sueltos (con su precio si se venden aparte) y después armá los packs
-                    enganchando esos artículos, para que a futuro el agente pueda contestar preguntas sobre una pieza
-                    puntual de un combo sin escalar.
+                    <strong>Esto es lo que el bot responde en WhatsApp hoy.</strong> Cargá primero los artículos sueltos
+                    (con su precio si se venden aparte) y después armá los packs enganchando esos artículos, para que el
+                    agente pueda contestar por una pieza puntual del combo sin derivar. Un pack nuevo queda en{" "}
+                    <strong>borrador</strong> hasta que lo publiques desde la lista, con la revisión previa.
                 </p>
             </div>
 
@@ -68,6 +72,7 @@ export function CatalogoClient({
                     <TabsTrigger value="packs">Packs</TabsTrigger>
                     <TabsTrigger value="grupos">Grupos</TabsTrigger>
                     <TabsTrigger value="mensajes">Mensajes del bot</TabsTrigger>
+                    <TabsTrigger value="salud">Salud</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="articulos">
@@ -78,6 +83,7 @@ export function CatalogoClient({
                         kitsParaCopiar={kitsParaCopiar}
                         compatibilidadesKits={compatibilidadesKits}
                         costoEnvioInicial={configInicial.costoEnvioSueltas}
+                        motos={motos}
                     />
                 </TabsContent>
                 <TabsContent value="packs">
@@ -87,6 +93,7 @@ export function CatalogoClient({
                         articulosDisponibles={articulosIniciales}
                         gruposIniciales={gruposIniciales}
                         compatibilidadesComboIniciales={compatibilidadesComboIniciales}
+                        motos={motos}
                     />
                 </TabsContent>
                 <TabsContent value="grupos">
@@ -95,6 +102,7 @@ export function CatalogoClient({
                         errorInicial={gruposError}
                         packsIniciales={packsIniciales}
                         compatibilidadesComboIniciales={compatibilidadesComboIniciales}
+                        motos={motos}
                     />
                 </TabsContent>
                 <TabsContent value="mensajes">
@@ -104,6 +112,9 @@ export function CatalogoClient({
                         infoNegocioInicial={infoNegocioInicial}
                         infoNegocioError={infoNegocioError}
                     />
+                </TabsContent>
+                <TabsContent value="salud">
+                    <SaludTab />
                 </TabsContent>
             </Tabs>
         </div>

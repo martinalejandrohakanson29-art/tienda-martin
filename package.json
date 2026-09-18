@@ -9,7 +9,11 @@
     "start": "next start",
     "lint": "next lint",
     "config:verificar": "tsx scripts/config-catalogo.ts verificar",
-    "config:exportar": "tsx scripts/config-catalogo.ts exportar"
+    "config:exportar": "tsx scripts/config-catalogo.ts exportar",
+    "catalogo:validar": "npx tsx scripts/validar-catalogo.ts",
+    "compat:legacy": "npx tsx scripts/compat-legacy.ts",
+    "compat:dedup": "npx tsx scripts/compat-dedup.ts",
+    "kit:probar": "npx tsx scripts/probar-kit.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.525.0",

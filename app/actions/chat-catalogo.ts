@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
 import { parsearListaCompat } from "@/lib/compatibilidad-texto"
+import { validarPack, validarCatalogo, type ReporteCatalogo } from "@/lib/validacion-catalogo"
+import { resolverMoto } from "@/bot-agente/nucleo/motos"
 
 const RUTA = "/admin/chatwoot/catalogo"
 
@@ -32,30 +34,59 @@ function parseCilindradas(txt: string | undefined): number[] {
 }
 
 /**
- * Lee `cilindradas_base` de una tabla del catálogo aparte y tolerante: si la
- * migración todavía no corrió, el panel sigue funcionando sin el campo (mismo
- * criterio que los sinónimos de variante y el atributo fijo).
+ * Lee `cilindradas_base` de una tabla del catálogo en una query aparte (Prisma
+ * no tipa la columna array en el modelo generado).
  */
 async function cilindradasBasePorId(tabla: "chat_articulos" | "chat_packs" | "chat_pack_grupos"): Promise<Map<number, number[]>> {
-    try {
-        const filas = await prisma.$queryRawUnsafe<{ id: number; cilindradas_base: number[] | null }[]>(
-            `SELECT id, cilindradas_base FROM ${tabla}`
-        )
-        return new Map(filas.map((f) => [Number(f.id), f.cilindradas_base || []]))
-    } catch {
-        return new Map()
-    }
+    const filas = await prisma.$queryRawUnsafe<{ id: number; cilindradas_base: number[] | null }[]>(
+        `SELECT id, cilindradas_base FROM ${tabla}`
+    )
+    return new Map(filas.map((f) => [Number(f.id), f.cilindradas_base || []]))
 }
 
+/**
+ * El UPDATE va sin red a propósito.
+ *
+ * Antes estaba envuelto en un `try {} catch {}` vacío, por si la migración de
+ * la columna todavía no había corrido. Esa red dejó de proteger algo real (las
+ * columnas existen desde hace meses) y pasó a tapar el peor modo de falla
+ * posible para este panel: el formulario dice "guardado", la pantalla muestra
+ * el valor nuevo, y en la base sigue el viejo. Para un campo del que depende un
+ * veredicto de compatibilidad, un error ruidoso es infinitamente mejor que un
+ * dato silenciosamente perdido.
+ */
 async function guardarCilindradasBase(
     tabla: "chat_articulos" | "chat_packs" | "chat_pack_grupos",
     id: number,
     cilindradas: number[]
 ) {
-    try {
-        await prisma.$executeRawUnsafe(`UPDATE ${tabla} SET cilindradas_base = $1 WHERE id = $2`, cilindradas, id)
-    } catch {
-        /* columna inexistente: se ignora hasta correr la migración */
+    await prisma.$executeRawUnsafe(`UPDATE ${tabla} SET cilindradas_base = $1 WHERE id = $2`, cilindradas, id)
+}
+
+/**
+ * Impide dos packs (o dos grupos) con el mismo nombre.
+ *
+ * El nombre es la clave semántica del catálogo: el motor resuelve de qué kit
+ * habla el cliente por nombre, y filtra por nombre qué filas de compatibilidad
+ * le corresponden. Dos nombres iguales no son un problema de prolijidad — son
+ * dos kits que el bot no puede distinguir, y cualquiera de los dos precios
+ * puede salir para cualquiera de los dos productos.
+ *
+ * Se compara normalizado (sin tildes, sin mayúsculas, sin espacios de más)
+ * porque el matching del motor también normaliza.
+ */
+async function verificarNombreLibre(tabla: "chat_packs" | "chat_pack_grupos", nombre: string, idPropio?: number) {
+    const filas = await prisma.$queryRawUnsafe<{ id: number; nombre: string }[]>(
+        `SELECT id, nombre FROM ${tabla}`
+    )
+    const norm = (t: string) =>
+        t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim()
+    const choque = filas.find((f) => Number(f.id) !== Number(idPropio ?? -1) && norm(f.nombre) === norm(nombre))
+    if (choque) {
+        const que = tabla === "chat_packs" ? "pack" : "grupo"
+        throw new Error(
+            `Ya existe un ${que} llamado "${choque.nombre}". El bot busca los kits por nombre: con dos iguales no puede distinguirlos ni saber qué compatibilidad le corresponde a cada uno.`
+        )
     }
 }
 
@@ -467,6 +498,7 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
     await requireAdmin()
     const nombre = data.nombre.trim()
     if (!nombre) throw new Error("El nombre del grupo es obligatorio")
+    await verificarNombreLibre("chat_pack_grupos", nombre, data.id)
 
     const plantillasBienvenida = data.plantillasBienvenida.trim() || null
     const plantillasReferral = data.plantillasReferral.trim() || null
@@ -595,30 +627,21 @@ export async function getChatPacks(): Promise<ChatPack[]> {
     `
     if (packs.length === 0) return []
 
-    // Sinónimos de variante en query aparte y tolerante: la columna puede no
-    // existir todavía (antes de correr n8n-workflows/chat-variantes-sinonimos.sql).
-    let sinonimosPorPack = new Map<number, string[]>()
-    try {
-        const sinRows = await prisma.$queryRaw<{ id: number; sinonimos_variante: string[] | null }[]>`
-            SELECT id, sinonimos_variante FROM chat_packs
-        `
-        sinonimosPorPack = new Map(sinRows.map((r) => [r.id, r.sinonimos_variante || []]))
-    } catch {
-        /* columna inexistente: sin sinónimos */
-    }
+    // Sinónimos de variante y atributo fijo. Iban en queries "tolerantes" con
+    // catch vacío por si las migraciones no habían corrido; hoy las columnas
+    // existen y ese catch solo servía para mostrar un pack sin sus sinónimos
+    // como si no los tuviera — y sobrescribirlos al guardar.
+    const sinRows = await prisma.$queryRaw<{ id: number; sinonimos_variante: string[] | null }[]>`
+        SELECT id, sinonimos_variante FROM chat_packs
+    `
+    const sinonimosPorPack = new Map(sinRows.map((r) => [r.id, r.sinonimos_variante || []]))
 
-    // Ídem para el atributo fijo (n8n-workflows/chat-catalogo-atributo-fijo.sql).
-    let fijoPorPack = new Map<number, { atributo_fijo: string | null; atributo_fijo_contradice: string[] | null }>()
-    try {
-        const fijoRows = await prisma.$queryRaw<
-            { id: number; atributo_fijo: string | null; atributo_fijo_contradice: string[] | null }[]
-        >`
-            SELECT id, atributo_fijo, atributo_fijo_contradice FROM chat_packs
-        `
-        fijoPorPack = new Map(fijoRows.map((r) => [r.id, r]))
-    } catch {
-        /* columnas inexistentes: sin atributo fijo */
-    }
+    const fijoRows = await prisma.$queryRaw<
+        { id: number; atributo_fijo: string | null; atributo_fijo_contradice: string[] | null }[]
+    >`
+        SELECT id, atributo_fijo, atributo_fijo_contradice FROM chat_packs
+    `
+    const fijoPorPack = new Map(fijoRows.map((r) => [r.id, r]))
 
     const componentes = await prisma.$queryRaw<(ChatPackComponente & { pack_id: number })[]>`
         SELECT pa.pack_id, pa.articulo_id, am.nombre, a.alias, a.precio, pa.cantidad, pa.orden
@@ -658,6 +681,12 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
     if (data.grupoId && !criterioVariante) {
         throw new Error("Si el pack pertenece a un grupo, hace falta la etiqueta de variante (ej. \"recorrido corto\")")
     }
+
+    // El nombre no es una etiqueta: es la clave con la que el motor encuentra el
+    // kit y con la que filtra qué filas de compatibilidad le corresponden
+    // (`composicionDelKitPedido`). Dos packs con el mismo nombre son dos kits
+    // indistinguibles para el bot, que va a contestar por cualquiera de los dos.
+    await verificarNombreLibre("chat_packs", nombre, data.id)
     // La categoría del combo es del grupo cuando el pack pertenece a uno
     // (mismo criterio que mensaje_bienvenida) — acá solo se guarda propia si
     // es un pack sin grupo.
@@ -689,19 +718,16 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
         packId = inserted[0].id
     }
 
-    // Sinónimos de variante: statement aparte y tolerante (la columna puede no
-    // existir hasta correr n8n-workflows/chat-variantes-sinonimos.sql).
-    try {
-        await prisma.$executeRawUnsafe(
-            `UPDATE chat_packs SET sinonimos_variante = $1 WHERE id = $2`,
-            sinonimosVariante,
-            packId
-        )
-    } catch {
-        /* columna inexistente: se ignora hasta correr la migración */
-    }
+    // Sinónimos de variante: statement aparte (por el tipo array), pero sin red.
+    // Si esto falla, el pack queda sin la forma en que el cliente nombra la
+    // variante y el bot repregunta en loop: tiene que fallar el guardado entero.
+    await prisma.$executeRawUnsafe(
+        `UPDATE chat_packs SET sinonimos_variante = $1 WHERE id = $2`,
+        sinonimosVariante,
+        packId
+    )
 
-    // Atributo fijo: ídem (n8n-workflows/chat-catalogo-atributo-fijo.sql).
+    // Atributo fijo (n8n-workflows/chat-catalogo-atributo-fijo.sql).
     // Sin atributo cargado no se guarda ninguna contradicción — una lista de
     // frases que descartan el pack sin decir de qué atributo hablan no se
     // puede explicar después ni al equipo ni al modelo.
@@ -712,16 +738,12 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
               .map((s) => s.trim().toLowerCase())
               .filter(Boolean)
         : []
-    try {
-        await prisma.$executeRawUnsafe(
-            `UPDATE chat_packs SET atributo_fijo = $1, atributo_fijo_contradice = $2 WHERE id = $3`,
-            atributoFijo,
-            atributoFijoContradice,
-            packId
-        )
-    } catch {
-        /* columnas inexistentes: se ignora hasta correr la migración */
-    }
+    await prisma.$executeRawUnsafe(
+        `UPDATE chat_packs SET atributo_fijo = $1, atributo_fijo_contradice = $2 WHERE id = $3`,
+        atributoFijo,
+        atributoFijoContradice,
+        packId
+    )
 
     // Cilindrada del pack: solo para los packs SUELTOS. Si pertenece a un
     // grupo, el motor la toma del grupo (mismo criterio que la categoría).
@@ -747,8 +769,77 @@ export async function eliminarChatPack(id: number) {
     revalidatePath(RUTA)
 }
 
-export async function alternarActivoChatPack(id: number, activo: boolean) {
+/**
+ * Publica (o pausa) un pack.
+ *
+ * Publicar no es un toggle más: el bot lo empieza a ofrecer en el siguiente
+ * mensaje. Por eso activar pasa antes por el validador y se frena si hay
+ * bloqueantes — un pack sin precio, sin mensaje o sin artículos no responde
+ * "de menos", responde mal. `forzar` existe porque la decisión final es de
+ * quien carga, pero tiene que ser explícita y queda registrada en el motivo.
+ */
+export async function alternarActivoChatPack(id: number, activo: boolean, forzar = false) {
     await requireAdmin()
+
+    if (activo && !forzar) {
+        const reporte = await validarPack(id)
+        const bloqueantes = reporte.hallazgos.filter((h) => h.severidad === "bloqueante")
+        if (bloqueantes.length > 0) {
+            const detalle = bloqueantes.map((b) => `• ${b.entidadNombre}: ${b.titulo} — ${b.consecuencia}`).join("\n")
+            throw new Error(`No se puede publicar todavía:\n${detalle}`)
+        }
+    }
+
     await prisma.$executeRaw`UPDATE chat_packs SET activo = ${activo} WHERE id = ${id}`
     revalidatePath(RUTA)
+}
+
+export type MotoAnalizada = {
+    texto: string
+    /** "exacta" | "aproximada" resuelven; "ambigua" | "ninguna" no. */
+    confianza: string
+    resuelve: boolean
+    /** A qué moto del catálogo resolvió, cuando resolvió. */
+    modelo: string | null
+    /** Entre qué motos dudó, cuando quedó ambigua: sirve para ofrecer el alias. */
+    candidatos: { id: number; nombre: string }[]
+}
+
+/**
+ * Pasa cada grafía escrita en los textareas de compatibilidad por el MISMO
+ * resolvedor que usa el bot en vivo.
+ *
+ * Existe porque `modelo_moto` es texto libre y nadie avisa cuando no resuelve:
+ * una fila con "Chilera 110" o "110 wave" se guarda igual, se ve igual en el
+ * panel, y simplemente nunca se aplica — o se aplica por parecido a otra moto.
+ * Validarlo en el cliente con una lista sería peor que no validarlo: aprobaría
+ * grafías que el motor después no reconoce.
+ */
+export async function analizarMotosCompat(textos: string[]): Promise<MotoAnalizada[]> {
+    await requireAdmin()
+    const unicos = [...new Set(textos.map((t) => t.trim()).filter(Boolean))]
+    const salida: MotoAnalizada[] = []
+    for (const texto of unicos) {
+        const r = await resolverMoto(texto)
+        salida.push({
+            texto,
+            confianza: r.confianza,
+            resuelve: r.confianza === "exacta" || r.confianza === "aproximada",
+            modelo: r.modelo?.nombre_completo ?? null,
+            candidatos: (r.candidatos || []).slice(0, 5).map((c) => ({ id: Number(c.id), nombre: c.nombre_completo })),
+        })
+    }
+    return salida
+}
+
+/** Revisión previa de un pack, para el diálogo de publicación. */
+export async function validarPackAction(id: number): Promise<ReporteCatalogo> {
+    await requireAdmin()
+    return validarPack(id)
+}
+
+/** Revisión de todo el catálogo activo, para el panel de salud. */
+export async function validarCatalogoAction(): Promise<ReporteCatalogo> {
+    await requireAdmin()
+    return validarCatalogo()
 }

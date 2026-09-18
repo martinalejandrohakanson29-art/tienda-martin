@@ -550,7 +550,110 @@ function resolverMotoCanonica(
     return null
 }
 
+/**
+ * ¿Ya se migró el pozo legacy? Se cachea un minuto: esto se consulta en cada
+ * turno y la respuesta cambia una vez en la vida.
+ */
+let cacheLegacy: { valor: boolean; ts: number } | null = null
+async function legacyMigrada(): Promise<boolean> {
+    if (cacheLegacy && Date.now() - cacheLegacy.ts < 60_000) return cacheLegacy.valor
+    const filas = await prisma
+        .$queryRaw<{ valor: string | null }[]>`SELECT valor FROM chat_config WHERE clave = 'compat_legacy_migrada' LIMIT 1`
+        .catch(() => [] as { valor: string | null }[])
+    const valor = (filas[0]?.valor || "").trim().toLowerCase() === "si"
+    cacheLegacy = { valor, ts: Date.now() }
+    return valor
+}
+
+/**
+ * Período de gracia de un kit recién cargado.
+ *
+ * `chat_config.dias_kit_nuevo_estricto` (0 = apagado, que es el default) marca
+ * cuántos días después de creado un producto se lo trata con desconfianza: si
+ * el "sí le va" no sale de una fila EXACTA para esa moto sino de una
+ * aproximación (familia, cilindrada, herencia), se deriva al equipo en vez de
+ * confirmarlo.
+ *
+ * Es la red para la ventana en la que más barato sale equivocarse: los
+ * primeros días de un kit, cuando la lista de compatibilidad todavía está a
+ * medio cargar y nadie vio cómo contesta. Sale por config y apagado por
+ * defecto a propósito — prender esto sin saberlo haría derivar consultas que
+ * hoy se contestan bien.
+ */
+async function diasDeGraciaKitNuevo(): Promise<number> {
+    const filas = await prisma
+        .$queryRaw<{ valor: string | null }[]>`SELECT valor FROM chat_config WHERE clave = 'dias_kit_nuevo_estricto' LIMIT 1`
+        .catch(() => [] as { valor: string | null }[])
+    const n = Number((filas[0]?.valor || "0").trim())
+    return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/** ¿Hay una fila cargada para EXACTAMENTE esta moto (no una de su familia)? */
+async function hayFilaExacta(moto: string, packIds: Set<number>, articuloIds: Set<number>): Promise<boolean> {
+    const norm = normalizarTexto(moto)
+    if (!norm) return false
+
+    const grupos = packIds.size
+        ? await prisma.$queryRaw<{ grupo_id: number | null }[]>`
+              SELECT DISTINCT grupo_id FROM chat_packs WHERE id = ANY(${[...packIds]}) AND grupo_id IS NOT NULL
+          `.catch(() => [])
+        : []
+    const grupoIds = grupos.map((g) => Number(g.grupo_id))
+
+    const combo = await prisma.$queryRaw<{ modelo_moto: string }[]>`
+        SELECT modelo_moto FROM chat_combo_compatibilidad
+        WHERE (kit_id = ANY(${[...packIds]})) OR (grupo_id = ANY(${grupoIds}))
+    `.catch(() => [] as { modelo_moto: string }[])
+
+    const art = articuloIds.size
+        ? await prisma.$queryRaw<{ modelo_moto: string }[]>`
+              SELECT modelo_moto FROM chat_articulo_compatibilidad WHERE articulo_id = ANY(${[...articuloIds]})
+          `.catch(() => [] as { modelo_moto: string }[])
+        : []
+
+    return [...combo, ...art].some((f) => normalizarTexto(f.modelo_moto) === norm)
+}
+
+/**
+ * Consulta de compatibilidad, con el período de gracia aplicado al final.
+ *
+ * El chequeo va acá afuera y no adentro de cada rama: `consultarCompatibilidadBase`
+ * tiene más de diez salidas distintas y meterle la condición a cada una era
+ * garantía de que alguna quedara sin cubrir. Acá solo se mira el veredicto
+ * final, que es lo único que llega al cliente.
+ */
 export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise<ResultadoCompatibilidad> {
+    const resultado = await consultarCompatibilidadBase(args)
+
+    // Solo importa cuando se está por CONFIRMAR: una negativa nunca es el error
+    // caro, y derivar ya es el camino conservador.
+    if (!resultado.encontrado || resultado.compatible !== true) return resultado
+
+    const dias = await diasDeGraciaKitNuevo()
+    if (dias <= 0) return resultado
+
+    const composicion = await composicionDelKitPedido(resultado.kit || args.kit_nombre_o_id).catch(() => null)
+    if (!composicion || !composicion.resuelto || composicion.packIds.size === 0) return resultado
+
+    const recientes = await prisma.$queryRaw<{ n: number }[]>`
+        SELECT COUNT(*)::int AS n FROM chat_packs
+        WHERE id = ANY(${[...composicion.packIds]}) AND creado_en > NOW() - (${dias} || ' days')::interval
+    `.catch(() => [{ n: 0 }])
+    if (!recientes[0] || recientes[0].n === 0) return resultado
+
+    const moto = resultado.modelo_moto_detectado || args.modelo_moto
+    if (await hayFilaExacta(moto, composicion.packIds, composicion.articuloIds)) return resultado
+
+    return {
+        encontrado: false,
+        mensaje_para_agente: [
+            `El kit "${resultado.kit || args.kit_nombre_o_id}" se cargó hace menos de ${dias} día(s) y para "${moto}" no hay una fila propia cargada: el "sí le va" saldría de una aproximación, no de un dato.`,
+            `Ejecutá escalar_a_humano y guardá SILENCIO sobre la compatibilidad de esa moto con este kit. El resto de la consulta (precio, envío, qué trae) contestalo normal.`,
+        ].join("\n"),
+    }
+}
+
+async function consultarCompatibilidadBase(args: ArgsCompatibilidad): Promise<ResultadoCompatibilidad> {
     const motoBuscada = normalizarTexto(args.modelo_moto)
     if (!motoBuscada) {
         return {
@@ -663,8 +766,23 @@ export async function consultarCompatibilidad(args: ArgsCompatibilidad): Promise
             WHERE ca.activo = true
         `
 
-        // 3. Compatibilidades legacy (compatibilidades)
-        const legacyRows = await prisma.$queryRaw<
+        // 3. Compatibilidades legacy (`compatibilidades`, la tabla de la época
+        // de n8n).
+        //
+        // Sigue en el pozo porque todavía tiene veredictos que no están en las
+        // tablas nuevas, pero es la parte más peligrosa de la decisión: ahí el
+        // kit se identifica por TEXTO LIBRE ("combo", "aumento de cilindrada"),
+        // y el filtro del pozo matchea por nombre, así que un kit nuevo puede
+        // heredar la compatibilidad de un producto viejo que nadie revisó.
+        //
+        // `scripts/compat-legacy.ts` migra lo rescatable a
+        // `chat_combo_compatibilidad` y, cuando no queda nada sin resolver,
+        // deja `chat_config.compat_legacy_migrada = 'si'`. Desde ese momento
+        // esta tabla deja de pesar en los veredictos. El apagado va por config y
+        // no por borrado: si aparece un caso que solo contestaba la tabla vieja,
+        // se vuelve a prender con una fila de config, no con un restore.
+        const legacyApagada = await legacyMigrada()
+        const legacyRows = legacyApagada ? [] : await prisma.$queryRaw<
             {
                 id: number
                 modelo_moto: string

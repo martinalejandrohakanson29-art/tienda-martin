@@ -27,6 +27,9 @@ import {
 } from "@/app/actions/chat-catalogo"
 import { matchTodasPalabras } from "@/lib/busqueda-texto"
 import { formatearListaCompat } from "@/lib/compatibilidad-texto"
+import type { MotoCanonica } from "@/app/actions/motos-aprendizaje"
+import { CompatEditor } from "./compat-editor"
+import { RevisionPublicacion } from "./revision-publicacion"
 
 const SIN_GRUPO = "ninguno"
 const GRUPO_NUEVO = "__nuevo__"
@@ -40,7 +43,10 @@ const FORM_VACIO: ChatPackInput = {
     plantillasBienvenida: "",
     plantillasReferral: "",
     detalle: "",
-    activo: true,
+    // Un pack nuevo nace PAUSADO. Antes nacía activo y el bot lo empezaba a
+    // ofrecer apenas se guardaba, con la compatibilidad todavía sin cargar:
+    // publicar es un paso aparte, con revisión (ver RevisionPublicacion).
+    activo: false,
     grupoId: null,
     criterioVariante: "",
     sinonimosVariante: "",
@@ -68,12 +74,14 @@ export function PacksTab({
     articulosDisponibles,
     gruposIniciales,
     compatibilidadesComboIniciales,
+    motos,
 }: {
     packsIniciales: ChatPack[]
     errorInicial: string | null
     articulosDisponibles: ChatArticulo[]
     gruposIniciales: ChatPackGrupo[]
     compatibilidadesComboIniciales: ChatComboCompatibilidad[]
+    motos: MotoCanonica[]
 }) {
     const [packs, setPacks] = useState<ChatPack[]>(packsIniciales)
     const [form, setForm] = useState<ChatPackInput>(FORM_VACIO)
@@ -95,6 +103,8 @@ export function PacksTab({
     const [nuevoGrupoMensaje, setNuevoGrupoMensaje] = useState("")
     const [nuevoGrupoPreguntaVariante, setNuevoGrupoPreguntaVariante] = useState("")
     const [nuevoGrupoCategoria, setNuevoGrupoCategoria] = useState("")
+
+    const [revisando, setRevisando] = useState<ChatPack | null>(null)
 
     const [fotoDragging, setFotoDragging] = useState(false)
     const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -343,13 +353,18 @@ export function PacksTab({
         }
     }
 
+    // Pausar es inmediato (sacar un kit de circulación nunca puede estar mal).
+    // Publicar pasa por la revisión: es lo que el bot va a empezar a contestar.
     const handleToggleActivo = async (pack: ChatPack) => {
-        const nuevoEstado = !pack.activo
-        setPacks((prev) => prev.map((p) => (p.id === pack.id ? { ...p, activo: nuevoEstado } : p)))
+        if (!pack.activo) {
+            setRevisando(pack)
+            return
+        }
+        setPacks((prev) => prev.map((p) => (p.id === pack.id ? { ...p, activo: false } : p)))
         try {
-            await alternarActivoChatPack(pack.id, nuevoEstado)
+            await alternarActivoChatPack(pack.id, false)
         } catch (err) {
-            setPacks((prev) => prev.map((p) => (p.id === pack.id ? { ...p, activo: pack.activo } : p)))
+            setPacks((prev) => prev.map((p) => (p.id === pack.id ? { ...p, activo: true } : p)))
             alert(err instanceof Error ? err.message : "Error al cambiar el estado")
         }
     }
@@ -416,15 +431,24 @@ export function PacksTab({
                                 />
                             </div>
                             <div className="flex items-end pb-1">
-                                <div className="flex items-center gap-2">
-                                    <Checkbox
-                                        id="activo"
-                                        checked={form.activo}
-                                        onCheckedChange={(checked) => actualizarCampo("activo", checked === true)}
-                                        disabled={guardando}
-                                    />
-                                    <Label htmlFor="activo" className="cursor-pointer">Activo</Label>
-                                </div>
+                                {editando ? (
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox
+                                            id="activo"
+                                            checked={form.activo}
+                                            onCheckedChange={(checked) => actualizarCampo("activo", checked === true)}
+                                            disabled={guardando}
+                                        />
+                                        <Label htmlFor="activo" className="cursor-pointer">
+                                            Publicado (el bot lo ofrece)
+                                        </Label>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-500">
+                                        Se guarda como <strong>borrador</strong>: el bot no lo ofrece hasta que lo publiques
+                                        desde la lista, con la revisión previa.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -770,39 +794,24 @@ export function PacksTab({
                         </div>
 
                         {grupoSeleccionado === SIN_GRUPO && (
-                            <div className="space-y-3 pt-6 border-t border-slate-200">
-                                <Label>Compatibilidad de este kit</Label>
-                                <p className="text-xs text-gray-400">
-                                    A nivel del kit COMPLETO (no de una pieza suelta) — evita que el bot diga
-                                    &quot;compatible&quot; solo porque una pieza periférica entra en la moto, cuando la pieza
-                                    central no. Si este pack pertenece a un grupo, la compatibilidad se carga desde la
-                                    pestaña &quot;Grupos&quot; en su lugar (aplica igual para todas las variantes del grupo).
-                                </p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label htmlFor="compatibleTextoKit">Compatible con (separado por comas)</Label>
-                                        <Textarea
-                                            id="compatibleTextoKit"
-                                            placeholder="Ej: Zanella ZB 110, Motomel Blitz 110"
-                                            value={compatibleTexto}
-                                            onChange={(e) => setCompatibleTexto(e.target.value)}
-                                            disabled={guardando}
-                                            rows={4}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="incompatibleTextoKit">No compatible con (separado por comas)</Label>
-                                        <Textarea
-                                            id="incompatibleTextoKit"
-                                            placeholder="Ej: Wave S (hay que alesar los cárteres)"
-                                            value={incompatibleTexto}
-                                            onChange={(e) => setIncompatibleTexto(e.target.value)}
-                                            disabled={guardando}
-                                            rows={4}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                            <CompatEditor
+                                idPrefijo="kit"
+                                titulo="Compatibilidad de este kit"
+                                ayuda={
+                                    <>
+                                        A nivel del kit COMPLETO (no de una pieza suelta) — evita que el bot diga
+                                        &quot;compatible&quot; solo porque una pieza periférica entra en la moto, cuando la
+                                        pieza central no. Si este pack pertenece a un grupo, la compatibilidad se carga desde
+                                        la pestaña &quot;Grupos&quot; en su lugar (aplica igual para todas las variantes).
+                                    </>
+                                }
+                                compatibleTexto={compatibleTexto}
+                                incompatibleTexto={incompatibleTexto}
+                                onCompatibleChange={setCompatibleTexto}
+                                onIncompatibleChange={setIncompatibleTexto}
+                                motos={motos}
+                                disabled={guardando}
+                            />
                         )}
 
                         <Button type="submit" disabled={guardando || !form.nombre || !form.mensajeBienvenida} className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2">
@@ -876,9 +885,14 @@ export function PacksTab({
                                             <TableCell>
                                                 <Badge
                                                     onClick={() => handleToggleActivo(pack)}
+                                                    title={
+                                                        pack.activo
+                                                            ? "El bot lo está ofreciendo. Clic para pausarlo."
+                                                            : "El bot no lo ofrece. Clic para revisarlo y publicarlo."
+                                                    }
                                                     className={`cursor-pointer select-none ${pack.activo ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-400 hover:bg-slate-500"}`}
                                                 >
-                                                    {pack.activo ? "Activo" : "Pausado"}
+                                                    {pack.activo ? "Publicado" : "Borrador"}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right space-x-1">
@@ -897,6 +911,18 @@ export function PacksTab({
                     )}
                 </CardContent>
             </Card>
+
+            {revisando && (
+                <RevisionPublicacion
+                    packId={revisando.id}
+                    packNombre={revisando.nombre}
+                    abierto={true}
+                    onCerrar={() => setRevisando(null)}
+                    onPublicado={() => {
+                        setPacks((prev) => prev.map((p) => (p.id === revisando.id ? { ...p, activo: true } : p)))
+                    }}
+                />
+            )}
         </div>
     )
 }

@@ -25,11 +25,9 @@ import {
     enviarMensajeBorrador,
     obtenerTurnosBorrador,
     descartarBorrador,
-    marcarBorradorPublicado,
     type Borrador,
     type KitBorrador,
 } from "@/app/actions/carga-kit-chat"
-import { guardarKit, type KitInput } from "@/app/actions/kits-publicidad"
 
 type Turno = { role: "human" | "ai"; content: string }
 
@@ -154,34 +152,24 @@ export function CargarKitClient({ borradoresIniciales, error }: { borradoresInic
         }
     }
 
+    /**
+     * La publicación quedó cerrada a propósito.
+     *
+     * Este asistente escribe en `kits_publicidad`, la tabla de la época de n8n:
+     * el bot que responde WhatsApp hoy lee `chat_packs` y no la ve. Publicar
+     * desde acá dejaba un kit invisible para el bot con toda la apariencia de
+     * estar cargado — la peor combinación posible, y justo en la pantalla más
+     * fácil de confundir con la buena por ser la única que guía paso a paso.
+     *
+     * El borrador sigue sirviendo: el asistente ordena los datos y de ahí se
+     * copian a Catálogo del Bot. Cuando este flujo apunte al catálogo nuevo,
+     * vuelve el botón.
+     */
     const publicar = async () => {
-        if (!borradorId) return
-        if (!kit.nombre.trim() || !kit.mensajeBienvenida.trim()) {
-            setFallo("Nombre y mensaje predefinido son obligatorios para publicar")
-            return
-        }
-        setPublicando(true)
-        setFallo(null)
-        try {
-            const input: KitInput = {
-                nombre: kit.nombre,
-                keywords: kit.keywords,
-                detalle: kit.detalle,
-                precio: kit.precio,
-                envio: kit.envio,
-                mensajeBienvenida: kit.mensajeBienvenida,
-                fotoUrl: "",
-                plantillasBienvenida: "",
-                activo,
-            }
-            await guardarKit(input)
-            await marcarBorradorPublicado(borradorId)
-            setPublicado(true)
-        } catch (e) {
-            setFallo(e instanceof Error ? e.message : "No se pudo publicar el kit")
-        } finally {
-            setPublicando(false)
-        }
+        setFallo(
+            "Este asistente todavía escribe en la base vieja (la de n8n), que el bot ya no lee. " +
+                "Copiá los datos de abajo y cargalos en Catálogo del Bot → Packs, que es lo que responde WhatsApp hoy."
+        )
     }
 
     if (vista === "lista") {
@@ -199,8 +187,12 @@ export function CargarKitClient({ borradoresIniciales, error }: { borradoresInic
                             <Sparkles className="h-8 w-8 text-fuchsia-600" /> Cargar Kit (asistido)
                         </h1>
                         <p className="max-w-2xl text-gray-500">
-                            Charlá con el asistente y él arma el kit con el formato correcto — vos revisás y confirmás
-                            antes de que se publique.
+                            Charlá con el asistente y él ordena los datos del kit. <strong>No publica</strong>: escribe
+                            en la base vieja de n8n, que el bot ya no lee. Los kits que responde WhatsApp se cargan en{" "}
+                            <Link href="/admin/chatwoot/catalogo" className="underline font-medium text-violet-700">
+                                Catálogo del Bot
+                            </Link>
+                            .
                         </p>
                     </div>
                     <Button onClick={abrirNuevo} disabled={cargandoBorrador} className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-700 text-white">

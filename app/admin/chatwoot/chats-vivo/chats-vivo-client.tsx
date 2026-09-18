@@ -2168,7 +2168,7 @@ export function ChatsVivoClient({
                             </div>
 
                             {/* Selectores rápidos: info de kit y notas del negocio */}
-                            <div className="flex items-center gap-2 px-2 sm:px-4 py-1.5 bg-white border-b shrink-0 overflow-x-auto">
+                            <div className="flex items-center gap-2 px-2 sm:px-4 py-1.5 bg-white border-b shrink-0 overflow-x-auto overflow-y-visible">
                                 <SelectorRapido
                                     etiqueta="Enviar info de kit"
                                     Icono={Zap}

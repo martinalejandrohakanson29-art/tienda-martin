@@ -154,6 +154,36 @@ const PALABRAS_PRODUCTO = new Set([
  */
 const VENTANA_PRODUCTO = 3
 
+/**
+ * Verbos de tenencia en SEGUNDA persona (o tercera del plural): los que dicen
+ * que el que tiene la cosa somos NOSOTROS. Es el discriminador de la regla de
+ * abajo, y por eso la lista excluye a proposito la primera persona ("tengo",
+ * "tenia"): "una 110 que tengo" es su moto, "el 125 que tenes" es nuestro.
+ */
+const RX_TENENCIA_NUESTRA =
+    /^(tenes|tienes|tiene|tienen|tengan|tendrias|manejas|maneja|manejan|vendes|vende|venden|trabajan|trabajas|quedan|queda|hay)$/
+
+/**
+ * El cliente nombra la medida SOLA, sin la palabra del producto: "Para el 125
+ * que tenes". Conv 4555 (18/09, +5493644171755): entro por el anuncio del
+ * "POTENCIA TU 110" y pregunto eso; el 125 quedaba en `ruido` —no es su moto ni
+ * viene pegado a un "kit"— y con eso se volvia invisible para todo el motor: ni
+ * compatibilidad que chequear ni otra medida que derivar. Salio la ficha del
+ * Kit 120 con su precio y su foto, mas la repregunta de la moto, y el equipo
+ * tuvo que meter `/bot off` y contestar a mano un minuto despues.
+ *
+ * Lo que lo desambigua esta en la propia frase: la subordinada "que TENES"
+ * cuelga del numero y dice que el que tiene ese 125 somos nosotros —es un
+ * producto del catalogo, no su moto—. Con "que tengo" seria al reves, y por eso
+ * la primera persona no entra en `RX_TENENCIA_NUESTRA`.
+ *
+ * Deliberadamente NO alcanza para la forma suelta ("Busco para 110", "Es para
+ * un 110", "A una 110"): en el corpus congelado esos son SU MOTO, y darles rol
+ * `producto` mandaria al equipo justo a los clientes que vienen por lo que
+ * vendemos.
+ */
+const VENTANA_TENENCIA = 2
+
 /** El token es una cilindrada ("120", "120cc"), o no. */
 export function numeroDeCilindrada(token: string): number | null {
     const m = token.match(/^(\d{2,4})(cc)?$/)
@@ -324,6 +354,29 @@ export async function leerNumeros(
             if (!producto) producto = { valor: p.valor, rol: "producto", frase, posicion: p.posicion }
             break
         }
+    }
+
+    // 3.b PRODUCTO sin la palabra del producto: la medida sola, seguida de la
+    //     subordinada que dice que la tenemos NOSOTROS ("el 125 que tenes").
+    //     Va despues del paso 3 y respeta los roles ya puestos: si el numero es
+    //     su moto, la tabla manda igual que siempre.
+    for (const p of posiciones) {
+        if (rol.has(p.posicion)) continue
+        const desde = p.posicion + 1
+        let verbo = -1
+        for (let j = desde; j <= desde + VENTANA_TENENCIA && j < tokens.length; j++) {
+            if (RX_TENENCIA_NUESTRA.test(tokens[j])) {
+                verbo = j
+                break
+            }
+            // Solo el relativo puede ir en el medio ("el 125 que tenes"). Con
+            // cualquier otra palabra la subordinada ya no cuelga del numero.
+            if (tokens[j] !== "que") break
+        }
+        if (verbo < 0) continue
+        const frase = tokens.slice(p.posicion, verbo + 1).join(" ")
+        rol.set(p.posicion, { rol: "producto", frase })
+        if (!producto) producto = { valor: p.valor, rol: "producto", frase, posicion: p.posicion }
     }
 
     // 4. CONVERSION: "un kit de 70 a 110" — dos numeros unidos por un salto, sin

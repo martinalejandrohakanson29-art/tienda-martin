@@ -22,15 +22,23 @@ const ANUNCIO_170 = "Kit 170 varillero + leva POTENCIA TU VARILLERO A 170CC! PED
 // ("para varilleros 150") ademas de la del kit.
 const ANUNCIO_200 = "Kit 200 varillero POTENCIA TU 150 A 200CC!! Kit de potenciacion 200 para varilleros 150 con motor sin balanceador"
 
+// El del caso de la conv 4555: la cilindrada del aviso es la de la MOTO que se
+// potencia (110) y la del kit (120) esta en el titulo.
+const ANUNCIO_120 = "Kit 120 corto + Leva 6.40 POTENCIA TU 110 CON ESTE COMBO! LEVA DE CALLE + CILINDRO 120 PARA TU 110!"
+
 const CASOS: { mensaje: string; anuncio: string; esperado: boolean; nota: string }[] = [
     // ── Pide otra medida: la ficha no sale ────────────────────────────────────
     { mensaje: "Quiero saber si tienen kid de cg 190", anuncio: ANUNCIO_170, esperado: true, nota: "conv 4386, tal cual entro" },
     { mensaje: "Hola queria saber que vale un kit 190 para xr 150", anuncio: ANUNCIO_200, esperado: true, nota: "conv 4351: el 150 del aviso es la moto, no el kit" },
     { mensaje: "tenes cilindro 220?", anuncio: ANUNCIO_170, esperado: true, nota: "otro producto sin moto de por medio" },
+    { mensaje: "Para el 125 que tenes", anuncio: ANUNCIO_120, esperado: true, nota: "conv 4555: la medida sola, sin la palabra del producto (\"que TENES\" = nuestro)" },
+    { mensaje: "y de 190 que tienen?", anuncio: ANUNCIO_170, esperado: true, nota: "misma forma, con el numero pegado al relativo" },
 
     // ── Viene por el kit del aviso: la ficha sale igual ───────────────────────
     { mensaje: "el kit le va a mi rouser 200?", anuncio: ANUNCIO_170, esperado: false, nota: "el 200 es su moto" },
     { mensaje: "tengo una wave 110, le entra?", anuncio: ANUNCIO_170, esperado: false, nota: "solo nombra su moto" },
+    { mensaje: "es para una 110 que tengo hace anios", anuncio: ANUNCIO_170, esperado: false, nota: "\"que TENGO\": primera persona, es su moto" },
+    { mensaje: "Busco para 110", anuncio: ANUNCIO_170, esperado: false, nota: "la medida sola SIN la subordinada sigue siendo su moto" },
     { mensaje: "el kit me sirve para hacerla 190?", anuncio: ANUNCIO_170, esperado: false, nota: "pregunta por ESTE kit, no pide otro" },
     { mensaje: "quiero el kit 170 para mi cg 150", anuncio: ANUNCIO_170, esperado: false, nota: "el numero es el del propio aviso" },
     { mensaje: "hola, cuanto sale?", anuncio: ANUNCIO_170, esperado: false, nota: "sin numeros" },

@@ -69,7 +69,7 @@ moto=-    obj=-     prod=-    conv=-    · Para poner kit 170 tengo q agrandar c
 moto=-    obj=-     prod=-    conv=-    · Le anda a los 110
 moto=-    obj=-     prod=-    conv=-    · precio de la leva para el cb1 es compatible con la twister 125 ?
 moto=-    obj=-     prod=-    conv=-    · sirve para el twister 125?
-moto=-    obj=-     prod=125  conv=-    · y de 110 tiene el kit 125 ya la moto q leva me recomiendas
+moto=-    obj=-     prod=110  conv=-    · y de 110 tiene el kit 125 ya la moto q leva me recomiendas
 moto=125  obj=-     prod=-    conv=-    · ¡Hola! Quiero saber si tiene el. Cilindro de la yamaha YBR 125?
 moto=110  obj=-     prod=-    conv=-    · Gilera smash 110
 moto=-    obj=120   prod=-    conv=110->120 · Aún esta disponible el kit este para potenciar mi 110 a 120 ?
@@ -134,3 +134,4 @@ moto=70   obj=110   prod=-    conv=70->110 · No yo tengo una motomel eco 70 and
 moto=-    obj=-     prod=-    conv=-    · Es para un 110
 moto=-    obj=-     prod=-    conv=-    · Es para un 110 Y si te lo pido cuando llegaría a Ezeiza partido de trisan Suárez barrio el paso
 moto=150  obj=-     prod=-    conv=-    · Tengo una Zanella 150
+moto=-    obj=-     prod=125  conv=-    · Hola Para el 125 que tenes

@@ -1503,18 +1503,102 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
         }
     }
 
+    /**
+     * ENTRÓ POR UN ANUNCIO Y PIDE OTRA MEDIDA — la guarda, en el camino normal.
+     *
+     * La misma decisión de la conv 4386 ya vivía en la rama de la plantilla
+     * (arriba): si el texto que acompaña al click pide un producto de otra
+     * medida, la ficha del aviso —con precio y foto— se leería como la
+     * respuesta, así que no sale y la consulta la contesta el equipo.
+     *
+     * El problema es que esa rama solo corre cuando el referral RESUELVE a un
+     * kit del catálogo, y muchos avisos no resuelven a propósito: el body de
+     * Meta suele ser genérico ("POTENCIA TU 110 CON ESTE COMBO!") y pega con
+     * cualquier kit de 110, así que desde la conv 3357 el aviso que no es "casi
+     * igual" a la plantilla cargada queda solo como contexto. Ahí la guarda
+     * nunca llegaba a consultarse.
+     *
+     * Conv 4555 (18/09, +5493644171755): entró por ese mismo aviso genérico y
+     * escribió "Para el 125 que tenes". Sin plantilla resuelta el turno fue
+     * normal, el modelo buscó en el catálogo los términos DEL AVISO ("leva de
+     * calle cilindro 120") y le mandó la ficha del Kit 120 con su $99.000, su
+     * foto y la repregunta de la moto. Nadie contestó por el 125: el equipo
+     * tuvo que meter `/bot off` y preguntar a mano un minuto después.
+     *
+     * Acá NO se corta el turno como en la rama de la plantilla: se deriva ESA
+     * consulta (escalado parcial) y el resto de la ráfaga se contesta igual —si
+     * preguntó también por el envío, esa respuesta sale—. Lo que no puede salir
+     * es un producto con precio, y eso no se le pide al prompt: lo verifica el
+     * motor sobre el mensaje ya redactado (ver el backstop de más abajo).
+     */
+    let otraMedidaDelAnuncio: { cilindrada?: number } | null = null
+    if (opciones.referralAnuncio) {
+        const contextoAnuncio = [opciones.referralAnuncio.titulo, opciones.referralAnuncio.cuerpo]
+            .filter(Boolean)
+            .join(" ")
+        const pedido = await pideOtroProductoQueElAnuncio(mensajeUsuario, contextoAnuncio).catch((err) => {
+            console.error("[motor] falló la guarda de otra medida sobre el anuncio:", err)
+            return null
+        })
+        if (pedido?.esOtroProducto) {
+            otraMedidaDelAnuncio = { cilindrada: pedido.cilindrada }
+            const motivo = "producto_no_catalogado"
+            const resumen =
+                `Entró por el anuncio ("${contextoAnuncio.slice(0, 120)}") pero pregunta por otro producto` +
+                (pedido.cilindrada ? ` (${pedido.cilindrada})` : "") +
+                `: ${mensajeUsuario.slice(0, 300)}`
+            await escalarAHumano({
+                motivo,
+                resumen_consulta: resumen,
+                conversation_id: opciones.conversationId
+            }).catch((err) =>
+                console.error("[motor] fallo al persistir el escalado de otra medida sobre el anuncio:", err)
+            )
+            anotarEscaladoPendiente(motivo, resumen)
+            escaladoHumano = true
+            motivoEscalado = motivo
+            escaladoPersistido = true
+            escaladoParcial = admiteRespuestaParcial(motivo)
+            herramientasEjecutadas.push({
+                nombre: "escalar_a_humano",
+                argumentos: { motivo, resumen_consulta: resumen },
+                resultado: {
+                    escalado: true,
+                    mensaje_para_agente:
+                        `El cliente entró por un anuncio pero pide un producto de otra medida` +
+                        (pedido.cilindrada ? ` (${pedido.cilindrada})` : "") +
+                        `. Esa consulta ya quedó derivada al equipo por el motor.`
+                }
+            })
+        }
+    }
+
     // El cliente llegó de un anuncio que no resolvimos a un kit del catálogo (o
     // que pega con más de uno): el texto del anuncio es la única pista de qué
     // está mirando. Va como contexto para que lo busque, no como dato de venta.
+    //
+    // Salvo que lo que escribió pida OTRA medida: ahí buscar el aviso en el
+    // catálogo es justo lo que no hay que hacer — es lo que le trajo la ficha
+    // del 120 a quien preguntaba por un 125 (conv 4555).
     const bloqueAnuncio = opciones.referralAnuncio
         ? [
               "### ANUNCIO POR EL QUE ENTRÓ EL CLIENTE (Instagram/Facebook):",
               opciones.referralAnuncio.titulo ? `Título: ${opciones.referralAnuncio.titulo}` : "",
               opciones.referralAnuncio.cuerpo ? `Texto: ${opciones.referralAnuncio.cuerpo}` : "",
-              "El cliente viene por ESE producto aunque no lo nombre. Buscalo en el catálogo con esos términos antes de preguntarle qué necesita. Si no lo encontrás, escalá: no inventes ni ofrezcas otro kit como si fuera el del anuncio."
+              otraMedidaDelAnuncio
+                  ? `El cliente NO viene por ese producto: pide otra medida${otraMedidaDelAnuncio.cilindrada ? ` (${otraMedidaDelAnuncio.cilindrada})` : ""}, que ya quedó derivada al equipo. No busques el aviso en el catálogo ni le pases el kit del aviso, su precio o su foto: no es lo que preguntó.`
+                  : "El cliente viene por ESE producto aunque no lo nombre. Buscalo en el catálogo con esos términos antes de preguntarle qué necesita. Si no lo encontrás, escalá: no inventes ni ofrezcas otro kit como si fuera el del anuncio."
           ]
               .filter(Boolean)
               .join("\n")
+        : ""
+
+    const bloqueOtraMedidaDelAnuncio = otraMedidaDelAnuncio
+        ? [
+              "### CONSULTA YA DERIVADA AL EQUIPO EN ESTE TURNO:",
+              `El cliente pide un producto de otra medida${otraMedidaDelAnuncio.cilindrada ? ` (${otraMedidaDelAnuncio.cilindrada})` : ""} que no es el del anuncio por el que entró.`,
+              CONTRATO_ESCALADO_PARCIAL.trim()
+          ].join("\n")
         : ""
 
     /**
@@ -1544,6 +1628,7 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
     const bloqueVariable = [
         `### CONTEXTO TEMPORAL ACTUAL EN EL LOCAL (Córdoba Capital):\nHoy es ${fechaHoraCordoba} hs.`,
         bloqueAnuncio,
+        bloqueOtraMedidaDelAnuncio,
         bloqueEstado,
         bloqueMotoDesconocida,
         bloqueSituaciones,
@@ -2164,6 +2249,39 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                 (loDerivadoEraLaCompat || !compatConfirmadaPorHerramienta)
             ) {
                 console.warn("[motor] escalado parcial abortado: el mensaje afirmaba compatibilidad justo sobre lo derivado")
+                await persistirEstado()
+                return {
+                    mensajeFinal: null,
+                    mensajesFinales: [],
+                    herramientasEjecutadas,
+                    escaladoHumano: true,
+                    motivoEscalado,
+                    escaladoPersistido,
+                    latenciaMs: Date.now() - inicio,
+                    tokensUsados: tokensTotales
+                }
+            }
+
+            /**
+             * BACKSTOP DE LA OTRA MEDIDA: entró por un anuncio, pidió otra
+             * medida (ya derivada arriba) y el turno igual terminó poniéndole
+             * un producto con precio enfrente.
+             *
+             * Mira el HECHO, no la redacción, igual que el de la compat
+             * derivada: al cliente no le cambia nada que el precio venga con o
+             * sin la palabra "combo" —lo que lee es un producto con su número,
+             * justo cuando lo que preguntó no lo sabemos—. El prompt ya se lo
+             * pide (`bloqueOtraMedidaDelAnuncio`), pero pedirlo no alcanza: en
+             * la conv 4555 el modelo tenía el aviso en el contexto y lo buscó
+             * en el catálogo por su cuenta.
+             *
+             * Lo demás de la ráfaga sigue pudiendo salir: lo único que este
+             * backstop veta es el mensaje que lleva precio.
+             */
+            if (otraMedidaDelAnuncio && mensajeFinalUnificado && presentaPrecioDeProducto(mensajeFinalUnificado)) {
+                console.warn(
+                    `[motor] otra medida derivada (${otraMedidaDelAnuncio.cilindrada ?? "?"}): el turno igual presentaba un producto con precio, se descarta`
+                )
                 await persistirEstado()
                 return {
                     mensajeFinal: null,

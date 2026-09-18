@@ -35,6 +35,30 @@ const formatearFechaCorta = (fechaStr: string) => {
     return `${d}/${m}`
 }
 
+/**
+ * Hora del día, siempre en 24hs y siempre en hora de Argentina.
+ *
+ * Las dos cosas son a propósito y arreglan un bug cada una:
+ *
+ * 1. Sin `hour12: false`, "es-AR" + `hour: "2-digit"` cae en formato 12hs
+ *    ("07:03 p. m."), y el espacio antes de "p. m." no es el mismo caracter en
+ *    Node que en el navegador (U+202F vs U+00A0). Este panel se renderiza en
+ *    el servidor y después hidrata, así que React comparaba dos textos que se
+ *    ven idénticos y no lo son: "Text content does not match server-rendered
+ *    HTML". En 24hs no hay sufijo ni espacio, y los dos lados coinciden.
+ *
+ * 2. Sin `timeZone`, la hora salía en la zona de quien renderiza: el servidor
+ *    de producción en UTC, el navegador en Argentina. El mismo mensaje figuraba
+ *    tres horas más tarde según quién lo hubiera dibujado.
+ */
+const formatearHora = (iso: string) =>
+    new Date(iso).toLocaleTimeString("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+    })
+
 export function ColaHistoricoPanel({
     inicialHistorico,
     inicialEnVivo,
@@ -260,7 +284,7 @@ export function ColaHistoricoPanel({
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <span className="text-[10px] text-slate-400 block">
-                                                    Llegó {new Date(c.ultimoMensajeEn).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                                    Llegó {formatearHora(c.ultimoMensajeEn)} hs
                                                 </span>
                                                 <a
                                                     href={`${chatwootUrl}/app/accounts/1/conversations/${c.conversationId}`}
@@ -417,7 +441,7 @@ export function ColaHistoricoPanel({
                                                             </div>
                                                             {dia.manana.primeroEn && dia.manana.ultimoEn && (
                                                                 <span className="text-[10px] text-slate-400 block">
-                                                                    De {new Date(dia.manana.primeroEn).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} a {new Date(dia.manana.ultimoEn).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                                                    De {formatearHora(dia.manana.primeroEn)} a {formatearHora(dia.manana.ultimoEn)} hs
                                                                 </span>
                                                             )}
                                                         </div>
@@ -450,7 +474,7 @@ export function ColaHistoricoPanel({
                                                             </div>
                                                             {dia.tarde.primeroEn && dia.tarde.ultimoEn && (
                                                                 <span className="text-[10px] text-slate-400 block">
-                                                                    De {new Date(dia.tarde.primeroEn).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} a {new Date(dia.tarde.ultimoEn).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                                                    De {formatearHora(dia.tarde.primeroEn)} a {formatearHora(dia.tarde.ultimoEn)} hs
                                                                 </span>
                                                             )}
                                                         </div>

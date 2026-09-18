@@ -44,7 +44,7 @@
  */
 
 import { normalizarTexto } from "./texto"
-import { cilindradasEn, resolverMoto } from "./motos"
+import { cilindradasEn, marcaConCilindradaSinModelo, resolverMoto } from "./motos"
 
 export type RolNumero = "moto" | "objetivo" | "producto" | "ruido"
 
@@ -163,9 +163,19 @@ export function numeroDeCilindrada(token: string): number | null {
 }
 
 /** Cilindradas que el resolvedor le atribuye a la moto que nombro el cliente. */
-async function cilindradasDeSuMoto(mensaje: string, conAliases: boolean): Promise<Set<number>> {
+async function cilindradasDeSuMoto(mensaje: string, conAliases: boolean, textoCrudo?: string): Promise<Set<number>> {
     const moto = await resolverMoto(mensaje).catch(() => null)
     const cc = new Set<number>()
+    // Marca + cilindrada sin modelo ("tengo una zanella 150"): no resuelve a
+    // ningun modelo, asi que `resolverMoto` no aporta nada y ese numero caia en
+    // "ruido" aunque sea, textualmente, la cilindrada de su moto (conv 4525).
+    // El marcador explicito lo exige la propia funcion: sin el, el numero del
+    // kit ("para una honda, el 120?") entraria como la moto del cliente.
+    // Sobre el texto CRUDO: la rafaga llega con un renglon por mensaje de
+    // WhatsApp y el detector mira renglon por renglon; normalizado se pierden
+    // los cortes y 'Tengo una Zanella 150' queda enterrado en la frase larga.
+    const marcaYCilindrada = marcaConCilindradaSinModelo(textoCrudo || mensaje, { exigirMarcador: true })
+    if (marcaYCilindrada) for (const n of cilindradasEn(marcaYCilindrada)) cc.add(n)
     for (const m of [moto?.modelo, ...(moto?.candidatos || [])]) {
         if (!m) continue
         if (m.cilindrada) cc.add(m.cilindrada)
@@ -249,7 +259,7 @@ export async function leerNumeros(
         .filter((x): x is { valor: number; posicion: number } => x.valor != null)
     if (posiciones.length === 0) return vacio
 
-    const deLaMoto = await cilindradasDeSuMoto(norm, opciones?.conAliasesDeLaMoto !== false)
+    const deLaMoto = await cilindradasDeSuMoto(norm, opciones?.conAliasesDeLaMoto !== false, mensaje || undefined)
 
     const rol = new Map<number, { rol: RolNumero; frase: string }>()
 

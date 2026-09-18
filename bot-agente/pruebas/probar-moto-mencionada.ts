@@ -23,8 +23,8 @@ import {
     fotoEntrega
 } from "../nucleo/estado-persistente"
 import { consultarCatalogoPrecios } from "../herramientas/catalogo-precios"
-import { ofreceProductosParaLaMoto, afirmaTenerParaSuMoto } from "../guardrails/sanitizador"
-import { cilindradaSinMarca } from "../nucleo/motos"
+import { ofreceProductosParaLaMoto, afirmaTenerParaSuMoto, oracionQuePreguntaLaMoto } from "../guardrails/sanitizador"
+import { cilindradaSinMarca, marcaConCilindradaSinModelo } from "../nucleo/motos"
 
 const CLAVE = "prueba-moto-mencionada"
 
@@ -159,6 +159,66 @@ async function main() {
     // Dos cilindradas no son una moto ("el 120 o el 170?").
     agregar("dos cilindradas NO es una moto", cilindradaSinMarca("tengo una 110 o 125") === null)
     agregar("texto vacío", cilindradaSinMarca("") === null)
+
+    // MARCA + CILINDRADA SIN MODELO (conv 4525): "Zanella 150" no es ninguna de
+    // las de arriba y quedaba en tierra de nadie. Falta UN dato —cual de esa
+    // marca y cilindrada— y preguntarlo lo consigue.
+    agregar(
+        "'Tengo una Zanella 150' es marca + cilindrada sin modelo",
+        marcaConCilindradaSinModelo("Tengo una Zanella 150", { exigirMarcador: true }) === "zanella 150"
+    )
+    agregar(
+        "en la ráfaga, el renglón de la moto se lee igual",
+        marcaConCilindradaSinModelo(
+            "¡Hola! Quiero más información SOBRE EL KIT 170?\nTengo una Zanella 150\nSe puede poner un cilindro de 200",
+            { exigirMarcador: true }
+        ) === "zanella 150"
+    )
+    agregar(
+        "'zanella rx 150' NO: ya dijo el modelo",
+        marcaConCilindradaSinModelo("zanella rx 150") === null
+    )
+    agregar(
+        "'Para una Gilera' NO: es marca sola, tiene su propio camino",
+        marcaConCilindradaSinModelo("Para una Gilera") === null
+    )
+    agregar(
+        "'para una honda, el kit 120?' NO: el número es del kit",
+        marcaConCilindradaSinModelo("para una honda, el kit 120?", { exigirMarcador: true }) === null
+    )
+    agregar(
+        "sin marcador explícito, sobre el mensaje crudo no dispara",
+        marcaConCilindradaSinModelo("para una zanella 150", { exigirMarcador: true }) === null
+    )
+    agregar(
+        "sobre `modelo_moto` (el dato ya decidido) no hace falta marcador",
+        marcaConCilindradaSinModelo("Zanella 150") === "zanella 150"
+    )
+
+    // LA PREGUNTA QUE SE RESCATA cuando el turno se recorta (backstop de la
+    // repregunta en el motor): tiene que salir la que pide el modelo de la moto
+    // y NINGUNA otra, o volveriamos a ofrecerle algo sin saber que moto tiene.
+    agregar(
+        "rescata la pregunta pegada a la ficha",
+        oracionQuePreguntaLaMoto("Te la paso: $167.000. Cual Zanella 150 tenes?", "zanella 150") ===
+            "Cual Zanella 150 tenes?"
+    )
+    agregar(
+        "la reconoce tambien sin el nombre de la moto",
+        oracionQuePreguntaLaMoto("Dale! Decime que modelo tenes?", "zanella 150") === "Decime que modelo tenes?"
+    )
+    agregar(
+        "'cual es?' tambien pide el dato",
+        oracionQuePreguntaLaMoto("Cual es? Asi te confirmo", "zanella 150") === "Cual es?"
+    )
+    agregar(
+        "una pregunta que OFRECE no es la repregunta",
+        oracionQuePreguntaLaMoto("Querés que te pase el precio?", "zanella 150") === null
+    )
+    agregar(
+        "una pregunta con precio adentro tampoco",
+        oracionQuePreguntaLaMoto("Te paso la data del 200, sale $167.000. Lo querés?", "zanella 150") === null
+    )
 
     let fallaron = 0
     for (const c of casos) {

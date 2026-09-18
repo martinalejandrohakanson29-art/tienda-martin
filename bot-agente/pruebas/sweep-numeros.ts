@@ -48,7 +48,7 @@
  */
 import { readFileSync, writeFileSync, existsSync } from "fs"
 import { join } from "path"
-import { cilindradasEn, resolverMoto } from "../nucleo/motos"
+import { cilindradasEn, marcaConCilindradaSinModelo, resolverMoto } from "../nucleo/motos"
 import { detectarCilindradaObjetivo } from "../nucleo/cilindrada-objetivo"
 import { leerNumeros } from "../nucleo/numeros-del-mensaje"
 import { pideOtroProductoQueElAnuncio } from "../nucleo/otro-producto-anuncio"
@@ -94,6 +94,13 @@ async function clasificar(mensaje: string): Promise<string> {
         if (m.cilindrada) ccMoto.add(m.cilindrada)
         for (const n of cilindradasEn(m.nombre_completo)) ccMoto.add(n)
     }
+    // Mismo criterio que el lector (`cilindradasDeSuMoto`): marca + cilindrada
+    // sin modelo ("Tengo una Zanella 150") es SU moto aunque no resuelva a
+    // ningun modelo cargado. Sin esto la columna decia `moto=-` justo en el
+    // caso que motivo el detector (conv 4525).
+    const marcaYCilindrada = marcaConCilindradaSinModelo(mensaje, { exigirMarcador: true })
+    if (marcaYCilindrada) for (const n of cilindradasEn(marcaYCilindrada)) ccMoto.add(n)
+
     const objetivo = await detectarCilindradaObjetivo(mensaje)
     const producto = await pideOtroProductoQueElAnuncio(mensaje, ANUNCIO_REFERENCIA)
     const { conversion } = await leerNumeros(mensaje)

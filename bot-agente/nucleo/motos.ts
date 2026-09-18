@@ -119,6 +119,88 @@ export function marcaSinModelo(texto: string): string | null {
 }
 
 /**
+ * ¿El cliente dijo MARCA + CILINDRADA pero no el modelo? ("Tengo una Zanella 150")
+ *
+ * El hueco que dejó la conv 4525 (18/09): "Zanella 150" no era nada para el
+ * sistema. No resuelve a un modelo (tenemos la ZB 110 y la RX 150, y una
+ * Zanella 150 puede ser cualquiera de las que no tenemos), no es `marcaSinModelo`
+ * —dio la cilindrada— ni `cilindradaSinMarca` —dio la marca— ni
+ * `motoDesconocidaMencionada`, que corta porque "zanella" es marca y no queda
+ * ninguna palabra propia que tomar como nombre. Resultado: la charla entera
+ * corrió como si no hubiera moto en juego, el 150 se leyó como ruido y los
+ * backstops que miran la moto quedaron ciegos.
+ *
+ * Es el mismo caso que `marcaSinModelo`, un escalón más arriba: falta UN dato
+ * —cuál de las de esa marca y cilindrada— y preguntarlo lo consigue. Es
+ * literalmente lo que escribió Martín a mano en esa conversación ("cual zanella
+ * 150 es bro?").
+ *
+ * NO es el caso del 11/09 (conv 3958, "rx 125"): ahí el cliente ya había dicho
+ * modelo Y cilindrada, no faltaba nada que preguntar y se escala. Por eso acá
+ * se exige que NO haya ninguna palabra de contenido: apenas nombra el modelo,
+ * esto devuelve null y el caso sigue su camino de siempre.
+ */
+export function marcaConCilindradaSinModelo(
+    texto: string,
+    opciones: { exigirMarcador?: boolean } = {}
+): string | null {
+    // El cliente la dice en SU mensaje de la rafaga ("...kit 170?" / "Hola" /
+    // "Tengo una Zanella 150" / "se puede poner un cilindro de 200"), y mirado
+    // todo junto el texto tiene diez palabras de contenido. Por eso cada
+    // renglon y cada oracion se miran por separado: el dato esta en uno solo.
+    const partes = (texto || "")
+        .split(/[\n.;!?]+/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+    if (partes.length > 1) {
+        for (const parte of partes) {
+            const hallado = marcaConCilindradaSinModelo(parte, opciones)
+            if (hallado) return hallado
+        }
+        return null
+    }
+
+    const norm = normalizarTexto(texto || "")
+    if (!norm) return null
+
+    const cilindradas = cilindradasEn(norm)
+    if (cilindradas.length !== 1) return null
+
+    const tokens = norm.split(" ").filter(Boolean)
+    const marca = tokens.find((t) => MARCAS_MOTO.has(t))
+    if (!marca) return null
+
+    // Sobre el MENSAJE crudo hace falta un marcador explícito, igual que en
+    // `cilindradaSinMarca` y por el mismo motivo: "para una honda, el kit 120?"
+    // tiene marca y número, pero el número es del kit — sin esto quedaría
+    // registrada una "honda 120" que el cliente nunca dijo, y a partir de ahí
+    // todo lo que hable el bot cae bajo el guardrail de una moto inventada.
+    // Sobre `modelo_moto` (lo que la herramienta ya recibió COMO la moto) no se
+    // exige: ahí el dato ya viene decidido.
+    if (opciones.exigirMarcador) {
+        const diceQueEsSuya = tokens.some((t) => ES_SU_MOTO.has(t))
+        const terminacion = tokens.some((t) => TERMINACIONES_MOTO.has(t))
+        if (!diceQueEsSuya && !terminacion) return null
+    }
+
+    // Igual que en `marcaSinModelo`: cualquier palabra que no sea marca,
+    // relleno o número significa que dijo algo más ("zanella rx 150"), y ahí ya
+    // dio el dato. Las terminaciones tampoco cuentan como modelo ("zanella 150
+    // full" sigue sin decir cuál es).
+    const contenido = tokens.filter(
+        (t) =>
+            !MARCAS_MOTO.has(t) &&
+            !RELLENO.has(t) &&
+            !TERMINACIONES_MOTO.has(t) &&
+            isNaN(Number(t)) &&
+            !/^\d+cc$/.test(t)
+    )
+    if (contenido.length > 0) return null
+
+    return `${marca} ${cilindradas[0]}`
+}
+
+/**
  * Terminaciones con las que se vende una moto. No identifican el modelo (las
  * usan todas las marcas), pero decir una es señal de que se está hablando de
  * una moto y no de un kit.
@@ -593,6 +675,22 @@ export function guiaMarcaSinModelo(marca: string): string {
         `Preguntale con naturalidad cual ${Marca} tiene (ej: "cual ${Marca} tenes?" o "que modelo de ${Marca} es?"). Una sola pregunta, corta.`,
         `NO le recites los modelos que tenemos cargados, NO le pidas la cedula, el manual ni ningun papel, y NO le preguntes nada que ya te haya dicho.`,
         `NO confirmes ni niegues compatibilidad todavia. Cuando te diga el modelo o la cilindrada, volve a consultar con ese dato.`,
+    ].join("\n")
+}
+
+/**
+ * La misma guia para el escalon de arriba: marca + cilindrada, sin modelo
+ * ("Tengo una Zanella 150"). La pregunta lleva la cilindrada adentro porque el
+ * cliente ya la dijo: preguntarle "cual Zanella tenes?" a secas se lee como que
+ * no lo escuchamos. Ver `marcaConCilindradaSinModelo` (conv 4525).
+ */
+export function guiaMarcaConCilindradaSinModelo(motoDicha: string): string {
+    const Moto = marcaLegible(motoDicha)
+    return [
+        `FALTA UN DATO, no escales: el cliente dijo la marca y la cilindrada ("${Moto}") pero no QUE MODELO es, y de esa marca y cilindrada hay varios.`,
+        `Preguntale con naturalidad cual ${Moto} tiene (ej: "cual ${Moto} es?" o "que modelo de ${Moto} tenes?"). Una sola pregunta, corta.`,
+        `NO le recites los modelos que tenemos cargados, NO le pidas la cedula, el manual ni ningun papel, y NO le vuelvas a preguntar la cilindrada: ya te la dijo.`,
+        `NO confirmes ni niegues compatibilidad todavia, y NO le pases ninguna ficha, precio ni producto que dependa de esa moto. Cuando te diga el modelo, volve a consultar con ese dato.`,
     ].join("\n")
 }
 

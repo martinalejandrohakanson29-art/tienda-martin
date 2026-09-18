@@ -9,7 +9,9 @@ import {
     esTypoDe,
     cilindradasEn,
     marcaSinModelo,
+    marcaConCilindradaSinModelo,
     guiaMarcaSinModelo,
+    guiaMarcaConCilindradaSinModelo,
     guiaMarcaSinModeloAgotada,
     MARCAS_MOTO,
     TOPE_REPREGUNTAS_MOTO,
@@ -1349,6 +1351,35 @@ VARIANTE YA DEFINIDA: El cliente ya eligió '${args.variante_elegida}'. Confirm�
                           moto: mejorMatch.modelo_moto,
                           detalle: mejorMatch.detalle,
                       })
+            }
+        }
+
+        // Antes de derivar: ¿lo que dijo es MARCA + CILINDRADA, sin modelo?
+        // ("Tengo una Zanella 150", conv 4525). Ahí no es que la moto no exista
+        // para nosotros — es que todavía no sabemos cuál es, y una pregunta lo
+        // consigue. Va acá abajo de todo a propósito: primero se agotan todos
+        // los caminos que SÍ contestan (fila genérica de cilindrada, familia
+        // unánime, veredicto exacto), así esto no le roba la respuesta a
+        // ninguno. Con el tope de repreguntas agotado, se deriva como siempre.
+        const marcaYCilindrada = marcaConCilindradaSinModelo(args.modelo_moto || "")
+        if (marcaYCilindrada) {
+            const yaPreguntadas = args.__embudo?.repreguntasMoto ?? 0
+            if (yaPreguntadas < TOPE_REPREGUNTAS_MOTO) {
+                return {
+                    encontrado: false,
+                    kit: args.kit_nombre_o_id,
+                    confianza: "marca_sin_modelo",
+                    marca: marcaYCilindrada,
+                    repregunta_moto: true,
+                    mensaje_para_agente: guiaMarcaConCilindradaSinModelo(marcaYCilindrada)
+                }
+            }
+            return {
+                encontrado: false,
+                kit: args.kit_nombre_o_id,
+                confianza: "marca_sin_modelo",
+                marca: marcaYCilindrada,
+                mensaje_para_agente: guiaMarcaSinModeloAgotada(marcaYCilindrada)
             }
         }
 

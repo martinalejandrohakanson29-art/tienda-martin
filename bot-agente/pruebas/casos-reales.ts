@@ -28,6 +28,8 @@ export interface CasoPrueba {
         grupoPineado?: { id: number; nombre: string }
         varianteResuelta?: { packId: number; etiqueta: string; precio: number }
         temasRespondidos?: string[]
+        /** Cuántas veces ya se le repreguntó la moto (el cupo de `TOPE_REPREGUNTAS_MOTO`). */
+        repreguntasMoto?: number
         /** Negativa de compatibilidad que ya se le dio en un turno anterior. */
         negativaEntregada?: { moto: string; kit: string; detalle: string; en: string }
     }
@@ -2069,8 +2071,8 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         // `afirmaCompatibilidad` ("le va", "es compatible") y el texto no usa
         // ninguna de esas formas. Ahora, cuando lo derivado ES la compat, el
         // detector es el ancho (ver el backstop en motor.ts).
-        id: "caso-93-compat-derivada-no-habilita-ofrecer-otro-kit",
-        titulo: "Deriva la compat de la moto y aun asi le ofrece otro kit: silencio total (conv 4525)",
+        id: "caso-93-marca-y-cilindrada-sin-modelo-se-repregunta",
+        titulo: "Dice marca + cilindrada sin modelo ('Tengo una Zanella 150'): pregunta cual es (conv 4525)",
         mensajeCliente:
             "¡Hola! Quiero más información SOBRE EL KIT 170 + LEVA DE CALLE DE 7.80?\nHola\nTengo una Zanella 150\nSe puede poner un cilindro de 200",
         referralAnuncio: {
@@ -2078,10 +2080,49 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             cuerpo: "Aprovecha este combo"
         },
         resultadoEsperado: {
+            // El escalado y el silencio quedan libres a propósito. Lo que se
+            // verifica es lo que NO puede pasar: que le llegue el kit 200 con
+            // su precio sin que sepamos cuál es su moto. Si contesta, lo que
+            // corresponde es preguntarle cuál Zanella es; si no llega a
+            // preguntar, la salida segura es callarse y derivar.
+            // Ni el kit 200 con su precio (depende de la moto que todavia no
+            // sabemos cual es) ni papeles ni recitar los modelos cargados.
+            patronProhibido: /167|c[ée]dula|manual|chasis|rx 150|zb 110/i,
+            descripcionEsperada:
+                "Falta UN dato —cual Zanella 150— y preguntarlo lo consigue: repregunta corta en vez de escalar mudo. PROHIBIDO pasarle el kit 200 con precio, afirmar que su moto es varillera, recitar los modelos cargados o pedirle papeles."
+        }
+    },
+    {
+        // La contracara del 93, y el caso de la conv 4525 tal cual fue: ya se le
+        // pregunto el tope de veces y sigue sin precisar el modelo. Ahi la
+        // repregunta se termina y vuelve el silencio — pero lo que motivo el fix
+        // es lo OTRO que hacia el turno: derivada la compat, seguia hablando y
+        // le mandaba el Dakar 200 con sus $167.000 ("Sobre el 200, si, para
+        // varillero tenemos este kit potenciado"). Ninguna herramienta confirmo
+        // que su Zanella sea varillera.
+        //
+        // El backstop del escalado parcial no lo veia porque miraba solo
+        // `afirmaCompatibilidad` ("le va", "es compatible"). Ahora, cuando lo
+        // derivado ES la compat, mira el hecho: un producto con precio enfrente
+        // ya es la afirmacion.
+        id: "caso-94-compat-derivada-no-habilita-ofrecer-otro-kit",
+        titulo: "Agotada la repregunta, deriva la compat y aun asi le ofrece otro kit: silencio total (conv 4525)",
+        mensajeCliente: "Tengo una Zanella 150\nSe puede poner un cilindro de 200",
+        estadoInicial: {
+            repreguntasMoto: 2,
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL KIT 170 + LEVA DE CALLE DE 7.80?" },
+            { rol: "assistant", contenido: "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\n\nA que moto se lo queres poner?" },
+            { rol: "user", contenido: "una zanella" },
+            { rol: "assistant", contenido: "Cual Zanella tenes?" }
+        ],
+        resultadoEsperado: {
             debeEscalarHumano: true,
             debeGuardarSilencio: true,
             descripcionEsperada:
-                "La compat de la Zanella 150 no consta y se deriva: nada de lo que dependa de esa moto puede salir. PROHIBIDO ofrecerle el kit 200 (ni con precio ni como 'para varillero tenemos'), y la ficha del anuncio tampoco sale sola."
+                "Ya se le pregunto el tope de veces: la compat de esa moto se deriva y nada de lo que dependa de ella puede salir. PROHIBIDO ofrecerle el kit 200 (ni con precio ni como 'para varillero tenemos') y prohibido volver a preguntarle la moto."
         }
     }
 ]

@@ -883,6 +883,47 @@ export function presentaPrecioDeProducto(texto: string | null | undefined): bool
     return /\$\s?\d/.test((texto || "").trim())
 }
 
+/**
+ * La oración con la que el globo le PREGUNTA cuál es su moto, si está.
+ *
+ * Sirve para rescatarla cuando el resto del globo se cae (ver el backstop de la
+ * repregunta en el motor): el modelo suele pegar la ficha y la pregunta en un
+ * solo mensaje —"...$167.000. Cual Zanella 150 tenes?"— y de los dos, el que
+ * tiene que llegar es el segundo.
+ *
+ * Se reconoce por el nombre de la moto que la herramienta pidió repreguntar o
+ * por la forma de la pregunta ("qué modelo tenés?", "cuál es?"): el modelo a
+ * veces la escribe sin repetir el nombre y anclarse solo a él dejaba mudos la
+ * mitad de los turnos. Lo que NO alcanza es cualquier pregunta: "querés que te
+ * pase el precio?" no es esto, y pasarla sería ofrecer sin saber la moto.
+ */
+export function oracionQuePreguntaLaMoto(
+    texto: string | null | undefined,
+    moto: string | null | undefined
+): string | null {
+    const t = (texto || "").trim()
+    if (!t) return null
+    const partes = normalizarTexto(moto || "")
+        .split(" ")
+        .filter((p) => p.length > 3 && !/^\d+$/.test(p))
+
+    // La forma de preguntar por el modelo, sin el nombre: "que modelo tenes?",
+    // "cual es?", "que moto es?". Pide el dato, no ofrece nada.
+    const RX_PIDE_EL_MODELO =
+        /\b(qu[eé]|cu[aá]l)\b[^.!?\n]{0,40}\b(modelo|moto|versi[oó]n|cilindrada)\b|\b(modelo|versi[oó]n)\b[^.!?\n]{0,20}\b(ten[eé]s|es|tiene)\b|\bcu[aá]l\b[^.!?\n]{0,15}\b(es|ten[eé]s|ser[ií]a)\b/i
+
+    for (const linea of t.split(/\n/)) {
+        for (const oracion of linea.split(/(?<=[.!?])\s+/)) {
+            const limpia = oracion.trim()
+            if (!limpia.includes("?") || presentaPrecioDeProducto(limpia)) continue
+            const norm = normalizarTexto(limpia)
+            if (partes.some((p) => norm.includes(p))) return limpia
+            if (RX_PIDE_EL_MODELO.test(limpia)) return limpia
+        }
+    }
+    return null
+}
+
 export function sanitizarMensajeSalida(
     texto: string | null | undefined,
     opciones: OpcionesSanitizacion = {}

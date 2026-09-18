@@ -95,7 +95,7 @@ moto=110  obj=-     prod=120  conv=-    · De donde sos El kit de 120 le va al w
 moto=150  obj=-     prod=190  conv=-    · ¡Hola! Quiero más información del kit190cc Para titán Precio del 220cc
 moto=-    obj=-     prod=-    conv=-    · Cuánto sería en total Completa? Ah mi moto 125
 moto=-    obj=-     prod=120  conv=-    · En el kit 120
-moto=-    obj=-     prod=-    conv=-    · Un motomel dlx 110
+moto=110  obj=-     prod=-    conv=-    · Un motomel dlx 110
 moto=-    obj=-     prod=-    conv=-    · A una 110
 moto=-    obj=-     prod=-    conv=-    · A un dax echo recorrido cortó 110
 moto=-    obj=-     prod=100  conv=-    · Vi que tienen un combo cilindro leva en 100 puede ser Sin la tapa
@@ -119,7 +119,7 @@ moto=-    obj=-     prod=125  conv=-    · Tenés el kit completo de 125 para 11
 moto=-    obj=-     prod=-    conv=-    · Le anda ala 150 bro
 moto=-    obj=-     prod=120  conv=-    · y el kit 120
 moto=-    obj=-     prod=120  conv=-    · y el kit 120 keller
-moto=-    obj=-     prod=-    conv=-    · Una Motomel Dlx 110
+moto=110  obj=-     prod=-    conv=-    · Una Motomel Dlx 110
 moto=-    obj=-     prod=-    conv=-    · A un 110
 moto=-    obj=125   prod=110  conv=-    · Hola kit de 110 pára pasar a 125 tiene?
 moto=-    obj=-     prod=-    conv=-    · O precio del juego de carbu125 con su admisión y trasmicion 15 34
@@ -133,3 +133,4 @@ moto=-    obj=-     prod=-    conv=-    · Hola buenas tardes Tengo una corven 1
 moto=70   obj=110   prod=-    conv=70->110 · No yo tengo una motomel eco 70 ando buscando la sala de 70 a 110 si se puede o a 100 Ah Bueno pensé que venía algo de es
 moto=-    obj=-     prod=-    conv=-    · Es para un 110
 moto=-    obj=-     prod=-    conv=-    · Es para un 110 Y si te lo pido cuando llegaría a Ezeiza partido de trisan Suárez barrio el paso
+moto=150  obj=-     prod=-    conv=-    · Tengo una Zanella 150

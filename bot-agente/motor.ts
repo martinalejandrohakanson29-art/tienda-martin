@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto, presentaPrecioDeProducto } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto, presentaPrecioDeProducto, oracionQuePreguntaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
@@ -21,7 +21,7 @@ import {
     guiaCondicionSuperada,
     guiaNegativaYaEntregada
 } from "./nucleo/negativa-condicional"
-import { resolverMoto, cilindradaSinMarca, motoDesconocidaMencionada, guiaMotoDesconocida } from "./nucleo/motos"
+import { resolverMoto, cilindradaSinMarca, marcaConCilindradaSinModelo, motoDesconocidaMencionada, guiaMotoDesconocida } from "./nucleo/motos"
 import {
     cargarEstadoConversacion,
     guardarEstadoConversacion,
@@ -1270,9 +1270,20 @@ export async function ejecutarTurnoAgente(
                                 `Esa ficha YA le dio el precio y el envio DE ESE combo ("${matchPlantilla.nombre}"): no repitas esos datos. ` +
                                 `Si te pregunta por OTRO producto, ese precio no salio todavia — daselo. ` +
                                 `Si lo unico que preguntaba era el precio o el envio de ESE combo, ya esta contestado — no mandes nada mas. ` +
-                                (textoFinal.includes("?") && /moto/i.test(textoFinal)
-                                    ? `La ficha que ya salió cierra preguntandole la moto, asi que NO se la vuelvas a preguntar: quedaria preguntada dos veces seguidas.]`
-                                    : `]`)
+                                // Excepción: el cliente YA dijo una moto, pero
+                                // dijo marca y cilindrada sin el modelo ("Tengo
+                                // una Zanella 150", conv 4525). Ahí prohibir la
+                                // pregunta lo deja sin salida — no puede
+                                // confirmar nada ni preguntar lo que falta— y el
+                                // turno termina hablando de productos sobre una
+                                // moto que no sabemos cuál es. No es repetir la
+                                // pregunta: la ficha preguntó QUÉ moto y esto
+                                // pregunta CUÁL de esas.
+                                (marcaConCilindradaSinModelo(mensajeUsuario, { exigirMarcador: true })
+                                    ? `El cliente ya dijo su moto pero solo la marca y la cilindrada, sin el modelo: preguntale CUAL es (una sola pregunta, corta) y no le pases ninguna ficha, precio ni producto hasta saberlo.]`
+                                    : textoFinal.includes("?") && /moto/i.test(textoFinal)
+                                      ? `La ficha que ya salió cierra preguntandole la moto, asi que NO se la vuelvas a preguntar: quedaria preguntada dos veces seguidas.]`
+                                      : `]`)
                         },
                         { rol: "user", contenido: mensajeUsuario },
                         { rol: "assistant", contenido: textoFinal }
@@ -1638,7 +1649,15 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
     // La moto desconocida también es una moto en juego: no sabemos qué es, pero
     // sabemos que todo lo que digamos de acá en más es SOBRE ella. Así viaja al
     // aviso del catálogo y al backstop, igual que `cilindradaSinMarca`.
-    const motoDelTurno = motoDelMensajeTurno || cilindradaSinMarca(mensajeUsuario) || motoDesconocidaDelTurno
+    // Marca + cilindrada sin modelo ("Tengo una Zanella 150", conv 4525) es el
+    // tercer sabor de lo mismo: no resuelve a un modelo, pero es su moto y todo
+    // lo que se diga de acá en más es sobre ella. Sin esto la charla corría sin
+    // moto en juego y los backstops que la miran quedaban ciegos.
+    const motoDelTurno =
+        motoDelMensajeTurno ||
+        cilindradaSinMarca(mensajeUsuario) ||
+        marcaConCilindradaSinModelo(mensajeUsuario, { exigirMarcador: true }) ||
+        motoDesconocidaDelTurno
     const motoVigenteDeLaCharla = motoDelTurno || estadoConv.motoMencionada || estadoConv.motoConfirmada || null
     if (motoDelTurno && motoDelTurno !== estadoConv.motoMencionada) {
         patchEstado.motoMencionada = motoDelTurno
@@ -1999,6 +2018,95 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                 }
             }
 
+            /**
+             * BACKSTOP DE LA REPREGUNTA: mientras le preguntamos CUÁL es su
+             * moto, no le ponemos un producto con precio enfrente.
+             *
+             * Conv 4525 (18/09): con la Zanella 150 sin resolver, el bot
+             * pregunta "cual Zanella 150 tenes?" —lo correcto— y en el mismo
+             * turno le manda la ficha del Dakar 200 con sus $167.000. Las dos
+             * cosas juntas se contradicen: si todavía no sabemos qué moto es,
+             * ese kit no se le puede estar ofreciendo.
+             *
+             * La guía de la herramienta ya se lo prohíbe, pero el catálogo le
+             * ordena al mismo tiempo mandar la ficha oficial "tal cual", y esa
+             * orden gana.
+             *
+             * El corte es por regla, no por lista de frases: mientras hay una
+             * repregunta de moto pendiente, lo ÚNICO que sale es la pregunta.
+             * Filtrando frase por frase se escapaban todas las formas de decir
+             * lo mismo —"esa es la otra opción que tenemos para el 200, te la
+             * paso", "si, se puede pasar a 200"— y cada una pedía su regex. Lo
+             * que las une es el estado: sin saber qué moto es, NADA de lo que
+             * se diga sobre un producto vale. Se pierde algún dato que no
+             * dependía de la moto (el envío, la demora), y es un precio barato
+             * al lado del silencio total que había antes.
+             *
+             * Si no hay ninguna pregunta que rescatar, no queda nada que decir:
+             * el turno va mudo a la bandeja, la salida segura de siempre.
+             *
+             * La ficha del anuncio NO pasa por acá: la rama de la plantilla la
+             * emite como globo propio antes del sub-turno (decisión del 09/09,
+             * la ficha del aviso sale igual).
+             */
+            const pidioRepreguntarLaMoto = herramientasEjecutadas.some(
+                (ej) => ej.resultado?.repregunta_moto === true
+            )
+            if (pidioRepreguntarLaMoto) {
+                // La moto que la herramienta pidió repreguntar ("zanella 150"):
+                // es lo que ancla cuál de las oraciones es LA pregunta.
+                const motoARepreguntar = herramientasEjecutadas
+                    .map((ej) => (ej.resultado?.repregunta_moto === true ? String(ej.resultado?.marca || "") : ""))
+                    .find(Boolean)
+                const laPregunta = mensajesFinalesSanitizados
+                    .map((globo) => oracionQuePreguntaLaMoto(globo, motoARepreguntar))
+                    .find(Boolean)
+                if (laPregunta) {
+                    if (mensajesFinalesSanitizados.length > 1 || mensajesFinalesSanitizados[0] !== laPregunta) {
+                        console.warn(
+                            "[motor] se recorta el turno a la pregunta por la moto: todavía no sabemos cuál es"
+                        )
+                    }
+                    mensajesFinalesSanitizados.length = 0
+                    mensajesFinalesSanitizados.push(laPregunta)
+                } else {
+                    console.warn("[motor] no hay pregunta que rescatar y todavía no sabemos cuál es su moto")
+                    mensajesFinalesSanitizados.length = 0
+                }
+                if (mensajesFinalesSanitizados.length === 0) {
+                    const motivo = "moto_no_registrada"
+                    const resumen = `El turno iba a hablar de productos mientras todavía no sabemos cuál es su moto, y no llegó a preguntárselo (el cliente escribió: "${mensajeUsuario.slice(0, 160)}").`
+                    if (!escaladoPersistido) {
+                        const resultadoEscalado = await escalarAHumano({
+                            motivo,
+                            resumen_consulta: resumen,
+                            conversation_id: opciones.conversationId
+                        }).catch((err) => {
+                            console.error("[motor] fallo al persistir el backstop de la repregunta:", err)
+                            return null
+                        })
+                        escaladoPersistido = Boolean(resultadoEscalado)
+                        herramientasEjecutadas.push({
+                            nombre: "escalar_a_humano",
+                            argumentos: { motivo, resumen_consulta: resumen },
+                            resultado: resultadoEscalado || { escalado: true, motivo, resumen }
+                        })
+                    }
+                    anotarEscaladoPendiente(motivo, resumen)
+                    await persistirEstado()
+                    return {
+                        mensajeFinal: null,
+                        mensajesFinales: [],
+                        herramientasEjecutadas,
+                        escaladoHumano: true,
+                        motivoEscalado: motivo,
+                        escaladoPersistido,
+                        latenciaMs: Date.now() - inicio,
+                        tokensUsados: tokensTotales
+                    }
+                }
+            }
+
             const mensajeFinalUnificado = mensajesFinalesSanitizados.join("\n\n---\n\n")
 
             // El kit que queda en la memoria tiene que ser el que el cliente
@@ -2172,7 +2280,14 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                 const afirmaAlgoSobreSuMoto =
                     afirmaCompatibilidad(mensajeFinalUnificado) ||
                     afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
-                    ofreceProductosParaLaMoto(mensajeFinalUnificado, nombreMoto)
+                    ofreceProductosParaLaMoto(mensajeFinalUnificado, nombreMoto) ||
+                    // Pasarle un producto CON PRECIO es afirmar lo mismo sin
+                    // decirlo: "esto es para vos". En la conv 4525 el turno que
+                    // ni siquiera consultó compatibilidad le mandó la ficha del
+                    // Dakar 200 con sus $167.000 a una Zanella 150 que no
+                    // sabíamos cuál era, y ninguno de los tres detectores de
+                    // arriba lo veía porque no usó ninguna de esas formas.
+                    presentaPrecioDeProducto(mensajeFinalUnificado)
                 if (nombreMoto && afirmaAlgoSobreSuMoto) {
                     console.warn(`[motor] backstop de la moto: el mensaje afirmaba sobre "${nombreMoto}" sin compatibilidad confirmada`)
                     const motivo = "compatibilidad_dudosa"
@@ -2466,10 +2581,21 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
 
                 // 2. REGLA DETERMINISTA DE ORO: Si consultó compatibilidad y NO se encontró,
                 //    se escala en silencio Y se persiste el pendiente linkeado a la conversación.
+                //
+                //    Excepción: cuando la herramienta PIDIÓ repreguntar la moto
+                //    (`repregunta_moto`), no falta la moto en el registro: falta
+                //    que el cliente diga cuál es, y preguntarlo lo consigue.
+                //    `resolver_variante` ya lo respetaba (conv 3947, marca
+                //    sola), pero por este lado se escalaba igual: si el modelo
+                //    llamaba `consultar_compatibilidad` en vez de la otra, la
+                //    repregunta moría acá y el turno se iba mudo. El tope vive
+                //    en la herramienta: agotado, deja de pedir repregunta y
+                //    esto vuelve a derivar solo.
                 if (
                     call.function.name === "consultar_compatibilidad" &&
                     ejecucion.resultado?.encontrado === false &&
-                    ejecucion.resultado?.confianza !== "parcial"
+                    ejecucion.resultado?.confianza !== "parcial" &&
+                    ejecucion.resultado?.repregunta_moto !== true
                 ) {
                     const moto = ejecucion.argumentos?.modelo_moto || "desconocida"
                     motivoEscalado = `moto_no_registrada: ${moto}`

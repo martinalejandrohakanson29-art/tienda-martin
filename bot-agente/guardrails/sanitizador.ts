@@ -861,6 +861,28 @@ export function ofreceProductosParaLaMoto(
     )
 }
 
+/**
+ * ¿El mensaje le PONE UN PRODUCTO ENFRENTE? (una ficha, un precio, un combo)
+ *
+ * Los tres detectores de arriba buscan una FORMA de afirmar ("le va",
+ * "tenemos X para tu moto"). El modelo dice lo mismo de mil maneras que no
+ * son ninguna de esas: en la conv 4525, con la compat de la Zanella 150 ya
+ * derivada, salió *"Esa es la otra opción, te la paso:"* y en otra vuelta
+ * *"Si, hay un kit de 200 varillero armado. Te paso la info:"*, las dos
+ * seguidas de la ficha del Dakar 200 con sus $167.000. Perseguir esas frases
+ * con regex es una carrera perdida.
+ *
+ * Lo que no varía es el hecho: al cliente le llegó un producto con su precio.
+ * Cuando lo que derivamos fue justo si a su moto le entra algo, ESO es la
+ * afirmación — la ficha con precio se lee "esto es para vos" (el mismo
+ * criterio que el silencio de la conv 4351). Por eso el detector mira el
+ * precio, que es la marca inconfundible de que se presentó un producto, y no
+ * la redacción que lo envuelve.
+ */
+export function presentaPrecioDeProducto(texto: string | null | undefined): boolean {
+    return /\$\s?\d/.test((texto || "").trim())
+}
+
 export function sanitizarMensajeSalida(
     texto: string | null | undefined,
     opciones: OpcionesSanitizacion = {}

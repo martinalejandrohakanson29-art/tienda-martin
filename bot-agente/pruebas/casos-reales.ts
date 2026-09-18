@@ -2054,5 +2054,34 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             descripcionEsperada:
                 "El equipo ya cargo que el Kit 120 NO le va a la Econo 80: el bot lo dice con la letra de la casa. PROHIBIDO ofrecerle otro kit como reemplazo (ninguno es para un motor de 80) y prohibido derivar algo que ya esta contestado."
         }
+    },
+    {
+        // Conv 4525 (18/09, +5493757586037). Entro por el anuncio del Kit 170 y
+        // la rafaga siguio con *"Tengo una Zanella 150"* + *"Se puede poner un
+        // cilindro de 200"*. `consultar_compatibilidad("Zanella 150")` volvio
+        // sin fila -> escalado en silencio por moto_no_registrada, correcto. Y
+        // el mismo turno siguio hablando: mando la ficha del 170 con su precio
+        // y ademas *"Sobre el 200, si, para varillero tenemos este kit
+        // potenciado"* con el Dakar 200 y sus $167.000. Le afirmo dos cosas que
+        // nadie confirmo: que su Zanella es varillera y que le vendemos eso.
+        //
+        // El backstop del escalado parcial no lo veia porque miraba solo
+        // `afirmaCompatibilidad` ("le va", "es compatible") y el texto no usa
+        // ninguna de esas formas. Ahora, cuando lo derivado ES la compat, el
+        // detector es el ancho (ver el backstop en motor.ts).
+        id: "caso-93-compat-derivada-no-habilita-ofrecer-otro-kit",
+        titulo: "Deriva la compat de la moto y aun asi le ofrece otro kit: silencio total (conv 4525)",
+        mensajeCliente:
+            "¡Hola! Quiero más información SOBRE EL KIT 170 + LEVA DE CALLE DE 7.80?\nHola\nTengo una Zanella 150\nSe puede poner un cilindro de 200",
+        referralAnuncio: {
+            titulo: "POTENCIA TU VARILLERO A 170CC!",
+            cuerpo: "Aprovecha este combo"
+        },
+        resultadoEsperado: {
+            debeEscalarHumano: true,
+            debeGuardarSilencio: true,
+            descripcionEsperada:
+                "La compat de la Zanella 150 no consta y se deriva: nada de lo que dependa de esa moto puede salir. PROHIBIDO ofrecerle el kit 200 (ni con precio ni como 'para varillero tenemos'), y la ficha del anuncio tampoco sale sola."
+        }
     }
 ]

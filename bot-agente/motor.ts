@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto, presentaPrecioDeProducto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
@@ -2023,14 +2023,36 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
              * Un `consulta_tecnica` por un dato suelto (la marca del cilindro)
              * NO cae aca si la compat salio de una herramienta: ese es
              * exactamente el caso que el escalado parcial viene a rescatar.
+             *
+             * Cuando lo derivado ERA la compat, el detector es el ancho: no
+             * alcanza con mirar "le va / es compatible". En la conv 4525
+             * (18/09, Zanella 150) se derivo la compat del kit 170 y el mismo
+             * turno siguio con *"Sobre el 200, si, para varillero tenemos este
+             * kit potenciado"* + precio. No dice "le entra", pero le esta
+             * afirmando que su moto es varillera y que le vendemos eso: la
+             * misma afirmacion sin dato, en su version comercial. El backstop
+             * de la moto (mas abajo) si la ve con `afirmaTenerParaSuMoto`,
+             * pero exige un nombre de moto resuelto y "Zanella 150" —marca +
+             * cilindrada, sin modelo— no resuelve a nada, asi que quedaba
+             * ciego. Fuera de la compat el detector sigue siendo el de antes,
+             * para no mutear los parciales que el escalado vino a rescatar.
              */
             const motivoBaseEscalado = (motivoEscalado || "").split(":")[0].trim().toLowerCase()
             const loDerivadoEraLaCompat =
                 motivoBaseEscalado === "moto_no_registrada" || motivoBaseEscalado === "compatibilidad_dudosa"
             const compatConfirmadaPorHerramienta = tieneVeredictoCompatibilidad(herramientasEjecutadas)
+            const afirmaSobreLoDerivado = loDerivadoEraLaCompat
+                ? afirmaCompatibilidad(mensajeFinalUnificado) ||
+                  afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
+                  ofreceProductosParaLaMoto(mensajeFinalUnificado, motoVigenteDeLaCharla) ||
+                  // El hecho, no la redaccion: si ninguna herramienta confirmo
+                  // compat en este turno y el mensaje igual le pone un producto
+                  // con precio enfrente, eso YA es la afirmacion que derivamos.
+                  (!compatConfirmadaPorHerramienta && presentaPrecioDeProducto(mensajeFinalUnificado))
+                : afirmaCompatibilidad(mensajeFinalUnificado)
             if (
                 escaladoParcial &&
-                afirmaCompatibilidad(mensajeFinalUnificado) &&
+                afirmaSobreLoDerivado &&
                 (loDerivadoEraLaCompat || !compatConfirmadaPorHerramienta)
             ) {
                 console.warn("[motor] escalado parcial abortado: el mensaje afirmaba compatibilidad justo sobre lo derivado")

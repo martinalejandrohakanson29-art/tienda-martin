@@ -3,7 +3,7 @@ import { definicionesHerramientas, ejecutarHerramienta } from "./herramientas"
 import { escalarAHumano } from "./herramientas/escalar-humano"
 import { admiteRespuestaParcial } from "./nucleo/motivos-escalado"
 import { PROMPT_SISTEMA_AGENTE } from "./prompts/sistema"
-import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto, presentaPrecioDeProducto, oracionQuePreguntaLaMoto } from "./guardrails/sanitizador"
+import { sanitizarMensajeSalida, pareceRespuestaNoConfiable, quitarOracionesYaDichas, quitarHechosYaDichos, extraerHechos, quitarDerivacionAnunciada, quitarNegativaSobreLoDerivado, oracionesQueNieganVentaSuelta, quitarOraciones, afirmaCompatibilidad, afirmaTenerParaSuMoto, ofreceProductosParaLaMoto, presentaPrecioDeProducto, cuentaProductosNombrados, oracionQuePreguntaLaMoto } from "./guardrails/sanitizador"
 import { obtenerConfiguracionAgente, ConfiguracionAgente } from "./configuracion"
 import { detectarSituaciones, formatearBloqueSituaciones } from "./situaciones"
 import { esConsultaCoberturaEnvio } from "./herramientas/info-negocio"
@@ -14,7 +14,7 @@ import { conversionDesdeMotorAjeno } from "./nucleo/conversion-pedida"
 import { empaquetarLectura, leerNumeros, lecturaYaHecha } from "./nucleo/numeros-del-mensaje"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
 import { coincideIntencionDirecta } from "./nucleo/afirmaciones"
-import { mismaConsultaCompatibilidad, tieneVeredictoCompatibilidad } from "./nucleo/consulta-compatibilidad"
+import { mismaConsultaCompatibilidad, tieneVeredictoCompatibilidad, algunProductoLeVa } from "./nucleo/consulta-compatibilidad"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
 import {
     condicionSuperada,
@@ -2234,6 +2234,31 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
             const loDerivadoEraLaCompat =
                 motivoBaseEscalado === "moto_no_registrada" || motivoBaseEscalado === "compatibilidad_dudosa"
             const compatConfirmadaPorHerramienta = tieneVeredictoCompatibilidad(herramientasEjecutadas)
+
+            /**
+             * El MENÚ que el turno le puso enfrente: los productos que devolvió
+             * el catálogo en este turno y que el cliente todavía NO vio.
+             *
+             * Es el complemento del precio para el Paso 1, que a propósito va
+             * sin precios: ver `cuentaProductosNombrados`. El que ya está en el
+             * embudo queda afuera porque hablar de él es seguir la charla, no
+             * ofrecerle algo nuevo sin saber si le entra.
+             */
+            const productosNuevosDelTurno = herramientasEjecutadas
+                .filter((ej) => ej.nombre === "consultar_catalogo_y_precios")
+                .flatMap((ej) => [
+                    ...((ej.resultado?.grupos || []) as { id?: number; nombre?: string }[]).filter(
+                        (g) => g?.id !== estadoConv.grupoPineado?.id
+                    ),
+                    ...((ej.resultado?.packs || []) as { id?: number; nombre?: string }[]).filter(
+                        (p) => p?.id !== estadoConv.packPresentado?.id
+                    )
+                ])
+                .map((p) => p?.nombre || "")
+            const leMandoUnMenuDeProductos =
+                !compatConfirmadaPorHerramienta &&
+                cuentaProductosNombrados(mensajeFinalUnificado, productosNuevosDelTurno) >= 2
+
             const afirmaSobreLoDerivado = loDerivadoEraLaCompat
                 ? afirmaCompatibilidad(mensajeFinalUnificado) ||
                   afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
@@ -2241,7 +2266,8 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                   // El hecho, no la redaccion: si ninguna herramienta confirmo
                   // compat en este turno y el mensaje igual le pone un producto
                   // con precio enfrente, eso YA es la afirmacion que derivamos.
-                  (!compatConfirmadaPorHerramienta && presentaPrecioDeProducto(mensajeFinalUnificado))
+                  (!compatConfirmadaPorHerramienta && presentaPrecioDeProducto(mensajeFinalUnificado)) ||
+                  leMandoUnMenuDeProductos
                 : afirmaCompatibilidad(mensajeFinalUnificado)
             if (
                 escaladoParcial &&
@@ -2395,17 +2421,50 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                           mensajeUsuario.slice(0, 60)
                         : null
                 const nombreMoto = nombreMotoDelTurno || motoVigenteDeLaCharla || null
+                /**
+                 * El menú del Paso 1 no afirma nada por sí solo: pregunta cuál
+                 * de las opciones busca. Lo que lo vuelve una afirmación es que
+                 * NINGUNA de las opciones le entre a la moto que hay en juego
+                 * (la Wave del caso 96: los tres combos del 120 piden alesar
+                 * los cárteres). Eso lo resuelve el motor contra la tabla, sin
+                 * LLM: ver `algunProductoLeVa`. Prohibir el menú cada vez que
+                 * no se consultó compat derivaría toda consulta de precio con
+                 * la moto en el mismo mensaje, que es el costo que no se paga.
+                 */
+                const algunaOpcionDelMenuLeVa =
+                    leMandoUnMenuDeProductos && nombreMoto
+                        ? // Un error de base no puede convertirse en una tanda de
+                          // derivaciones: ante la duda el menú se considera bueno.
+                          await algunProductoLeVa(nombreMoto, productosNuevosDelTurno).catch(() => true)
+                        : false
+                const menuSinNingunaOpcionQueLeVa =
+                    leMandoUnMenuDeProductos && Boolean(nombreMoto) && !algunaOpcionDelMenuLeVa
                 const afirmaAlgoSobreSuMoto =
                     afirmaCompatibilidad(mensajeFinalUnificado) ||
-                    afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
-                    ofreceProductosParaLaMoto(mensajeFinalUnificado, nombreMoto) ||
+                    // Los dos detectores de FORMA se apagan cuando el menú es
+                    // legítimo: se disparan con la enumeración misma ("el 120 lo
+                    // manejamos en tres combos" matchea "manejamos … combos"),
+                    // donde el sujeto es el KIT y no la moto. Era la otra mitad
+                    // de la inestabilidad del caso 19. `afirmaCompatibilidad` y
+                    // el precio siguen contando: son afirmaciones puntuales, y
+                    // el Paso 1 tiene prohibido dar precios de entrada.
+                    (!algunaOpcionDelMenuLeVa &&
+                        (afirmaTenerParaSuMoto(mensajeFinalUnificado) ||
+                            ofreceProductosParaLaMoto(mensajeFinalUnificado, nombreMoto))) ||
                     // Pasarle un producto CON PRECIO es afirmar lo mismo sin
                     // decirlo: "esto es para vos". En la conv 4525 el turno que
                     // ni siquiera consultó compatibilidad le mandó la ficha del
                     // Dakar 200 con sus $167.000 a una Zanella 150 que no
                     // sabíamos cuál era, y ninguno de los tres detectores de
                     // arriba lo veía porque no usó ninguna de esas formas.
-                    presentaPrecioDeProducto(mensajeFinalUnificado)
+                    presentaPrecioDeProducto(mensajeFinalUnificado) ||
+                    // Y el menú del Paso 1, que es la misma jugada sin precios:
+                    // "el kit 120 para Wave lo tenemos en tres versiones, cuál
+                    // buscás?" con los tres nombres abajo, a una Wave a la que
+                    // no le entra ninguno. Ver `cuentaProductosNombrados`: la
+                    // regex de `ofreceProductosParaLaMoto` no cruza el salto de
+                    // línea y eso pasaba 2 de cada 3 veces.
+                    menuSinNingunaOpcionQueLeVa
                 if (nombreMoto && afirmaAlgoSobreSuMoto) {
                     console.warn(`[motor] backstop de la moto: el mensaje afirmaba sobre "${nombreMoto}" sin compatibilidad confirmada`)
                     const motivo = "compatibilidad_dudosa"

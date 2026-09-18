@@ -361,9 +361,21 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
         }
     },
     {
+        // La moto era una "wave" hasta el 18/09, y el caso venía fallando de a
+        // ratos (2 de 3 corridas) por una razón que no tiene nada que ver con
+        // lo que viene a probar: al kit 120 NO le va la Wave —ninguno de los
+        // tres combos, hay que alesar los cárteres (`fix-compat-wave-nf`, que
+        // es POSTERIOR a este caso)— así que cuando el modelo tiraba el menú
+        // del Paso 1 nombrando la moto, el backstop de la moto lo ataja y
+        // deriva. Bien atajado: le estaba ofreciendo elegir entre tres kits que
+        // no le entran a su moto.
+        //
+        // Este caso prueba la RÁFAGA (tres globos, tres temas), así que la moto
+        // pasa a una a la que el 120 sí le va y la pareja moto+kit incompatible
+        // se prueba donde corresponde, en el caso 96.
         id: "caso-19-rafaga-compuesta-3-temas",
         titulo: "Ráfaga con 3 temas distintos (Precio kit 120 + Envíos Jujuy + Confianza/Estafa)",
-        mensajeCliente: "Hola cuanto sale el kit 120 para wave?\nHacen envios a Jujuy?\nY como se que es seguro y no es una estafa?",
+        mensajeCliente: "Hola cuanto sale el kit 120 para smash?\nHacen envios a Jujuy?\nY como se que es seguro y no es una estafa?",
         resultadoEsperado: {
             debeLlamarHerramientas: ["consultar_catalogo_y_precios", "consultar_info_negocio"],
             debeEscalarHumano: false,
@@ -2123,6 +2135,73 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             debeGuardarSilencio: true,
             descripcionEsperada:
                 "Ya se le pregunto el tope de veces: la compat de esa moto se deriva y nada de lo que dependa de ella puede salir. PROHIBIDO ofrecerle el kit 200 (ni con precio ni como 'para varillero tenemos') y prohibido volver a preguntarle la moto."
+        }
+    },
+    {
+        // Conv 4538 (18/09, +5493815573197). La compat de la Motomel S2 150 con
+        // el Kit 170 ya estaba confirmada por la herramienta un turno antes
+        // ("va perfecto en la S2 150 sin modificar nada"). Despues el cliente
+        // solo repregunto de donde somos, y el turno —correcto: "Sisi, de
+        // Cordoba capital. Asi que si te queda comodo pasas por el local, y si
+        // no te lo mandamos"— se descarto entero y se derivo como
+        // `compatibilidad_dudosa`.
+        //
+        // La causa no era el dato (estaba cargado y consultado) sino
+        // `afirmaCompatibilidad`: el patron de `queda` no exigia complemento,
+        // asi que "te queda comodo" (la direccion del local) se leia como "le
+        // queda bien" (la moto) y el backstop de la moto tiraba el turno. El
+        // costo real fue mas grande: el escalado pauso el bot y el mensaje
+        // siguiente del cliente —"tendria q abonar ahora para q me lo
+        // manden?"— quedo mudo.
+        id: "caso-95-ubicacion-no-es-compatibilidad",
+        titulo: "Moto ya confirmada + pregunta de ubicacion: se contesta, no se deriva (conv 4538)",
+        mensajeCliente: "A son de Córdoba ustedes",
+        estadoInicial: {
+            motoConfirmada: "Motomel S2 150",
+            packPresentado: { id: 11, nombre: "Kit 170 varillero + leva", precio: 99990 }
+        },
+        historial: [
+            { rol: "user", contenido: "¡Hola! Quiero más información SOBRE EL KIT 170 + LEVA DE CALLE DE 7.80?" },
+            { rol: "assistant", contenido: "Hola amigo!\n👉🏼 Cuesta $99.990 envio gratis.\n\nA que moto se lo queres poner?" },
+            { rol: "user", contenido: "A la motomel s2\nDe donde son" },
+            {
+                rol: "assistant",
+                contenido:
+                    "Si, va perfecto en la S2 150 sin modificar nada.\n\nEstamos en Revolución de Mayo 1605, barrio Crisol, Córdoba capital."
+            }
+        ],
+        resultadoEsperado: {
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            descripcionEsperada:
+                "Es una pregunta de ubicacion sobre algo ya contestado: se le confirma que estamos en Cordoba capital. PROHIBIDO derivar por compatibilidad —la moto ya la confirmo la herramienta— y prohibido quedarse mudo."
+        }
+    },
+    {
+        // La contracara del 19, y lo que ese caso probaba sin querer: el kit 120
+        // NO le va a la Wave (ninguno de los tres combos: hay que alesar los
+        // carteres). Con la moto en el mismo mensaje, el menu del Paso 1 no se
+        // puede mandar — invitarlo a elegir entre tres kits que no le entran es
+        // afirmarle que alguno le sirve, y es lo que atajaba el backstop de la
+        // moto (`ofreceProductosParaLaMoto`, anclado al nombre de la moto).
+        //
+        // Aca el dato esta cargado y la negativa viene redactada de la base, asi
+        // que el bot puede resolverlo solo; si no llega, la salida segura es
+        // derivar. Lo que se fija es el hecho: el menu de los tres combos no
+        // sale. Los otros dos temas de la rafaga (envios y confianza) se
+        // contestan igual, que es el escalado parcial de siempre.
+        id: "caso-96-menu-del-paso-1-no-sale-si-no-le-va",
+        titulo: "Kit ambiguo + moto a la que no le va ninguno: no sale el menú de opciones (contracara del 19)",
+        mensajeCliente:
+            "Hola cuanto sale el kit 120 para wave?\nHacen envios a Jujuy?\nY como se que es seguro y no es una estafa?",
+        resultadoEsperado: {
+            // El escalado queda libre a proposito: con la negativa cargada el
+            // modelo puede contestarla solo (y seguir con envios y confianza),
+            // y si no la usa, derivar es correcto. Lo que NO puede pasar es el
+            // menu de kits para una moto a la que no le entra ninguno.
+            patronProhibido: /codo y carburador|tres (?:versiones|opciones|combos)|cu[áa]l de (?:las tres|los tres|estas|estos)/i,
+            descripcionEsperada:
+                "Al kit 120 no le va la Wave (hay que alesar los cárteres). PROHIBIDO mandarle el menú de los tres combos ni invitarlo a elegir: o le sale la negativa redactada de la base, o se deriva. Envíos a Jujuy y confianza se contestan igual."
         }
     }
 ]

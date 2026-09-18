@@ -789,7 +789,16 @@ export function afirmaCompatibilidad(texto: string | null | undefined): boolean 
         // en 4 dias" contaba como afirmacion de compatibilidad.
         /\b(le|te)\s+(va|entra|calza|sirve|anda|ir[ía]a)\s+(bien|perfecto|directo|de una|joya|b[áa]rbaro|igual|sin problema|sin drama)\b/i,
         /\b(le|te)\s+(va|entra|calza|sirve|anda)\s*[.!]*$/i,
-        /\b(le|te)\s+(queda|va a ir|va a entrar|va a andar)\b/i,
+        // `queda` lleva complemento obligatorio por el mismo motivo: "si te
+        // queda comodo pasas por el local" habla de la direccion del local, no
+        // de la moto. Sin el complemento ese globo de ubicacion se leia como
+        // afirmacion de compatibilidad sin dato, y el backstop de la moto
+        // tiraba el turno entero (conv 4538, 18/09: la compat de la S2 150
+        // estaba confirmada un turno antes y el cliente solo preguntaba de
+        // donde somos). Los otros usos de mostrador que caian aca: "te queda
+        // cerca", "te queda a mano", "si te queda de paso".
+        /\b(le|te)\s+queda\s+(bien|perfecto|justo|clavado|al pelo|de una|igual|sin problema|sin drama)\b/i,
+        /\b(le|te)\s+(va a ir|va a entrar|va a andar)\b/i,
         /\bsin\s+(hacer\s+)?(ninguna\s+)?modificaci[oó]n(es)?\b/i,
         /\bsin\s+modificar\s+nada\b/i,
         /\b(anda|funciona)\s+(directo|perfecto)\b/i,
@@ -881,6 +890,51 @@ export function ofreceProductosParaLaMoto(
  */
 export function presentaPrecioDeProducto(texto: string | null | undefined): boolean {
     return /\$\s?\d/.test((texto || "").trim())
+}
+
+/**
+ * ¿El mensaje le PONE UN MENÚ DE PRODUCTOS enfrente? (dos o más, por nombre)
+ *
+ * El mismo criterio del precio —el hecho, no la redacción— para el caso que
+ * el precio no cubre: el menú del Paso 1, que a propósito va sin precios.
+ *
+ * El hueco que tapa: `ofreceProductosParaLaMoto` persigue la forma "tenemos …
+ * opciones" con el nombre de la moto cerca, y el modelo escribe *"El kit 120
+ * para Wave lo tenemos en tres versiones, decime cuál estás buscando:"* con
+ * los tres nombres en las líneas de abajo. La regex no cruza el salto de
+ * línea, así que ese menú pasaba 2 de cada 3 veces — y al kit 120 no le va
+ * ninguna Wave (hay que alesar los cárteres). Invitarlo a elegir entre tres
+ * kits que no le entran es afirmarle que alguno le sirve, sin el dato.
+ *
+ * Por qué DOS y no uno: hablar de un producto con la moto en juego es la
+ * charla normal (el que ya está en el embudo, una pregunta puntual sobre él).
+ * Enumerar dos o más es un menú, y un menú es el Paso 1 — que con una moto en
+ * juego y sin compatibilidad confirmada es exactamente lo que el aviso de la
+ * moto del catálogo prohíbe. El motor pasa solo los productos que el cliente
+ * NO vio todavía: el que ya está presentado no cuenta.
+ *
+ * El nombre se reconoce por sus palabras distintivas, TODAS presentes: el
+ * modelo los copia tal cual del bloque que le da la herramienta, y exigirlas
+ * todas evita que "Combo Tapa CDI + Cilindro 120" matchee con un "el combo de
+ * 120" al pasar. Las genéricas del catálogo (combo, kit…) no distinguen nada.
+ */
+const PALABRAS_GENERICAS_DE_CATALOGO = new Set(["combo", "kit", "kits", "para", "con", "mas"])
+
+export function cuentaProductosNombrados(
+    texto: string | null | undefined,
+    nombres: (string | null | undefined)[]
+): number {
+    const t = normalizarTexto(texto || "")
+    if (!t) return 0
+    let cuenta = 0
+    for (const nombre of nombres) {
+        const distintivas = normalizarTexto(nombre || "")
+            .split(/[^a-z0-9.]+/)
+            .filter((p) => p.length > 3 && !/^\d/.test(p) && !PALABRAS_GENERICAS_DE_CATALOGO.has(p))
+        if (distintivas.length === 0) continue
+        if (distintivas.every((p) => t.includes(p))) cuenta++
+    }
+    return cuenta
 }
 
 /**

@@ -23,7 +23,7 @@ import {
     fotoEntrega
 } from "../nucleo/estado-persistente"
 import { consultarCatalogoPrecios } from "../herramientas/catalogo-precios"
-import { ofreceProductosParaLaMoto, afirmaTenerParaSuMoto, oracionQuePreguntaLaMoto } from "../guardrails/sanitizador"
+import { ofreceProductosParaLaMoto, afirmaTenerParaSuMoto, oracionQuePreguntaLaMoto, cuentaProductosNombrados, afirmaCompatibilidad } from "../guardrails/sanitizador"
 import { cilindradaSinMarca, marcaConCilindradaSinModelo } from "../nucleo/motos"
 
 const CLAVE = "prueba-moto-mencionada"
@@ -218,6 +218,50 @@ async function main() {
     agregar(
         "una pregunta con precio adentro tampoco",
         oracionQuePreguntaLaMoto("Te paso la data del 200, sale $167.000. Lo querés?", "zanella 150") === null
+    )
+
+    // El MENÚ del Paso 1 (conv del caso 96): lo que `ofreceProductosParaLaMoto`
+    // no ve porque su regex no cruza el salto de línea. Se cuenta por nombre de
+    // producto, que es el hecho, no por la frase que los envuelve.
+    const COMBOS_120 = [
+        "Combo 110 a 120 + Codo y carburador",
+        "Combo Tapa CDI + Cilindro 120",
+        "Kit 120 corto + Leva 6.40"
+    ]
+    agregar(
+        "el menu de los tres combos se cuenta entero, con los nombres en otro renglon",
+        cuentaProductosNombrados(
+            "El kit 120 para Wave lo tenemos en tres versiones, decime cual buscas:\n👉🏼 Combo 110 a 120 + Codo y carburador\n👉🏼 Combo Tapa CDI + Cilindro 120\n👉🏼 Kit 120 corto + Leva 6.40",
+            COMBOS_120
+        ) === 3
+    )
+    agregar(
+        "ese mismo menu es el que la regex anclada al nombre de la moto NO ve",
+        ofreceProductosParaLaMoto(
+            "El kit 120 para Wave lo tenemos en tres versiones, decime cual buscas:\n👉🏼 Combo 110 a 120 + Codo y carburador\n👉🏼 Combo Tapa CDI + Cilindro 120\n👉🏼 Kit 120 corto + Leva 6.40",
+            "Honda Wave 110"
+        ) === false
+    )
+    agregar(
+        "hablar de UN combo no es un menu",
+        cuentaProductosNombrados("El Combo Tapa CDI + Cilindro 120 lo tenemos en corto y largo.", COMBOS_120) === 1
+    )
+    agregar(
+        "un combo nombrado al pasar no cuenta: faltan sus palabras distintivas",
+        cuentaProductosNombrados("El combo de 120 sale $175.000 con envio gratis.", COMBOS_120) === 0
+    )
+    agregar(
+        "la negativa redactada no nombra ningun producto del menu",
+        cuentaProductosNombrados("Ese kit no le va a la Wave. Para que entre hay que alesar los carteres.", COMBOS_120) === 0
+    )
+    // "te queda cómodo" es la dirección del local, no la moto (conv 4538).
+    agregar(
+        "'si te queda comodo pasas por el local' NO afirma compatibilidad",
+        afirmaCompatibilidad("Sisi, de Córdoba capital. Así que si te queda cómodo pasas por el local, y si no te lo mandamos.") === false
+    )
+    agregar(
+        "'le queda perfecto' si la afirma",
+        afirmaCompatibilidad("Ese kit le queda perfecto a tu moto.") === true
     )
 
     let fallaron = 0

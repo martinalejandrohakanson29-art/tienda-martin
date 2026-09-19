@@ -34,6 +34,10 @@ Este proyecto existe para no repetir la explosión de nodos de n8n. **Un caso nu
 Siempre correr `pruebas/correr-banco.ts` antes de cerrar un cambio del bot.
 
 ### 1. Directorio y Componentes Clave
+> **Planes escritos y medidos, todavía SIN implementar.** Son autocontenidos (la memoria de Claude no viaja entre PCs, esto sí). Leerlos antes de rediseñar lo que ya está analizado:
+> - `bot-agente/PLAN-VERIFICADOR-GROUNDING.md` — sexto eslabón del sanitizado con Jev (`typesafe/jev-1.13`, modelo de decisiones), para atajar el borrador que afirma un dato duro que ninguna tool devolvió. Medido 11/11 el 19/09. Arranca en `chat_config.verificador_grounding_modo = off`.
+> - `bot-agente/VENTANA-24HS-FINDE.md` — la ventana de 24hs de Meta que se vence los fines de semana.
+
 - `bot-agente/motor.ts`: Núcleo de ejecución. Recibe mensaje + historial + `conversationId` opcional y maneja el ciclo ReAct (máx. 6 pasos). El contexto temporal de Córdoba, el bloque `MEMORIA DE ESTADO`, el anuncio de origen y las situaciones detectadas van en un **segundo mensaje de sistema, después del historial** — NO arriba del prompt: ver §10. Cada paso se pide con `llamarLLM` (timeout 60s, 3 intentos con backoff ante 429/408/5xx, y salto al proveedor suplente si el principal se cae del todo).
 - `bot-agente/prompts/sistema.ts`: Prompt maestro ACOTADO (~60% más chico que antes): identidad, voz, puntuación WhatsApp, contrato de grounding y resumen del embudo. Nada de listas largas de casos.
 - `bot-agente/nucleo/`: núcleo compartido — `texto.ts` (normalización + `puntuarItemCatalogo`, antes duplicado) y `estado-persistente.ts` (memoria del embudo en `chat_conversacion_estado`).

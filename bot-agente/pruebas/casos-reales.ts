@@ -32,6 +32,8 @@ export interface CasoPrueba {
         repreguntasMoto?: number
         /** Negativa de compatibilidad que ya se le dio en un turno anterior. */
         negativaEntregada?: { moto: string; kit: string; detalle: string; en: string }
+        /** El bot ya le preguntó cuál de varios kits busca y el cliente no eligió todavía. */
+        eleccionPendiente?: { candidatos: string[]; en: string }
     }
     /**
      * Envejece el `estadoInicial`: lo deja como si el último turno de la charla
@@ -2202,6 +2204,53 @@ export const CASOS_PRUEBA_REALES: CasoPrueba[] = [
             patronProhibido: /codo y carburador|tres (?:versiones|opciones|combos)|cu[áa]l de (?:las tres|los tres|estas|estos)/i,
             descripcionEsperada:
                 "Al kit 120 no le va la Wave (hay que alesar los cárteres). PROHIBIDO mandarle el menú de los tres combos ni invitarlo a elegir: o le sale la negativa redactada de la base, o se deriva. Envíos a Jujuy y confianza se contestan igual."
+        }
+    },
+    {
+        // Conv 4499 (18/09, +5493516239032). Clickeó dos anuncios (el Kit 120 +
+        // leva y el Combo Tapa CDI + Cilindro 120) y el bot le preguntó bien en
+        // cuál estaba interesado. Al día siguiente contestó "En el kit 120 / el
+        // que trae el cilindro carburador y escape" — la respuesta a NUESTRA
+        // pregunta, sobre combos que están cargados con su ficha y su precio.
+        //
+        // Pero Meta le pegó a ese mensaje el referral de un TERCER aviso
+        // (Escape PWR + Leva 6.40): el referral resolvió a ESE combo y la guarda
+        // de la conv 4386 ("entró por el anuncio y pide otra medida") leyó el
+        // "120" como un producto ajeno al aviso. Silencio total y a la bandeja.
+        // Contestó Martín a mano al otro día.
+        //
+        // Mientras la elección esté abierta, el aviso que el cliente no escribió
+        // no decide el turno: lo que escribió se resuelve contra el catálogo.
+        id: "caso-97-contesta-cual-kit-con-otro-aviso-pegado",
+        titulo: "Contesta cuál kit busca y Meta le pega el referral de otro aviso (conv 4499)",
+        mensajeCliente: "En el kit 120\nEl qe trae el cilindro carburador y escape",
+        referralAnuncio: {
+            titulo: "GANA MAS RENDIMIENTO EN TU 110!",
+            cuerpo: "Combo Escape Paolucci PWR 110 + Leva de calle de 6.40 para GANAR mas rendimiento en tu moto!"
+        },
+        historial: [
+            {
+                rol: "user",
+                contenido:
+                    "¿Hola quier mas informacion sobre el kit 120 + leva de calle de 6.4?\n¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!"
+            },
+            { rol: "assistant", contenido: "Hola bro! Veo que estás consultando por varios kits, en cuál estás interesado?" }
+        ],
+        estadoInicial: {
+            eleccionPendiente: { candidatos: ["grupo:3", "grupo:4"], en: new Date().toISOString() }
+        },
+        resultadoEsperado: {
+            debeLlamarHerramientas: ["consultar_catalogo_y_precios"],
+            debeEscalarHumano: false,
+            debeGuardarSilencio: false,
+            // Ni la ficha del aviso que no pidió: su precio es lo que la delata
+            // ($125.000 del Combo Escape pwr + Leva 6.40). Que el menú del Paso
+            // 1 llegue a nombrar ese combo es otro tema —el scorer puntúa alto
+            // "escape" cuando el modelo busca la frase entera— y no es lo que
+            // prueba este caso.
+            patronProhibido: /125\.000/,
+            descripcionEsperada:
+                "Está contestando cuál kit busca: la consulta se resuelve contra el catálogo (los combos con cilindro 120 están cargados). Prohibido derivar en silencio por el aviso que Meta le pegó al mensaje, y prohibido mandarle la ficha de ese aviso."
         }
     }
 ]

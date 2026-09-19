@@ -85,6 +85,21 @@ export interface EstadoConversacion {
      */
     repreguntasMoto?: number
     /**
+     * El bot le preguntó al cliente CUÁL de varios kits busca y todavía no
+     * eligió. Los candidatos van como "grupo:3"/"pack:7".
+     *
+     * Conv 4499 (18/09): el cliente clickeó dos anuncios, el bot le preguntó en
+     * cuál estaba interesado y él contestó "En el kit 120 / el que trae el
+     * cilindro carburador y escape". Esa respuesta llegó con el referral de un
+     * TERCER aviso pegado por Meta, y la guarda de "entró por el anuncio y pide
+     * otra medida" (conv 4386) leyó el 120 como un producto ajeno al aviso:
+     * silencio total y a la bandeja, con la ficha de ese combo cargada.
+     *
+     * Mientras la elección siga abierta, un aviso que el cliente NO escribió no
+     * decide el turno: lo que escribió es la respuesta a nuestra pregunta.
+     */
+    eleccionPendiente?: { candidatos: string[]; en: string } | null
+    /**
      * Cuándo se escribió por última vez este estado, o sea cuándo fue el último
      * turno de la charla. Es de SOLO LECTURA (lo pone la base en cada guardado):
      * sirve para saber si lo que hay acá adentro es de la charla de ahora o de
@@ -133,6 +148,12 @@ const ESCALADO_PENDIENTE_VIGENCIA_MS = 24 * 60 * 60 * 1000
  * "no le va" cuando escribe de nuevo es justo el destrato que evitamos.
  */
 const NEGATIVA_VIGENCIA_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * La elección abierta dura lo que dura la charla: el cliente que vuelve a los
+ * días no está contestando la pregunta de la semana pasada.
+ */
+const ELECCION_PENDIENTE_VIGENCIA_MS = GAP_NUEVA_SESION_MS
 
 /** Clave canónica de un tema para comparar sin duplicar por mayúsculas/acentos. */
 export function normalizarTema(tema: string): string {
@@ -186,6 +207,8 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                 negativa_detalle: string | null
                 negativa_en: Date | null
                 repreguntas_moto: number | null
+                eleccion_pendiente_candidatos: string[] | null
+                eleccion_pendiente_en: Date | null
             }[]
         >`
             SELECT grupo_pineado_id, grupo_pineado_nombre, variante_pack_id,
@@ -194,7 +217,8 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                    COALESCE(temas_respondidos, '{}') AS temas_respondidos,
                    escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en,
                    negativa_moto, negativa_kit, negativa_detalle, negativa_en,
-                   COALESCE(repreguntas_moto, 0) AS repreguntas_moto
+                   COALESCE(repreguntas_moto, 0) AS repreguntas_moto,
+                   eleccion_pendiente_candidatos, eleccion_pendiente_en
             FROM chat_conversacion_estado
             WHERE clave = ${clave}
             LIMIT 1
@@ -232,6 +256,12 @@ export async function cargarEstadoConversacion(clave?: string): Promise<EstadoCo
                   }
                 : null,
             repreguntasMoto: Number(f.repreguntas_moto) || 0,
+            eleccionPendiente: vigente(f.eleccion_pendiente_en, ELECCION_PENDIENTE_VIGENCIA_MS)
+                ? {
+                      candidatos: f.eleccion_pendiente_candidatos || [],
+                      en: (f.eleccion_pendiente_en || new Date()).toISOString()
+                  }
+                : null,
             negativaEntregada:
                 f.negativa_moto && vigente(f.negativa_en, NEGATIVA_VIGENCIA_MS)
                     ? {
@@ -406,7 +436,8 @@ export async function guardarEstadoConversacion(
         patch.temasRespondidos === undefined &&
         patch.escaladoPendiente === undefined &&
         patch.negativaEntregada === undefined &&
-        patch.repreguntasMoto === undefined
+        patch.repreguntasMoto === undefined &&
+        patch.eleccionPendiente === undefined
     ) {
         return
     }
@@ -432,13 +463,15 @@ export async function guardarEstadoConversacion(
             negativaEntregada:
                 patch.negativaEntregada !== undefined ? patch.negativaEntregada : actual.negativaEntregada,
             repreguntasMoto:
-                patch.repreguntasMoto !== undefined ? patch.repreguntasMoto : actual.repreguntasMoto
+                patch.repreguntasMoto !== undefined ? patch.repreguntasMoto : actual.repreguntasMoto,
+            eleccionPendiente:
+                patch.eleccionPendiente !== undefined ? patch.eleccionPendiente : actual.eleccionPendiente
         }
 
         await prisma.$executeRawUnsafe(
             `INSERT INTO chat_conversacion_estado
-                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, moto_mencionada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, repreguntas_moto, actualizado_en)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
+                (clave, grupo_pineado_id, grupo_pineado_nombre, variante_pack_id, variante_etiqueta, variante_precio, moto_confirmada, moto_mencionada, pack_presentado_id, pack_presentado_nombre, pack_presentado_precio, temas_respondidos, escalado_pendiente_motivo, escalado_pendiente_resumen, escalado_pendiente_en, negativa_moto, negativa_kit, negativa_detalle, negativa_en, repreguntas_moto, eleccion_pendiente_candidatos, eleccion_pendiente_en, actualizado_en)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW())
              ON CONFLICT (clave) DO UPDATE SET
                 grupo_pineado_id = EXCLUDED.grupo_pineado_id,
                 grupo_pineado_nombre = EXCLUDED.grupo_pineado_nombre,
@@ -459,6 +492,8 @@ export async function guardarEstadoConversacion(
                 negativa_detalle = EXCLUDED.negativa_detalle,
                 negativa_en = EXCLUDED.negativa_en,
                 repreguntas_moto = EXCLUDED.repreguntas_moto,
+                eleccion_pendiente_candidatos = EXCLUDED.eleccion_pendiente_candidatos,
+                eleccion_pendiente_en = EXCLUDED.eleccion_pendiente_en,
                 actualizado_en = NOW()`,
             clave,
             merged.grupoPineado?.id ?? null,
@@ -479,7 +514,9 @@ export async function guardarEstadoConversacion(
             merged.negativaEntregada?.kit ?? null,
             merged.negativaEntregada?.detalle ?? null,
             merged.negativaEntregada?.en ? new Date(merged.negativaEntregada.en) : null,
-            merged.repreguntasMoto ?? 0
+            merged.repreguntasMoto ?? 0,
+            merged.eleccionPendiente?.candidatos ?? null,
+            merged.eleccionPendiente?.en ? new Date(merged.eleccionPendiente.en) : null
         )
     } catch (err) {
         console.warn("[estado] no se pudo guardar chat_conversacion_estado:", (err as any)?.message)

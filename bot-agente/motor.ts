@@ -655,6 +655,16 @@ export async function ejecutarTurnoAgente(
         cargarEstadoConversacion(estadoKey)
     ])
 
+    /**
+     * Aviso de Meta por el que entró el cliente, VIGENTE para este turno.
+     *
+     * Es local y no `opciones.referralAnuncio` porque el turno puede
+     * descartarlo: si el bot tiene una pregunta abierta y el cliente la
+     * contestó por escrito, el aviso que Meta le pegó al mensaje no decide nada
+     * (conv 4499, ver el bloque del match de plantilla).
+     */
+    let referralAnuncio = opciones.referralAnuncio
+
     // La variante de la moto anterior deja de ser firme cuando el cliente
     // nombra otro modelo. Es un dato del cliente, no una entrega del bot.
     if (estadoConv.varianteResuelta && (estadoConv.motoMencionada || estadoConv.motoConfirmada)) {
@@ -992,6 +1002,16 @@ export async function ejecutarTurnoAgente(
             )
 
             if (pregunta && !yaSePregunto) {
+                // Queda anotado que hay una elección abierta: hasta que el
+                // cliente conteste, un aviso que él no escribió no puede
+                // decidir el turno por él (conv 4499, ver más abajo).
+                await guardarEstadoConversacion(estadoKey, {
+                    eleccionPendiente: {
+                        candidatos: plantillasEnLaRafaga.map((p) => `${p.tipo}:${p.id}`),
+                        en: new Date().toISOString()
+                    }
+                }).catch(() => {})
+
                 return {
                     mensajeFinal: pregunta,
                     mensajesFinales: [pregunta],
@@ -1021,7 +1041,46 @@ export async function ejecutarTurnoAgente(
         // escribe directo lo suyo ("Tengo una skua 150") y el único dato del kit
         // está en el anuncio (convs 3357 y 3664, 08/09).
         const matchTexto = await detectarPlantillaAnuncio(mensajeUsuario)
-        const matchRef = matchTexto ? null : await detectarPlantillaPorReferral(opciones.referralAnuncio)
+        let matchRef = matchTexto ? null : await detectarPlantillaPorReferral(referralAnuncio)
+
+        /**
+         * EL CLIENTE ESTÁ CONTESTANDO NUESTRA PREGUNTA, NO ENTRANDO POR UN AVISO.
+         *
+         * Conv 4499 (18/09, +5493516239032): clickeó dos anuncios, el bot le
+         * preguntó "en cuál estás interesado?" y contestó *"En el kit 120 / el
+         * que trae el cilindro carburador y escape"* — el combo está cargado,
+         * con su ficha y su precio. Pero Meta le pegó a esa respuesta el
+         * referral de un TERCER aviso (Escape PWR + Leva 6.40), el referral
+         * resolvió a ESE combo y la guarda de la conv 4386 leyó el "120" como un
+         * producto ajeno al aviso: silencio total y a la bandeja del equipo.
+         * Contestó Martín a mano al día siguiente.
+         *
+         * Mientras la elección siga abierta, el aviso no decide: lo que el
+         * cliente ESCRIBIÓ es la respuesta a nuestra pregunta y se resuelve
+         * contra el catálogo, como cualquier turno normal.
+         *
+         * Dos cosas que sí siguen mandando sobre la elección abierta:
+         *  - la plantilla exacta de un aviso escrita por el cliente
+         *    (`matchTexto`): eso lo mandó él, es una respuesta explícita;
+         *  - que el aviso clickeado SEA uno de los candidatos: elegir por click
+         *    también es elegir, y su ficha tiene que salir.
+         */
+        const eleccionAbierta = estadoConv.eleccionPendiente
+        const refEsCandidato =
+            !!matchRef &&
+            !matchRef.ambiguo &&
+            !!eleccionAbierta?.candidatos.includes(`${matchRef.tipo}:${matchRef.id}`)
+
+        if (eleccionAbierta && !matchTexto && !refEsCandidato) {
+            if (matchRef || referralAnuncio) {
+                console.warn(
+                    `[motor] hay una elección de kit abierta (${eleccionAbierta.candidatos.join(", ")}): el referral del aviso no decide este turno`
+                )
+            }
+            matchRef = null
+            referralAnuncio = undefined
+        }
+
         if (matchRef && matchRef.ambiguo) {
             console.warn(
                 `[motor] el anuncio pega con varios kits del catálogo (${matchRef.candidatos.join(", ")}): no se entrega bienvenida, solo contexto`
@@ -1073,8 +1132,8 @@ export async function ejecutarTurnoAgente(
             // reconocer que el cliente solo está nombrando ESE combo.
             const contextoAnuncio = [
                 matchPlantilla.nombre,
-                opciones.referralAnuncio?.titulo,
-                opciones.referralAnuncio?.cuerpo
+                referralAnuncio?.titulo,
+                referralAnuncio?.cuerpo
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -1215,11 +1274,13 @@ export async function ejecutarTurnoAgente(
                         id: matchPlantilla.id,
                         nombre: matchPlantilla.nombre,
                         precio: matchPlantilla.precio || 0
-                    }
+                    },
+                    eleccionPendiente: null
                 }).catch(() => {})
             } else if (matchPlantilla.tipo === "grupo") {
                 await guardarEstadoConversacion(estadoKey, {
-                    grupoPineado: { id: matchPlantilla.id, nombre: matchPlantilla.nombre }
+                    grupoPineado: { id: matchPlantilla.id, nombre: matchPlantilla.nombre },
+                    eleccionPendiente: null
                 }).catch(() => {})
             }
 
@@ -1450,7 +1511,14 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
     // Patch de estado que se irá llenando con lo que resuelvan las herramientas
     // y se persiste al final del turno.
     const patchEstado: EstadoConversacion = {}
-    const persistirEstado = () => guardarEstadoConversacion(estadoKey, patchEstado).catch(() => {})
+    const persistirEstado = () => {
+        // El embudo se decidió por un producto: la elección dejó de estar
+        // abierta (la vuelve a abrir el propio catálogo si hay más de una).
+        if (patchEstado.eleccionPendiente === undefined && (patchEstado.grupoPineado || patchEstado.packPresentado)) {
+            patchEstado.eleccionPendiente = null
+        }
+        return guardarEstadoConversacion(estadoKey, patchEstado).catch(() => {})
+    }
 
     /**
      * Deja anotado en la memoria de la charla que esta consulta quedó derivada
@@ -1532,8 +1600,8 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
      * motor sobre el mensaje ya redactado (ver el backstop de más abajo).
      */
     let otraMedidaDelAnuncio: { cilindrada?: number } | null = null
-    if (opciones.referralAnuncio) {
-        const contextoAnuncio = [opciones.referralAnuncio.titulo, opciones.referralAnuncio.cuerpo]
+    if (referralAnuncio) {
+        const contextoAnuncio = [referralAnuncio.titulo, referralAnuncio.cuerpo]
             .filter(Boolean)
             .join(" ")
         const pedido = await pideOtroProductoQueElAnuncio(mensajeUsuario, contextoAnuncio).catch((err) => {
@@ -1580,11 +1648,11 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
     // Salvo que lo que escribió pida OTRA medida: ahí buscar el aviso en el
     // catálogo es justo lo que no hay que hacer — es lo que le trajo la ficha
     // del 120 a quien preguntaba por un 125 (conv 4555).
-    const bloqueAnuncio = opciones.referralAnuncio
+    const bloqueAnuncio = referralAnuncio
         ? [
               "### ANUNCIO POR EL QUE ENTRÓ EL CLIENTE (Instagram/Facebook):",
-              opciones.referralAnuncio.titulo ? `Título: ${opciones.referralAnuncio.titulo}` : "",
-              opciones.referralAnuncio.cuerpo ? `Texto: ${opciones.referralAnuncio.cuerpo}` : "",
+              referralAnuncio.titulo ? `Título: ${referralAnuncio.titulo}` : "",
+              referralAnuncio.cuerpo ? `Texto: ${referralAnuncio.cuerpo}` : "",
               otraMedidaDelAnuncio
                   ? `El cliente NO viene por ese producto: pide otra medida${otraMedidaDelAnuncio.cilindrada ? ` (${otraMedidaDelAnuncio.cilindrada})` : ""}, que ya quedó derivada al equipo. No busques el aviso en el catálogo ni le pases el kit del aviso, su precio o su foto: no es lo que preguntó.`
                   : "El cliente viene por ESE producto aunque no lo nombre. Buscalo en el catálogo con esos términos antes de preguntarle qué necesita. Si no lo encontrás, escalá: no inventes ni ofrezcas otro kit como si fuera el del anuncio."
@@ -3001,6 +3069,25 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
             const r = ej.resultado || {}
             if (ej.nombre === "consultar_catalogo_y_precios" && Array.isArray(r.grupos) && r.grupos.length === 1 && (r.packs?.length ?? 0) === 0) {
                 patchEstado.grupoPineado = { id: r.grupos[0].id, nombre: r.grupos[0].nombre }
+            }
+            /**
+             * El catálogo devolvió más de una opción: el bot le va a preguntar
+             * cuál busca (Paso 1). Queda anotado igual que cuando la pregunta
+             * la hace el motor por la ráfaga de anuncios — mientras la elección
+             * esté abierta, un aviso que el cliente no escribió no la pisa
+             * (conv 4499).
+             */
+            if (ej.nombre === "consultar_catalogo_y_precios") {
+                const opcionesDelCatalogo = [
+                    ...(Array.isArray(r.grupos) ? r.grupos.map((g: any) => `grupo:${g.id}`) : []),
+                    ...(Array.isArray(r.packs) ? r.packs.map((p: any) => `pack:${p.id}`) : [])
+                ]
+                if (opcionesDelCatalogo.length > 1) {
+                    patchEstado.eleccionPendiente = {
+                        candidatos: opcionesDelCatalogo,
+                        en: new Date().toISOString()
+                    }
+                }
             }
             // Un solo pack suelto resuelto (kit sin grupo): queda "presentado".
             if (

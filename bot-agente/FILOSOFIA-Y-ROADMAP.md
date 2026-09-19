@@ -213,6 +213,17 @@ Un punto medio moderno, robusto y limpio:
     - `scripts/atender-pendientes.ts` a mano (`--estado` lista, `--forzar` saltea horario + grace).
   - **Sigue dependiendo de `bot_horario` bien cargado + `horario_automatico=true`.** Válvula: `atender-pendientes.ts --forzar`.
 
+- [x] **Fase 7.2: Reconciliación contra Chatwoot (el webhook que nunca llegó)** — 19/09
+  - **Problema:** la Fase 7.1 cubre "el webhook llegó y el trabajo murió". No cubre "**el webhook nunca llegó**". Toda la red se sembraba desde el propio webhook, así que si el POST de Chatwoot fallaba, el mensaje del cliente **no dejaba rastro en ninguna tabla del motor** y ningún barrido lo podía recuperar: no había fila que barrer. Y Chatwoot **no reintenta**. Conv **4601** (+5493575488486, 19/09 11:23): entró por el anuncio del Kit 170 justo mientras el server reiniciaba, el `message_created` se perdió y el cliente quedó mudo hasta que Martín lo vio a mano. Lo único que quedó fue la fila del espejo — la escribió el `conversation_created`, que **no dispara el motor**.
+  - **Solución:** `reconciliarEntrantesPerdidos()` (`lib/bot-agente-tiempo-real.ts`) le pregunta a **Chatwoot** (la fuente de verdad; el espejo NO sirve, lo escribe el mismo webhook que se perdió) por conversaciones `open` cuyo último mensaje es del cliente, descarta las que ya tienen fila pendiente o un turno posterior, y **siembra** el resto en `bot_agente_entrantes_pendientes`. De ahí las toma el barrido de siempre, con su reserva por fila, su corte anti-loop y su gate de ventana 24hs. Es un chequeo de red: **si siembra algo, algo se rompió** (queda un `console.warn` por conversación).
+  - **Guardas** (aflojar cualquiera manda un mensaje de más a un cliente real):
+    - **grace 6 min**, más ancho que el del barrido — dentro de eso el mensaje todavía lo tiene el camino en vivo.
+    - **ventana 6 hs** y **tope 5 por corrida** — que un primer arranque no resucite backlog viejo de golpe.
+    - **mismo disparador que el webhook**: sin texto (audio/foto sin caption) no se siembra. El bot no atiende audios *por diseño*, no por un webhook perdido; ensanchar la red ahí la llena de ruido que tapa la señal real.
+  - **Disparadores:** `setInterval` cada 5 min, **a los 30s de cada arranque** (que es justo cuando se pierden webhooks), y `scripts/atender-pendientes.ts` (`--sin-reconciliar` lo saltea).
+  - **`decidirCandidataReconciliacion()` es puro y exportado**, y devuelve el motivo del descarte, no un booleano: cuando la red no agarra algo que debería, lo primero que hay que saber es cuál filtro se lo comió. Replay de la conv 4601 + 6 casos borde en `bot-agente/pruebas/probar-reconciliacion.ts` (`simular: true` corre todo el filtrado sin escribir).
+  - **Pendiente, otro agujero de la misma charla:** un **audio** del cliente sin transcribir nunca dispara el motor y nadie lo levanta (conv **4594**, 19/09 — 2hs sin respuesta). No se tapa desde acá.
+
 ---
 
 ## 6. Blindaje de los 6 Casos Críticos

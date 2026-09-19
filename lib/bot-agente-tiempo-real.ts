@@ -872,6 +872,222 @@ const BARRIDO_GRACE_MS = 4 * 60 * 1000
 let barridoDesde: number | null = null
 const barridoEnCurso = () => barridoDesde !== null && Date.now() - barridoDesde < BARRIDO_MAX_MS
 
+// --- RECONCILIACIÓN contra Chatwoot -----------------------------------------
+// El barrido de arriba solo ve lo que el WEBHOOK alcanzó a registrar en
+// `bot_agente_entrantes_pendientes`. Si el `message_created` nunca llega a la
+// app (Chatwoot no reintenta: si el POST falla, ese mensaje no se vuelve a
+// anunciar nunca), el mensaje del cliente no deja rastro en ninguna tabla del
+// motor y queda mudo para siempre -- ningún barrido lo recupera porque no hay
+// fila que barrer.
+//
+// Pasó con la conv 4601 (19/09, 11:23): el cliente entró por el anuncio del Kit
+// 170, el server estaba reiniciando y ese POST se perdió. Lo único que quedó fue
+// la fila del espejo, escrita por el `conversation_created` -- que NO dispara el
+// motor. El cliente estuvo sin respuesta hasta que Martín lo vio a mano.
+//
+// Esta función cierra el circuito preguntándole a Chatwoot (la fuente de verdad,
+// no nuestro espejo, que también depende del webhook) por conversaciones abiertas
+// cuyo ÚLTIMO mensaje es del cliente y nadie contestó, y sembrándolas en
+// `bot_agente_entrantes_pendientes`. De ahí en adelante las atiende el barrido de
+// siempre, con su reserva por fila, su corte anti-loop y su gate de ventana 24hs.
+//
+// Es un chequeo de red, no un camino normal: si siembra algo, algo se rompió.
+
+/** No tocar un mensaje más nuevo que esto: el camino en vivo todavía lo tiene
+ *  (debounce hasta 60s + modelo + demora humana ~70s). Más ancho que el grace
+ *  del barrido a propósito: sembrar de más duplicaría una respuesta. */
+const RECONCILIACION_GRACE_MS = 6 * 60 * 1000
+/** Ni mirar más atrás que esto. Acota el daño de un primer arranque (no
+ *  resucita backlog viejo de golpe) y se queda lejos de la ventana de 24hs. */
+const RECONCILIACION_VENTANA_MS = 6 * 60 * 60 * 1000
+/** Tope de conversaciones sembradas por corrida: si algo se rompe feo, que no
+ *  salga una avalancha de mensajes. Las que sobran caen en la corrida siguiente. */
+const RECONCILIACION_MAX_SEMBRADAS = 5
+/** Páginas de Chatwoot a mirar (25 conversaciones por página, las más activas). */
+const RECONCILIACION_PAGINAS = 2
+
+type CandidataReconciliacion = { conversationId: number; mensajeEn: Date }
+
+/**
+ * Decisión PURA sobre una conversación de Chatwoot: ¿su último mensaje es uno
+ * del cliente que el motor debería haber atendido y no atendió?
+ *
+ * Separada de la consulta a la API para poder probarla contra un mensaje real
+ * congelado (`scratch/probar-reconciliacion.ts` replaya la conv 4601). Devuelve
+ * el motivo del descarte y no solo un booleano: cuando esta red no agarra algo
+ * que debería, lo primero que hay que saber es cuál de los filtros lo comió.
+ */
+export function decidirCandidataReconciliacion(
+    conv: any,
+    ahora: number
+): { sembrar: true; conversationId: number; mensajeEn: Date } | { sembrar: false; motivo: string } {
+    const conversationId = Number(conv?.id || 0)
+    if (!conversationId) return { sembrar: false, motivo: "sin id" }
+
+    const ultimo = conv?.last_non_activity_message
+    // Sin último mensaje no hay nada que juzgar. Y si el último es nuestro (o
+    // una nota privada del equipo), ya está atendido.
+    if (!ultimo) return { sembrar: false, motivo: "sin último mensaje" }
+    if (ultimo.private) return { sembrar: false, motivo: "nota privada del equipo" }
+    const esEntrante = ultimo.message_type === 0 || ultimo.message_type === "incoming"
+    if (!esEntrante) return { sembrar: false, motivo: "el último mensaje es nuestro" }
+
+    // MISMO disparador que el camino en vivo (ver el webhook): sin texto del
+    // cliente el motor no arranca -- un audio o una foto sin caption no los
+    // atiende el bot por diseño, no porque se haya perdido nada. Si acá
+    // fuéramos más anchos que el webhook, esta red marcaría como "perdido" algo
+    // que el sistema ignora a propósito, y sembraría una fila por corrida que el
+    // barrido después tira: ruido que tapa la señal real. Que un audio quede sin
+    // contestar es OTRO agujero, y se arregla en su lugar, no ensanchando esta red.
+    const textoCrudo = (ultimo.content || "").toString().trim()
+    if (!textoCrudo) return { sembrar: false, motivo: "sin texto (audio/foto)" }
+    if (esPlaceholderDeChatwoot(textoCrudo)) return { sembrar: false, motivo: "placeholder de Chatwoot" }
+
+    // El created_at del mensaje es más preciso que el last_activity_at de la
+    // conversación (que también se mueve por cosas que no son un mensaje:
+    // etiquetas, asignaciones, checks de lectura).
+    const epoch = Number(ultimo.created_at || conv?.last_activity_at || 0)
+    if (!epoch) return { sembrar: false, motivo: "sin fecha" }
+    const mensajeEn = new Date(epoch * 1000)
+    const edad = ahora - mensajeEn.getTime()
+    if (edad < RECONCILIACION_GRACE_MS) return { sembrar: false, motivo: "muy nuevo: lo tiene el camino en vivo" }
+    if (edad > RECONCILIACION_VENTANA_MS) return { sembrar: false, motivo: "fuera de la ventana" }
+
+    return { sembrar: true, conversationId, mensajeEn }
+}
+
+/**
+ * Conversaciones abiertas de Chatwoot cuyo último mensaje es entrante del
+ * cliente. Se lee de la API, NO del espejo: el espejo lo escribe el mismo
+ * webhook que puede haberse perdido.
+ */
+async function candidatasSinResponderEnChatwoot(accountId: number): Promise<CandidataReconciliacion[]> {
+    const { api, token } = chatwootConfig()
+    if (!token) return []
+
+    const ahora = Date.now()
+    const candidatas: CandidataReconciliacion[] = []
+
+    for (let pagina = 1; pagina <= RECONCILIACION_PAGINAS; pagina++) {
+        const res = await chatwootFetch(
+            `${api}/accounts/${accountId}/conversations?status=open&page=${pagina}`,
+            { headers: { api_access_token: token }, cache: "no-store" } as RequestInit
+        )
+        if (!res.ok) {
+            console.error(`[reconciliacion] Chatwoot respondió ${res.status} en la página ${pagina}`)
+            break
+        }
+        const json = await res.json().catch(() => null)
+        const items: any[] = json?.data?.payload || json?.payload || []
+        if (items.length === 0) break
+
+        for (const conv of items) {
+            const decision = decidirCandidataReconciliacion(conv, ahora)
+            if (decision.sembrar) {
+                candidatas.push({ conversationId: decision.conversationId, mensajeEn: decision.mensajeEn })
+            }
+        }
+
+        if (items.length < 25) break
+    }
+
+    return candidatas
+}
+
+/**
+ * Siembra en `bot_agente_entrantes_pendientes` los mensajes del cliente que el
+ * webhook nunca registró. Devuelve cuántas conversaciones sembró.
+ *
+ * Descarta, en este orden:
+ *   1. las que YA tienen fila pendiente (las está atendiendo el barrido),
+ *   2. las que ya tienen un turno registrado posterior al mensaje -- el camino
+ *      en vivo las atendió (respondió, escaló, o se calló a propósito),
+ *   3. las que el motor no maneja (global apagado y no son piloto).
+ *
+ * Lo que NO chequea acá (pausa humana, ventana de 24hs, hilo ya contestado) lo
+ * chequea el barrido al tomar la fila: un solo lugar para esas reglas.
+ */
+export async function reconciliarEntrantesPerdidos(
+    opciones: { forzar?: boolean; accountId?: number; simular?: boolean } = {}
+): Promise<number> {
+    const accountId = opciones.accountId ?? 1
+    if (!opciones.forzar && !(await botDentroDeHorario().catch(() => false))) return 0
+
+    const candidatas = await candidatasSinResponderEnChatwoot(accountId).catch((err) => {
+        console.error("[reconciliacion] no se pudo consultar Chatwoot:", err)
+        return [] as CandidataReconciliacion[]
+    })
+    if (candidatas.length === 0) return 0
+
+    const global = await botAgenteGlobalActivo()
+    const ids = candidatas.map((c) => BigInt(c.conversationId))
+
+    const yaPendientes = await prisma.$queryRaw<{ conversation_id: bigint }[]>`
+        SELECT conversation_id FROM bot_agente_entrantes_pendientes
+        WHERE conversation_id = ANY(${ids})
+    `
+    const pendientes = new Set(yaPendientes.map((f) => Number(f.conversation_id)))
+
+    // Último turno registrado por conversación: si es posterior al mensaje, el
+    // camino en vivo ya lo atendió (aunque haya terminado en "salteado").
+    const ultimoTurno = await prisma.$queryRaw<{ conversation_id: bigint; ult: Date }[]>`
+        SELECT conversation_id, MAX(creado_en) ult FROM bot_agente_turnos_reales
+        WHERE conversation_id = ANY(${ids})
+        GROUP BY conversation_id
+    `
+    const turnos = new Map(ultimoTurno.map((f) => [Number(f.conversation_id), f.ult]))
+
+    let sembradas = 0
+    for (const c of candidatas) {
+        if (sembradas >= RECONCILIACION_MAX_SEMBRADAS) break
+        if (pendientes.has(c.conversationId)) continue
+
+        const ult = turnos.get(c.conversationId)
+        if (ult && ult.getTime() >= c.mensajeEn.getTime()) continue
+
+        if (!global && !(await esConversacionPiloto(c.conversationId))) continue
+
+        // `simular`: mismo filtrado, sin escribir. Sirve para mirar qué haría
+        // contra los datos reales sin que el barrido salga a mandar mensajes.
+        if (opciones.simular) {
+            sembradas++
+            console.warn(
+                `[reconciliacion] (simulado) conv ${c.conversationId}: mensaje del cliente de ` +
+                    `${c.mensajeEn.toISOString()} sin registrar por el webhook.`
+            )
+            continue
+        }
+
+        // ON CONFLICT DO NOTHING, no DO UPDATE: si entre la lectura y este INSERT
+        // el webhook sembró la fila de verdad, la del webhook manda -- pisarle el
+        // `ultimo_mensaje_en` con una fecha vieja le desarmaría el guard de ráfaga.
+        const filas = await prisma.$executeRaw`
+            INSERT INTO bot_agente_entrantes_pendientes
+                (conversation_id, account_id, primer_mensaje_en, ultimo_mensaje_en, actualizado_en)
+            VALUES (${c.conversationId}, ${accountId}, ${c.mensajeEn}, ${c.mensajeEn}, now())
+            ON CONFLICT (conversation_id) DO NOTHING
+        `
+        if (filas > 0) {
+            sembradas++
+            console.warn(
+                `[reconciliacion] conv ${c.conversationId}: mensaje del cliente de ${c.mensajeEn.toISOString()} ` +
+                    `sin registrar por el webhook. Sembrado para el barrido.`
+            )
+        }
+    }
+
+    return sembradas
+}
+
+/** Dispara la reconciliación y, si sembró algo, el barrido que la atiende. */
+export function reconciliarEntrantesPerdidosEnSegundoPlano() {
+    void reconciliarEntrantesPerdidos()
+        .then((n) => {
+            if (n > 0) atenderEntrantesPendientesEnSegundoPlano()
+        })
+        .catch((err) => console.error("[bot-agente-tiempo-real] falló la reconciliación con Chatwoot:", err))
+}
+
 /** Dispara el barrido sin bloquear a quien lo gatilló (webhook, cola, setInterval). */
 export function atenderEntrantesPendientesEnSegundoPlano() {
     void atenderEntrantesPendientes().catch((err) =>
@@ -1147,6 +1363,20 @@ if (typeof setInterval === "function" && !(globalThis as any).__botAgenteBarrido
     const t = setInterval(() => atenderEntrantesPendientesEnSegundoPlano(), 3 * 60 * 1000)
     if (typeof (t as any).unref === "function") (t as any).unref()
     ;(globalThis as any).__botAgenteBarridoInterval = t
+}
+
+// Reconciliación periódica contra Chatwoot: el barrido de arriba NO alcanza si
+// el webhook nunca llegó (no hay fila que barrer). Va aparte y más espaciado
+// porque pega contra la API de Chatwoot, no contra nuestra base. Un arranque
+// del proceso es justo el momento en que se pierden webhooks, así que también
+// corre una vez a los 30s de levantar, sin esperar el primer tick.
+if (typeof setInterval === "function" && !(globalThis as any).__botAgenteReconciliacionInterval) {
+    const t = setInterval(() => reconciliarEntrantesPerdidosEnSegundoPlano(), 5 * 60 * 1000)
+    if (typeof (t as any).unref === "function") (t as any).unref()
+    ;(globalThis as any).__botAgenteReconciliacionInterval = t
+
+    const arranque = setTimeout(() => reconciliarEntrantesPerdidosEnSegundoPlano(), 30 * 1000)
+    if (typeof (arranque as any).unref === "function") (arranque as any).unref()
 }
 
 export type ResultadoReprocesoConv = {

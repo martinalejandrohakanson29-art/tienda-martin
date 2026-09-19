@@ -11,15 +11,35 @@
  *   npx tsx scripts/atender-pendientes.ts            # solo si el local está abierto
  *   npx tsx scripts/atender-pendientes.ts --forzar   # saltea el gate de horario y el grace de 4 min
  *   npx tsx scripts/atender-pendientes.ts --estado   # lista la cola sin responder
+ *   npx tsx scripts/atender-pendientes.ts --sin-reconciliar  # no consultar Chatwoot, solo la cola local
  */
 import "dotenv/config"
 import { prisma } from "@/lib/prisma"
-import { atenderEntrantesPendientes } from "@/lib/bot-agente-tiempo-real"
+import { atenderEntrantesPendientes, reconciliarEntrantesPerdidos } from "@/lib/bot-agente-tiempo-real"
 
 async function main() {
     const args = process.argv.slice(2)
     const forzar = args.includes("--forzar")
     const soloEstado = args.includes("--estado")
+    const sinReconciliar = args.includes("--sin-reconciliar")
+
+    // Primero la RECONCILIACIÓN: le pregunta a Chatwoot si hay algún mensaje del
+    // cliente que el webhook nunca registró (POST perdido en un reinicio) y lo
+    // siembra en la cola. Sin esto, el barrido de abajo no lo puede ver: no hay
+    // fila que barrer. Ver conv 4601 (19/09).
+    // `--estado` es de solo lectura: la reconciliación ESCRIBE filas, así que no
+    // corre ahí.
+    if (!sinReconciliar && !soloEstado) {
+        const sembradas = await reconciliarEntrantesPerdidos({ forzar }).catch((e) => {
+            console.error("No se pudo reconciliar contra Chatwoot:", e)
+            return 0
+        })
+        console.log(
+            sembradas > 0
+                ? `Reconciliación: ${sembradas} conversación(es) que el webhook nunca registró, sembradas en la cola.`
+                : "Reconciliación: nada perdido (todo lo del cliente quedó registrado)."
+        )
+    }
 
     const filas = await prisma.$queryRaw<
         { conversation_id: bigint; account_id: bigint; primer_mensaje_en: Date; ultimo_mensaje_en: Date; intentos: number }[]

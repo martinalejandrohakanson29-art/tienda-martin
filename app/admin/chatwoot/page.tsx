@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, ArrowRight, BarChart3, Boxes, MessagesSquare, ListChecks, MessageSquareQuote } from "lucide-react"
+import { MessageCircle, ArrowRight, BarChart3, Boxes, MessagesSquare, ListChecks, MessageSquareQuote, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -61,6 +61,13 @@ export default async function ChatwootPage() {
             icon: <Boxes className="h-8 w-8 text-emerald-600" />,
             href: "/admin/chatwoot/catalogo",
             color: "border-l-4 border-l-emerald-500"
+        },
+        {
+            title: "Control de Calidad",
+            description: "Un segundo par de ojos que mira cada mensaje antes de que salga y marca los que afirman algo que la base no le dio. No frena nada: anota, y vos decís si estaba mal o si fue falsa alarma.",
+            icon: <ShieldCheck className="h-8 w-8 text-amber-600" />,
+            href: "/admin/chatwoot/verificador",
+            color: "border-l-4 border-l-amber-500"
         },
         {
             title: "Situaciones del Bot",

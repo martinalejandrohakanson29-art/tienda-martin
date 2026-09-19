@@ -13,6 +13,7 @@ import { pideOtraCilindradaQueElProducto } from "./nucleo/cilindrada-objetivo"
 import { conversionDesdeMotorAjeno } from "./nucleo/conversion-pedida"
 import { empaquetarLectura, leerNumeros, lecturaYaHecha } from "./nucleo/numeros-del-mensaje"
 import { piezaQueVendemosSuelta } from "./nucleo/venta-suelta"
+import { verificarGrounding, registrarVerificacion } from "./nucleo/verificador-grounding"
 import { coincideIntencionDirecta } from "./nucleo/afirmaciones"
 import { mismaConsultaCompatibilidad, tieneVeredictoCompatibilidad, algunProductoLeVa } from "./nucleo/consulta-compatibilidad"
 import { bloqueLetraDeLaCasa, bloqueCierresDeLaCasa } from "./frases"
@@ -2093,6 +2094,65 @@ ${guiaMotoDesconocida(motoDesconocidaDelTurno)}`
                 const sinNegativaDeLoDerivado = escaladoParcial
                     ? quitarNegativaSobreLoDerivado(sinAnuncioDeDerivacion, terminosSinMatchEnTurno)
                     : sinAnuncioDeDerivacion
+                /**
+                 * SEXTO ESLABÓN — VERIFICADOR DE GROUNDING (Jev).
+                 *
+                 * Los cinco de arriba saben cómo se ESCRIBE un problema. Este
+                 * mira si el borrador afirma un dato duro que ninguna
+                 * herramienta devolvió — lo único de la cadena que no se puede
+                 * hardcodear, porque el conjunto de referencia cambia en cada
+                 * turno (ver `nucleo/verificador-grounding.ts`).
+                 *
+                 * FALLA ABIERTO y, en `sombra`, NO frena nada: solo registra.
+                 * En `off` (el default) ni siquiera se llama.
+                 */
+                if (
+                    sinNegativaDeLoDerivado &&
+                    !pareceRespuestaNoConfiable(sinNegativaDeLoDerivado) &&
+                    config.verificadorGroundingModo !== "off"
+                ) {
+                    const verif = await verificarGrounding(
+                        {
+                            borrador: sinNegativaDeLoDerivado,
+                            herramientasEjecutadas,
+                            // La ficha oficial que el cliente ya leyó en esta
+                            // misma ráfaga. Sin esto el camino de la plantilla
+                            // del anuncio marca el 39% de los borradores buenos.
+                            fichaOficialDelTurno: opciones.globosYaEmitidos,
+                            mensajeCliente: mensajeUsuario,
+                            escaladoParcial,
+                            terminosSinMatch: terminosSinMatchEnTurno
+                        },
+                        {
+                            apiKey: config.openrouterApiKey,
+                            modelo: config.verificadorGroundingModelo,
+                            timeoutMs: config.verificadorGroundingTimeoutMs
+                        }
+                    )
+                    if (verif) {
+                        const marcado = verif.noul >= config.verificadorGroundingUmbral
+                        if (marcado) {
+                            console.warn(
+                                `[motor] verificador de grounding: noul ${verif.noul.toFixed(2)} >= ${config.verificadorGroundingUmbral} — "${sinNegativaDeLoDerivado.slice(0, 120)}"`
+                            )
+                        }
+                        // El veto es la Fase 3 y todavía no está: hasta
+                        // entonces `veto` se comporta como `sombra`, que es lo
+                        // seguro. El mensaje sale igual, marcado o no.
+                        await registrarVerificacion({
+                            conversationId: opciones.conversationId ?? null,
+                            borrador: sinNegativaDeLoDerivado,
+                            estado: verif.estado,
+                            noul: verif.noul,
+                            umbral: config.verificadorGroundingUmbral,
+                            marcado,
+                            accion: "sombra",
+                            ms: verif.ms,
+                            costoUsd: verif.costoUsd
+                        })
+                    }
+                }
+
                 if (sinNegativaDeLoDerivado && !pareceRespuestaNoConfiable(sinNegativaDeLoDerivado)) {
                     mensajesFinalesSanitizados.push(sinNegativaDeLoDerivado)
                 }

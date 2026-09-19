@@ -1658,6 +1658,27 @@ model bot_cola_historico {
   @@index([fecha(sort: Desc)], map: "idx_bot_cola_historico_fecha")
 }
 
+/// Sombra del verificador de grounding (Jev). Una fila por globo chequeado.
+/// Ver bot-agente/PLAN-VERIFICADOR-GROUNDING.md y n8n-workflows/bot-verificador-grounding.sql
+model bot_agente_verificador_grounding {
+  id               Int      @id @default(autoincrement())
+  creado_en        DateTime @default(now()) @db.Timestamptz(6)
+  conversation_id  Int?
+  turno_id         Int?
+  borrador         String
+  estado_tools     Json?
+  noul             Decimal? @db.Decimal(4, 3)
+  umbral           Decimal? @db.Decimal(4, 3)
+  marcado          Boolean
+  accion           String
+  ms               Int?
+  costo_usd        Decimal? @db.Decimal(12, 9)
+  /// 'acertado' | 'falso_positivo' | null — lo carga Martin leyendo los marcados
+  veredicto_humano String?
+
+  @@index([marcado, creado_en(sort: Desc)], map: "idx_verif_grounding_marcado")
+}
+
 model bot_agente_turnos_reales {
   id              Int      @id @default(autoincrement())
   conversation_id BigInt

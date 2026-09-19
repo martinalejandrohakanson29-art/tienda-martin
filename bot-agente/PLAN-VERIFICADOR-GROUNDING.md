@@ -1,6 +1,10 @@
 # Verificador de grounding con Jev (modelo de decisiones)
 
-> Estado: **análisis y plan medido, sin implementar**. Conversación del 19/09/2026.
+> Estado: **Fases 0, 1 y 2 HECHAS el 19/09/2026. LA SOMBRA ESTÁ PRENDIDA.**
+> `verificador_grounding_modo = sombra`: registra y NO frena nada. Se lee y se
+> apaga desde `/admin/chatwoot/verificador`. Falta la Fase 3 (veto), que no se
+> toca hasta tener 2 semanas de sombra y los criterios del §10 cumplidos.
+> Análisis y plan del 19/09/2026.
 > Este documento es autocontenido a propósito: la memoria de Claude vive en la
 > máquina de Martín (`~/.claude/projects/...`) y **no viaja** a otra compu. Lo
 > único que viaja es esto, versionado en el repo. Todo lo que hace falta para
@@ -163,6 +167,110 @@ se paga el salto por OpenRouter). Por eso el timeout va en **1500 ms**, no 800.
 
 **Costo: US$0,0000175 por chequeo**, unos 25 centavos por mes al volumen actual.
 
+## 6-bis. Fase 0 corrida — lo que cambió respecto del §6 (19/09/2026)
+
+El banco del §6 se corrió de nuevo con los `resultado` **reales serializados**
+(`bot_agente_turnos_reales.herramientas`, que guarda `herramientasEjecutadas`
+entero) y, además, se midió lo que el §7.2 daba por imposible sin sombra: la
+tasa de marcados sobre **300 turnos reales de producción**. Scripts en
+`scratch/` (OJO: `scratch/` está en el `.gitignore`, así que esos scripts NO
+viajan — lo que quedó versionado y repite la medición es
+`bot-agente/pruebas/probar-verificador-grounding.ts`). Costo del ejercicio:
+**US$0,05**. Producción no se tocó.
+
+### a) El `state` del §5 estaba INCOMPLETO — y era el 55% del tráfico
+
+Con el `state` tal cual lo describe el §5 (solo `herramientasEjecutadas`), el
+barrido marcó **39% de los turnos** con umbral 0.85. El criterio de matar del
+§10 es >5%. Pero no era Jev: **166 de los 300 turnos (55%) son de plantilla del
+anuncio**, y el `resultado` de `match_plantilla_publicidad` no trae **ni un
+hecho** — solo `mensaje_para_agente: "Se entrega la bienvenida oficial"`. La
+ficha con el precio sale de `mensaje_bienvenida`, que en esos turnos no está en
+ninguna tool. O sea: Jev marcaba correctamente un borrador con `$99.990` que,
+en el `state` que le dábamos, **no tenía respaldo**.
+
+Corolario para la Fase 1: `verificarGrounding` recibe, además de
+`herramientasEjecutadas`, **la ficha oficial que el turno está por entregar**
+(`mensaje_bienvenida` + precio + envío del pack/grupo matcheado). El motor la
+tiene a mano: es literalmente el texto que va a mandar. Sin eso el verificador
+es inusable.
+
+*(Ojo: `consultar_catalogo_y_precios` **sí** devuelve `mensaje_bienvenida`
+dentro del `resultado`. El agujero es solo el camino de la plantilla.)*
+
+### b) Con la ficha en el `state`, el número del §7.2 queda medido
+
+300 turnos reales, `state` completo:
+
+```
+noul   0.0  54   0.1 158   0.2  33   0.3  22   0.4  15
+       0.5  10   0.6   4   0.7   3   0.8   1   0.9+  0
+
+>= 0.50 : 6,0%  (18 turnos)
+>= 0.80 : 0,3%  (1 turno)
+>= 0.85 : 0,0%
+latencia p50 379ms · p90 508ms · p99 851ms · 0 fallas · US$0,000078 por chequeo
+```
+
+El pico en 0.8-0.9 desapareció entero. Los 18 de ≥0.50 son legibles a mano en
+diez minutos y varios son afirmaciones de compatibilidad que vale la pena
+revisar igual.
+
+### c) Los casos malos, con el mismo `state` (mediana de 3)
+
+```
+3894 precio ajeno          0.98      BUENO precio y envio        0.17
+compat inventada           0.98      BUENO cilindro suelto       0.20
+3707 los dos cilindros     0.97      BUENO niega pieza entera    0.09
+3820 termino sin match     0.97      BUENO pregunta variante     0.06
+plazo inventado            0.97
+4394 t440 (REAL, de la BD) 0.89
+3707 niega el piston       0.84  <-- el mas flojo
+```
+
+Malos 0.84-0.98, buenos 0.06-0.20. **7/7 y 4/4.**
+
+### d) El umbral baja a 0.80, no 0.85
+
+El 0.85 del §9 salía del banco escrito a mano. Con el `state` real, el caso del
+pistón (el que costó la conv 3707) vive en **0.82-0.85**: con 0.85 se escapa. En
+0.80 entran los 7 malos y el tráfico real marca 0,3%. **`verificador_grounding_umbral`
+arranca en `0.80`.**
+
+### e) "Casi determinista" vale solo en los casos nítidos
+
+El §6 dice ±0.01 en 5 repeticiones y que el `--repetir 3` no hace falta. Con
+`state` real eso se sostiene arriba de 0.9 y abajo de 0.3, pero **no en el
+medio**:
+
+```
+3707 los dos cilindros (claro)   0.97 0.97 0.98 0.98 0.97 0.97   rango 0.01
+3707 niega el piston (borde)     0.83 0.86 0.88 0.86 0.87 0.87   rango 0.05
+conv 4525 t878 (borde)           0.69 0.54 0.59 0.63 0.60 0.70   rango 0.16
+```
+
+Consecuencia práctica: **un borrador parado justo en el umbral cambia de lado
+entre corridas.** Para la sombra da igual (se registra el número). Para el veto
+de la Fase 3 hay que decidir qué se hace en la franja gris, o poner el umbral
+donde el tráfico real no vive (0.80 lo cumple: solo 1 de 300).
+
+### f) Lo que la Fase 0 NO resuelve
+
+La conv 4525 (turno 878, compat derivada por `moto_no_registrada` y el bot igual
+manda la ficha del 200 con precio) da **0.67**: por debajo de cualquier umbral
+usable. El §1 la lista como caso a atajar y **el verificador no la ataja**. No es
+falta de grounding — el precio del 200 estaba en los hechos —, es una regla de
+embudo, y ya tiene su eslabón determinista. Hay que bajarla de las expectativas
+del proyecto.
+
+### g) Veredicto
+
+Los tres criterios de matar del §10 pasan con margen (0,3% << 5%; p90 508ms <<
+2s; el ejercicio entero costó 5 centavos). **Se sigue a Fase 1**, con dos
+cambios al plan escrito: el `state` lleva la ficha oficial (a) y el umbral
+arranca en 0.80 (d).
+
+
 ## 7. Lo que NO probamos (leer antes de confiar)
 
 1. **El banco de 11 lo escribió Claude sabiendo la respuesta.** Prueba que el
@@ -186,24 +294,49 @@ tal cual quedan, y pasar los mismos 12 casos. **Si la separación se mantiene, s
 sigue. Si se derrumba, el problema es el formato del `state` y se itera acá,
 gratis, antes de escribir una línea de producción.**
 
-### Fase 1 — El cliente
+### Fase 1 — El cliente ✅ HECHA (19/09)
+
+Quedó andando: `nucleo/verificador-grounding.ts` (cliente + `registrarVerificacion`),
+el eslabón en `motor.ts` (dentro del `for` sobre `partes`, guardado por
+`modo !== "off"`), las 4 claves en `configuracion.ts`, el SQL corrido (tabla
+creada, 0 filas) y el banco propio en `pruebas/probar-verificador-grounding.ts`
+dando **11/11** con hechos reales de la base (malos 0.82-0.98, buenos
+0.05-0.30). `npx tsc --noEmit` en 0 y el banco del bot verde.
+
+Dos cosas que NO están y hay que saberlo antes de prender la sombra:
+* **No hay pantalla para leer los marcados.** Se guardan en la tabla; la vista
+  en `/admin/chatwoot/chats-vivo` es Fase 2.
+* **`veto` todavía no veta.** Hoy se comporta como `sombra` (está comentado así
+  en el motor). Frenar mensajes es Fase 3, y solo si la sombra da bien.
+
+Lo que se escribió:
 
 `bot-agente/nucleo/verificador-grounding.ts`, chico y aislado:
 
-* Una función `verificarGrounding({ borrador, herramientasEjecutadas, escaladoParcial, terminosSinMatch })` → `{ noul, ms, costo } | null`.
+* Una función `verificarGrounding({ borrador, herramientasEjecutadas, fichaOficialDelTurno, escaladoParcial, terminosSinMatch })` → `{ noul, ms, costo } | null`.
+  **`fichaOficialDelTurno` no es opcional:** sin ella el camino de la plantilla
+  marca el 39% del tráfico (§6-bis(a)).
 * `null` en cualquier falla. **Falla abierto, siempre.**
 * Timeout 1500 ms, sin reintentos (es un guardrail, no el turno).
 * Lee la key de `chat_config.openrouter_api_key` con fallback a
   `process.env.OPENROUTER_API_KEY`, igual que `configuracion.ts:117`.
 
-### Fase 2 — Sombra (2 semanas, riesgo cero)
+### Fase 2 — Sombra (2 semanas, riesgo cero) ✅ PANTALLA HECHA (19/09)
 
 Corre en el motor y **no frena nada**. Solo registra.
 
 * Tabla nueva, una fila por globo: ver el SQL en §9.
-* Vista en `/admin/chatwoot/chats-vivo` con los marcados, para que Martín lea
-  SOLO esos y diga "estaba mal / estaba bien" con un clic.
-* Chip de salud al lado del de DeepSeek si Jev se cae.
+* **Pantalla propia en `/admin/chatwoot/verificador`**, no dentro de
+  chats-vivo como decía este plan: el trabajo es leer una bandeja corta de
+  marcados y juzgarlos en tanda, y adentro del hilo de un chat eso compite con
+  la conversación. Tiene el switch de prendido/apagado, las cuatro métricas con
+  su criterio escrito al lado (marcado <5%, acierto >=80%, p90 <1200 ms), los
+  borradores marcados con el JSON de los hechos desplegable, y los dos botones
+  de veredicto.
+* Salud: en vez de un chip aparte, la propia pantalla avisa si el modo está
+  prendido y no hubo un solo chequeo en la última hora.
+* El switch solo ofrece `off` y `sombra`. `veto` se rechaza en la acción del
+  servidor para que nadie lo prenda creyendo que frena algo.
 
 ### Fase 3 — Veto (solo si la sombra da bien)
 
@@ -252,7 +385,7 @@ CREATE INDEX IF NOT EXISTS idx_verif_grounding_marcado
 
 INSERT INTO chat_config (clave, valor) VALUES
     ('verificador_grounding_modo',       'off'),   -- off | sombra | veto
-    ('verificador_grounding_umbral',     '0.85'),
+    ('verificador_grounding_umbral',     '0.80'),   -- medido en Fase 0, §6-bis(d)
     ('verificador_grounding_modelo',     'typesafe/jev-1.13'),
     ('verificador_grounding_timeout_ms', '1500')
 ON CONFLICT (clave) DO NOTHING;
@@ -277,6 +410,10 @@ efecto y se prende cuando Martín quiera.
 * Marca >5% de los borradores → como veto frena ventas. Se baja el umbral una
   vez y si sigue, afuera.
 * La latencia p90 pasa los 2 s → no vale 2 segundos por turno.
+
+**Dónde se leen los tres números:** los tres están en la pantalla, cada uno con
+su criterio escrito al lado, así no hay que volver a este documento para saber
+si 4% es bueno o malo.
 
 Costo de equivocarse: 25 centavos y un `chat_config` en `off`.
 

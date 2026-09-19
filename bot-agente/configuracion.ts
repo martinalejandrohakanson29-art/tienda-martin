@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { MENSAJE_INCOMPATIBILIDAD_DEFAULT, MENSAJE_COMPATIBLE_DEFAULT, MENSAJE_VARIOS_KITS_DEFAULT } from "@/lib/chat-config-constants"
+import { VERIFICADOR_DEFAULTS, normalizarModo, type ModoVerificador } from "./nucleo/verificador-grounding"
 
 export interface ConfiguracionAgente {
     tonoEstilo: string
@@ -60,6 +61,17 @@ export interface ConfiguracionAgente {
     respuestaDelayMaxSeg: number
     /** true = el bot-agente responde TODAS las conversaciones (no solo las de bot_agente_piloto). n8n debe estar apagado. */
     botAgenteGlobal: boolean
+    /**
+     * Verificador de grounding con Jev (sexto eslabón del sanitizado).
+     * `off` = no se llama ni una vez · `sombra` = corre y solo registra, no
+     * frena nada · `veto` = frena el borrador marcado (Fase 3, todavía sin
+     * implementar: hoy se comporta como `sombra`).
+     * Ver `bot-agente/PLAN-VERIFICADOR-GROUNDING.md`.
+     */
+    verificadorGroundingModo: ModoVerificador
+    verificadorGroundingUmbral: number
+    verificadorGroundingModelo: string
+    verificadorGroundingTimeoutMs: number
 }
 
 export const CONFIG_DEFAULTS: ConfiguracionAgente = {
@@ -81,7 +93,11 @@ export const CONFIG_DEFAULTS: ConfiguracionAgente = {
     respuestaDelayActivo: true,
     respuestaDelayMinSeg: 45,
     respuestaDelayMaxSeg: 75,
-    botAgenteGlobal: false
+    botAgenteGlobal: false,
+    verificadorGroundingModo: VERIFICADOR_DEFAULTS.modo, // arranca apagado: se prende desde chat_config, sin deploy
+    verificadorGroundingUmbral: VERIFICADOR_DEFAULTS.umbral,
+    verificadorGroundingModelo: VERIFICADOR_DEFAULTS.modelo,
+    verificadorGroundingTimeoutMs: VERIFICADOR_DEFAULTS.timeoutMs
 }
 
 /**
@@ -146,6 +162,18 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
 
         const botAgenteGlobal = mapa.get("bot_agente_global") === "true"
 
+        // Verificador de grounding: todo se prende, se calibra y se apaga desde
+        // `chat_config`, igual que `proveedor_activo`. Un valor raro cae en `off`.
+        const verificadorGroundingModo = normalizarModo(mapa.get("verificador_grounding_modo"))
+        const umbralRaw = parseFloat(mapa.get("verificador_grounding_umbral") || "")
+        const verificadorGroundingUmbral =
+            Number.isFinite(umbralRaw) && umbralRaw > 0 && umbralRaw <= 1 ? umbralRaw : CONFIG_DEFAULTS.verificadorGroundingUmbral
+        const verificadorGroundingModelo =
+            (mapa.get("verificador_grounding_modelo") || "").trim() || CONFIG_DEFAULTS.verificadorGroundingModelo
+        const timeoutRaw = parseInt(mapa.get("verificador_grounding_timeout_ms") || "", 10)
+        const verificadorGroundingTimeoutMs =
+            Number.isFinite(timeoutRaw) && timeoutRaw >= 200 ? timeoutRaw : CONFIG_DEFAULTS.verificadorGroundingTimeoutMs
+
         return {
             tonoEstilo,
             palabrasProhibidas,
@@ -165,7 +193,11 @@ export async function obtenerConfiguracionAgente(): Promise<ConfiguracionAgente>
             respuestaDelayActivo,
             respuestaDelayMinSeg,
             respuestaDelayMaxSeg,
-            botAgenteGlobal
+            botAgenteGlobal,
+            verificadorGroundingModo,
+            verificadorGroundingUmbral,
+            verificadorGroundingModelo,
+            verificadorGroundingTimeoutMs
         }
     } catch (err) {
         console.error("Error al leer chat_config, usando valores por defecto:", err)
